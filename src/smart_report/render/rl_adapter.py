@@ -1,0 +1,262 @@
+"""ReportLab canvas adapter."""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+from contextlib import contextmanager
+from importlib import import_module
+from pathlib import Path
+from typing import Protocol, cast
+
+from ..layout.node import Rect
+from ..style.color import RGBA
+
+
+class CanvasLike(Protocol):
+    def saveState(self) -> None: ...
+    def restoreState(self) -> None: ...
+    def setFillColorRGB(self, r: float, g: float, b: float) -> None: ...
+    def setStrokeColorRGB(self, r: float, g: float, b: float) -> None: ...
+    def setFillAlpha(self, alpha: float) -> None: ...
+    def setStrokeAlpha(self, alpha: float) -> None: ...
+    def setLineWidth(self, width: float) -> None: ...
+    def rect(self, x: float, y: float, width: float, height: float, stroke: int = 1, fill: int = 0) -> None: ...
+    def roundRect(self, x: float, y: float, width: float, height: float, radius: float, stroke: int = 1, fill: int = 0) -> None: ...
+    def line(self, x1: float, y1: float, x2: float, y2: float) -> None: ...
+    def beginPath(self) -> object: ...
+    def clipPath(self, path: object, stroke: int = 0, fill: int = 0) -> None: ...
+    def setFont(self, font_name: str, font_size: float, leading: float | None = None) -> None: ...
+    def beginText(self, x: float, y: float) -> object: ...
+    def drawText(self, text_object: object) -> None: ...
+    def drawImage(self, image: str, x: float, y: float, width: float, height: float, mask: object | None = None) -> None: ...
+    def translate(self, dx: float, dy: float) -> None: ...
+    def scale(self, x: float, y: float) -> None: ...
+    def setPageSize(self, size: tuple[float, float]) -> None: ...
+    def showPage(self) -> None: ...
+    def save(self) -> None: ...
+
+
+class TextObjectLike(Protocol):
+    def setFont(self, font_name: str, font_size: float, leading: float | None = None) -> None: ...
+    def setFillColorRGB(self, r: float, g: float, b: float) -> None: ...
+    def setTextOrigin(self, x: float, y: float) -> None: ...
+    def setLeading(self, leading: float) -> None: ...
+    def textLine(self, text: str = "") -> None: ...
+
+
+class PathLike(Protocol):
+    def rect(self, x: float, y: float, width: float, height: float) -> None: ...
+
+
+class StringWidthFn(Protocol):
+    def __call__(self, text: str, font_name: str, font_size: float) -> float: ...
+
+
+class CanvasFactory(Protocol):
+    def __call__(self, file_path: str, pagesize: tuple[float, float]) -> CanvasLike: ...
+
+
+class SvgToDrawingFn(Protocol):
+    def __call__(self, path: str) -> object: ...
+
+
+class RenderDrawingFn(Protocol):
+    def __call__(self, drawing: object, canvas: object, x: float, y: float) -> None: ...
+
+
+class ReportLabCanvasAdapter:
+    _canvas: CanvasLike
+    page_width: float
+    page_height: float
+
+    def __init__(self, file_path: str, page_size: tuple[float, float]) -> None:
+        canvas_module = import_module("reportlab.pdfgen.canvas")
+        canvas_class = cast(CanvasFactory, getattr(canvas_module, "Canvas"))
+        self._canvas = canvas_class(file_path, pagesize=page_size)
+        self.page_width, self.page_height = page_size
+
+    @property
+    def canvas(self) -> CanvasLike:
+        return self._canvas
+
+    @contextmanager
+    def isolated_state(self) -> Iterator[CanvasLike]:
+        self._canvas.saveState()
+        try:
+            yield self._canvas
+        finally:
+            self._canvas.restoreState()
+
+    def set_page_size(self, page_size: tuple[float, float]) -> None:
+        self.page_width, self.page_height = page_size
+        self._canvas.setPageSize(page_size)
+
+    def to_rl_y(self, top_y: float, height: float) -> float:
+        return self.page_height - top_y - height
+
+    def apply_clip_rect(self, rect: Rect) -> None:
+        path = cast(PathLike, self._canvas.beginPath())
+        path.rect(rect.x, self.to_rl_y(rect.y, rect.height), rect.width, rect.height)
+        self._canvas.clipPath(path, stroke=0, fill=0)
+
+    def set_fill(self, color: RGBA | None) -> None:
+        if color is None:
+            return
+        self._canvas.setFillColorRGB(color.red, color.green, color.blue)
+        self._canvas.setFillAlpha(color.alpha)
+
+    def set_stroke(self, color: RGBA | None, stroke_width: float) -> None:
+        if color is None or stroke_width <= 0:
+            return
+        self._canvas.setStrokeColorRGB(color.red, color.green, color.blue)
+        self._canvas.setStrokeAlpha(color.alpha)
+        self._canvas.setLineWidth(stroke_width)
+
+    def draw_rect(
+        self,
+        rect: Rect,
+        fill: RGBA | None = None,
+        stroke: RGBA | None = None,
+        stroke_width: float = 0.0,
+        radius: float = 0.0,
+    ) -> None:
+        self.set_fill(fill)
+        self.set_stroke(stroke, stroke_width)
+        rl_y = self.to_rl_y(rect.y, rect.height)
+        stroke_flag = 1 if stroke is not None and stroke_width > 0 else 0
+        fill_flag = 1 if fill is not None else 0
+        if radius > 0:
+            self._canvas.roundRect(rect.x, rl_y, rect.width, rect.height, radius, stroke=stroke_flag, fill=fill_flag)
+            return
+        self._canvas.rect(rect.x, rl_y, rect.width, rect.height, stroke=stroke_flag, fill=fill_flag)
+
+    def draw_text(
+        self,
+        x: float,
+        y: float,
+        width: float,
+        text: str,
+        font_name: str,
+        font_size: float,
+        line_height: float,
+        color: RGBA | None,
+        align: str = "left",
+    ) -> None:
+        wrapped_lines = self.wrap_text(text, width, font_name, font_size)
+        baseline_y = self.page_height - y - font_size
+        text_object = cast(TextObjectLike, self._canvas.beginText(x, baseline_y))
+        text_object.setFont(font_name, font_size, line_height)
+        text_object.setLeading(line_height)
+        if color is not None:
+            text_object.setFillColorRGB(color.red, color.green, color.blue)
+            self._canvas.setFillAlpha(color.alpha)
+        if align != "left":
+            pdfmetrics = import_module("reportlab.pdfbase.pdfmetrics")
+            string_width = cast(StringWidthFn, getattr(pdfmetrics, "stringWidth"))
+            current_baseline_y = baseline_y
+            for line in wrapped_lines:
+                line_width = string_width(line, font_name, font_size)
+                offset = max(0.0, width - line_width)
+                if align == "center":
+                    offset /= 2
+                text_object.setTextOrigin(x + offset, current_baseline_y)
+                text_object.textLine(line)
+                current_baseline_y -= line_height
+            self._canvas.drawText(text_object)
+            return
+        for line in wrapped_lines:
+            text_object.textLine(line)
+        self._canvas.drawText(text_object)
+
+    def draw_image(self, image_path: str, rect: Rect, opacity: float = 1.0) -> None:
+        if Path(image_path).suffix.lower() == ".svg":
+            self.draw_svg(image_path, rect, opacity=opacity)
+            return
+
+        if opacity < 1.0:
+            self._canvas.setFillAlpha(opacity)
+            self._canvas.setStrokeAlpha(opacity)
+        self._canvas.drawImage(image_path, rect.x, self.to_rl_y(rect.y, rect.height), rect.width, rect.height, mask="auto")
+
+    def draw_svg(self, image_path: str, rect: Rect, opacity: float = 1.0) -> None:
+        svglib_module = import_module("svglib.svglib")
+        render_pdf_module = import_module("reportlab.graphics.renderPDF")
+        svg_to_drawing = cast(SvgToDrawingFn, getattr(svglib_module, "svg2rlg"))
+        render_draw = cast(RenderDrawingFn, getattr(render_pdf_module, "draw"))
+
+        drawing = svg_to_drawing(image_path)
+        if drawing is None:
+            raise ValueError(f"Unable to parse SVG image: {image_path}")
+
+        drawing_width = float(getattr(drawing, "width", rect.width) or rect.width)
+        drawing_height = float(getattr(drawing, "height", rect.height) or rect.height)
+        scale_x = rect.width / drawing_width if drawing_width else 1.0
+        scale_y = rect.height / drawing_height if drawing_height else 1.0
+
+        if opacity < 1.0:
+            self._canvas.setFillAlpha(opacity)
+            self._canvas.setStrokeAlpha(opacity)
+
+        self._canvas.translate(rect.x, self.to_rl_y(rect.y, rect.height))
+        self._canvas.scale(scale_x, scale_y)
+        render_draw(drawing, self._canvas, 0.0, 0.0)
+
+    def draw_line(self, x1: float, y1: float, x2: float, y2: float, color: RGBA | None, stroke_width: float) -> None:
+        self.set_stroke(color, stroke_width)
+        self._canvas.line(x1, self.page_height - y1, x2, self.page_height - y2)
+
+    def wrap_text(self, text: str, width: float, font_name: str, font_size: float) -> list[str]:
+        if not text:
+            return [""]
+
+        pdfmetrics = import_module("reportlab.pdfbase.pdfmetrics")
+        string_width = cast(StringWidthFn, getattr(pdfmetrics, "stringWidth"))
+        lines: list[str] = []
+
+        for paragraph in text.splitlines() or [text]:
+            if not paragraph.strip():
+                lines.append("")
+                continue
+            current_line = ""
+            for word in paragraph.split():
+                candidate = word if not current_line else f"{current_line} {word}"
+                if string_width(candidate, font_name, font_size) <= width:
+                    current_line = candidate
+                    continue
+                if current_line:
+                    lines.append(current_line)
+                    current_line = word
+                    continue
+                lines.extend(self._split_long_word(word, width, font_name, font_size, string_width))
+                current_line = ""
+            if current_line:
+                lines.append(current_line)
+
+        return lines or [""]
+
+    def _split_long_word(
+        self,
+        word: str,
+        width: float,
+        font_name: str,
+        font_size: float,
+        string_width: StringWidthFn,
+    ) -> list[str]:
+        parts: list[str] = []
+        current = ""
+        for character in word:
+            candidate = f"{current}{character}"
+            if current and string_width(candidate, font_name, font_size) > width:
+                parts.append(current)
+                current = character
+                continue
+            current = candidate
+        if current:
+            parts.append(current)
+        return parts
+
+    def show_page(self) -> None:
+        self._canvas.showPage()
+
+    def save(self) -> None:
+        self._canvas.save()
