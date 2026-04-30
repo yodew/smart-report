@@ -1,0 +1,280 @@
+"""Pagination helpers for flow-based pages."""
+
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Protocol, cast
+
+from .node import LayoutNode, clone_layout_node
+from .table_model import table_column_count, table_column_widths, table_header_rows, table_height, table_repeat_header, table_row_heights, table_rows
+
+
+def paginate_page(page: LayoutNode) -> list[LayoutNode]:
+    max_page_height = page.resolved_height
+    current_page = _clone_page_shell(page)
+    paginated_pages: list[LayoutNode] = [current_page]
+
+    for child in page.children:
+        if child.style.position.value == "absolute":
+            _ = current_page.add_child(clone_layout_node(child))
+            continue
+
+        current_page = _append_with_pagination(
+            current_page=current_page,
+            source_page=page,
+            child=child,
+            output_pages=paginated_pages,
+            max_page_height=max_page_height,
+        )
+
+    return paginated_pages
+
+
+def _append_with_pagination(
+    current_page: LayoutNode,
+    source_page: LayoutNode,
+    child: LayoutNode,
+    output_pages: list[LayoutNode],
+    max_page_height: float,
+) -> LayoutNode:
+    if child.local_y + child.resolved_height <= max_page_height:
+        _ = current_page.add_child(clone_layout_node(child))
+        return current_page
+
+    if child.node_type == "frame":
+        remaining_height = max(1.0, max_page_height - _current_page_flow_extent(current_page))
+        frame_slices = split_frame_node(child, remaining_height, max_page_height)
+        if not frame_slices:
+            _ = current_page.add_child(clone_layout_node(child))
+            return current_page
+
+        first_slice = True
+        for frame_slice in frame_slices:
+            if first_slice:
+                _ = current_page.add_child(frame_slice)
+                first_slice = False
+                continue
+            current_page = _new_generated_page(source_page, output_pages)
+            _ = current_page.add_child(frame_slice)
+        return current_page
+
+    current_page = _new_generated_page(source_page, output_pages)
+    _ = current_page.add_child(clone_layout_node(child))
+    return current_page
+
+
+def split_frame_node(frame: LayoutNode, first_page_height: float, following_page_height: float) -> list[LayoutNode]:
+    first_available_height = max(1.0, first_page_height - frame.style.margin.top - frame.style.margin.bottom)
+    following_available_height = max(1.0, following_page_height - frame.style.margin.top - frame.style.margin.bottom)
+    first_content_height = max(1.0, first_available_height - frame.style.padding.vertical)
+    following_content_height = max(1.0, following_available_height - frame.style.padding.vertical)
+
+    current_frame = _clone_frame_shell(frame)
+    current_height = 0.0
+    frame_slices: list[LayoutNode] = [current_frame]
+    current_capacity = first_content_height
+
+    for child in frame.children:
+        if child.style.position.value == "absolute":
+            _ = current_frame.add_child(clone_layout_node(child))
+            continue
+
+        remaining_content_height = max(1.0, current_capacity - current_height)
+        split_nodes = _split_flow_child(child, remaining_content_height, following_content_height)
+        for split_node in split_nodes:
+            child_total_height = split_node.resolved_height + split_node.style.margin.top + split_node.style.margin.bottom
+            if current_frame.children and current_height + child_total_height > current_capacity:
+                current_frame = _clone_frame_shell(frame)
+                frame_slices.append(current_frame)
+                current_height = 0.0
+                current_capacity = following_content_height
+
+            _ = current_frame.add_child(split_node)
+            current_height += child_total_height
+
+    return [frame_slice for frame_slice in frame_slices if frame_slice.children]
+
+
+def _split_flow_child(child: LayoutNode, first_content_height: float, following_content_height: float) -> list[LayoutNode]:
+    child_total_height = child.resolved_height + child.style.margin.top + child.style.margin.bottom
+    if child_total_height <= first_content_height:
+        return [clone_layout_node(child)]
+
+    first_node_height = max(1.0, first_content_height - child.style.margin.top - child.style.margin.bottom)
+    following_node_height = max(1.0, following_content_height - child.style.margin.top - child.style.margin.bottom)
+
+    if child.node_type == "text":
+        return _split_text_node(child, first_node_height, following_node_height)
+    if child.node_type == "table":
+        return _split_table_node(child, first_node_height, following_node_height)
+
+    return [clone_layout_node(child)]
+
+
+def _split_text_node(child: LayoutNode, first_content_height: float, following_content_height: float) -> list[LayoutNode]:
+    text_value = str(child.content.get("text", ""))
+    if not text_value:
+        return [clone_layout_node(child)]
+
+    lines = _wrap_text_lines(text_value, child.resolved_width, child.style.font_name, child.style.font_size)
+    result: list[LayoutNode] = []
+    start = 0
+    max_lines = _max_text_lines(first_content_height, child.style.line_height)
+    while start < len(lines):
+        end = min(len(lines), start + max_lines)
+        chunk_lines = lines[start:end]
+        chunk = "\n".join(chunk_lines)
+        node = clone_layout_node(child, include_children=False)
+        node.content["text"] = chunk
+        node.resolved_height = max(child.style.line_height, len(chunk_lines) * child.style.line_height)
+        result.append(node)
+        start = end
+        max_lines = _max_text_lines(following_content_height, child.style.line_height)
+    return result or [clone_layout_node(child)]
+
+
+def _split_table_node(child: LayoutNode, first_content_height: float, following_content_height: float) -> list[LayoutNode]:
+    rows = table_rows(child)
+    if not rows:
+        return [clone_layout_node(child)]
+
+    source_row_indices = child.content.get("source_row_indices")
+    if not isinstance(source_row_indices, list) or len(source_row_indices) != len(rows):
+        source_row_indices = list(range(len(rows)))
+
+    column_widths = table_column_widths(child, child.resolved_width, table_column_count(rows))
+    row_heights = table_row_heights(child, rows, column_widths)
+    header_count = min(table_header_rows(child), len(rows))
+    repeat_header = table_repeat_header(child) and header_count > 0
+    header_rows = rows[:header_count]
+    header_source_indices = source_row_indices[:header_count]
+    body_start = header_count if repeat_header else 0
+    body_rows = rows[body_start:]
+    body_source_indices = source_row_indices[body_start:]
+
+    if not body_rows or len(rows) == 1:
+        return [clone_layout_node(child)]
+
+    header_height = sum(row_heights[:header_count]) if repeat_header else 0.0
+    slices: list[LayoutNode] = []
+    current_rows: list[list[str]] = list(header_rows) if repeat_header else []
+    current_source_indices: list[int] = list(header_source_indices) if repeat_header else []
+    current_height = header_height
+    current_capacity = first_content_height
+    current_header_rows = header_count if repeat_header else header_count
+    minimum_rows_in_slice = len(current_rows) + 1
+
+    for body_index, row in enumerate(body_rows):
+        row_offset = body_index + body_start
+        row_height = row_heights[row_offset]
+        if len(current_rows) >= minimum_rows_in_slice and current_height + row_height > current_capacity:
+            slices.append(_clone_table_slice(child, current_rows, current_source_indices, current_header_rows))
+            current_rows = list(header_rows) if repeat_header else []
+            current_source_indices = list(header_source_indices) if repeat_header else []
+            current_height = header_height
+            current_capacity = following_content_height
+            current_header_rows = header_count if repeat_header else 0
+
+        current_rows.append(row)
+        current_source_indices.append(body_source_indices[body_index])
+        current_height += row_height
+
+    if current_rows:
+        slices.append(_clone_table_slice(child, current_rows, current_source_indices, current_header_rows))
+
+    return slices or [clone_layout_node(child)]
+
+
+def _max_text_lines(content_height: float, line_height: float) -> int:
+    return max(1, int(content_height // max(1.0, line_height)))
+
+
+def _clone_table_slice(child: LayoutNode, rows: list[list[str]], source_row_indices: list[int], header_rows: int) -> LayoutNode:
+    node = clone_layout_node(child, include_children=False)
+    node.content["rows"] = rows
+    node.content["source_row_indices"] = source_row_indices
+    node.content["header_rows"] = header_rows
+    node.resolved_height = table_height(node)
+    return node
+
+
+def _wrap_text_lines(text: str, width: float, font_name: str, font_size: float) -> list[str]:
+    if not text:
+        return [""]
+
+    pdfmetrics = import_module("reportlab.pdfbase.pdfmetrics")
+    string_width = cast(StringWidthFn, getattr(pdfmetrics, "stringWidth"))
+    lines: list[str] = []
+
+    for paragraph in text.splitlines() or [text]:
+        if not paragraph.strip():
+            lines.append("")
+            continue
+        current_line = ""
+        for word in paragraph.split():
+            candidate = word if not current_line else f"{current_line} {word}"
+            if string_width(candidate, font_name, font_size) <= width:
+                current_line = candidate
+                continue
+            if current_line:
+                lines.append(current_line)
+                current_line = word
+                continue
+            lines.extend(_split_long_word(word, width, font_name, font_size, string_width))
+            current_line = ""
+        if current_line:
+            lines.append(current_line)
+
+    return lines or [""]
+
+
+def _split_long_word(word: str, width: float, font_name: str, font_size: float, string_width: StringWidthFn) -> list[str]:
+    parts: list[str] = []
+    current = ""
+    for character in word:
+        candidate = f"{current}{character}"
+        if current and string_width(candidate, font_name, font_size) > width:
+            parts.append(current)
+            current = character
+            continue
+        current = candidate
+    if current:
+        parts.append(current)
+    return parts
+
+
+def _current_page_flow_extent(page: LayoutNode) -> float:
+    if not page.children:
+        return page.style.padding.top
+    return max(
+        (
+            child.local_y
+            + child.resolved_height
+            + child.style.margin.bottom
+            for child in page.children
+            if child.style.position.value == "flow"
+        ),
+        default=page.style.padding.top,
+    )
+
+
+class StringWidthFn(Protocol):
+    def __call__(self, text: str, font_name: str, font_size: float) -> float: ...
+
+
+def _clone_page_shell(page: LayoutNode) -> LayoutNode:
+    clone = clone_layout_node(page, include_children=False)
+    clone.children = []
+    return clone
+
+
+def _clone_frame_shell(frame: LayoutNode) -> LayoutNode:
+    clone = clone_layout_node(frame, include_children=False)
+    clone.children = []
+    return clone
+
+
+def _new_generated_page(source_page: LayoutNode, output_pages: list[LayoutNode]) -> LayoutNode:
+    new_page = _clone_page_shell(source_page)
+    output_pages.append(new_page)
+    return new_page
