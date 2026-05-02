@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Protocol, cast
 
 from ..layout.node import Rect
+from ..layout.text_wrap import wrap_text
 from ..style.color import RGBA
 
 
@@ -46,6 +47,7 @@ class TextObjectLike(Protocol):
 
 class PathLike(Protocol):
     def rect(self, x: float, y: float, width: float, height: float) -> None: ...
+    def roundRect(self, x: float, y: float, width: float, height: float, radius: float) -> None: ...
 
 
 class StringWidthFn(Protocol):
@@ -99,6 +101,11 @@ class ReportLabCanvasAdapter:
         path.rect(rect.x, self.to_rl_y(rect.y, rect.height), rect.width, rect.height)
         self._canvas.clipPath(path, stroke=0, fill=0)
 
+    def apply_clip_rounded_rect(self, rect: Rect, radius: float) -> None:
+        path = cast(PathLike, self._canvas.beginPath())
+        path.roundRect(rect.x, self.to_rl_y(rect.y, rect.height), rect.width, rect.height, radius)
+        self._canvas.clipPath(path, stroke=0, fill=0)
+
     def set_fill(self, color: RGBA | None) -> None:
         if color is None:
             return
@@ -142,7 +149,7 @@ class ReportLabCanvasAdapter:
         color: RGBA | None,
         align: str = "left",
     ) -> None:
-        wrapped_lines = self.wrap_text(text, width, font_name, font_size)
+        wrapped_lines = wrap_text(text, width, font_name, font_size)
         baseline_y = self.page_height - y - font_size
         text_object = cast(TextObjectLike, self._canvas.beginText(x, baseline_y))
         text_object.setFont(font_name, font_size, line_height)
@@ -204,56 +211,6 @@ class ReportLabCanvasAdapter:
     def draw_line(self, x1: float, y1: float, x2: float, y2: float, color: RGBA | None, stroke_width: float) -> None:
         self.set_stroke(color, stroke_width)
         self._canvas.line(x1, self.page_height - y1, x2, self.page_height - y2)
-
-    def wrap_text(self, text: str, width: float, font_name: str, font_size: float) -> list[str]:
-        if not text:
-            return [""]
-
-        pdfmetrics = import_module("reportlab.pdfbase.pdfmetrics")
-        string_width = cast(StringWidthFn, getattr(pdfmetrics, "stringWidth"))
-        lines: list[str] = []
-
-        for paragraph in text.splitlines() or [text]:
-            if not paragraph.strip():
-                lines.append("")
-                continue
-            current_line = ""
-            for word in paragraph.split():
-                candidate = word if not current_line else f"{current_line} {word}"
-                if string_width(candidate, font_name, font_size) <= width:
-                    current_line = candidate
-                    continue
-                if current_line:
-                    lines.append(current_line)
-                    current_line = word
-                    continue
-                lines.extend(self._split_long_word(word, width, font_name, font_size, string_width))
-                current_line = ""
-            if current_line:
-                lines.append(current_line)
-
-        return lines or [""]
-
-    def _split_long_word(
-        self,
-        word: str,
-        width: float,
-        font_name: str,
-        font_size: float,
-        string_width: StringWidthFn,
-    ) -> list[str]:
-        parts: list[str] = []
-        current = ""
-        for character in word:
-            candidate = f"{current}{character}"
-            if current and string_width(candidate, font_name, font_size) > width:
-                parts.append(current)
-                current = character
-                continue
-            current = candidate
-        if current:
-            parts.append(current)
-        return parts
 
     def show_page(self) -> None:
         self._canvas.showPage()

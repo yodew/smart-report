@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from importlib import import_module
-from typing import Protocol, cast
-
 from .node import LayoutNode, clone_layout_node
 from .table_model import table_column_count, table_column_widths, table_header_rows, table_height, table_repeat_header, table_row_heights, table_rows
+from .text_wrap import wrap_text
 
 
 def paginate_page(page: LayoutNode) -> list[LayoutNode]:
@@ -116,20 +114,21 @@ def _split_text_node(child: LayoutNode, first_content_height: float, following_c
     if not text_value:
         return [clone_layout_node(child)]
 
-    lines = _wrap_text_lines(text_value, child.resolved_width, child.style.font_name, child.style.font_size)
+    text_width = max(1.0, child.resolved_width - child.style.padding.horizontal)
+    lines = wrap_text(text_value, text_width, child.style.font_name, child.style.font_size)
     result: list[LayoutNode] = []
     start = 0
-    max_lines = _max_text_lines(first_content_height, child.style.line_height)
+    max_lines = _max_text_lines(first_content_height - child.style.padding.vertical, child.style.line_height)
     while start < len(lines):
         end = min(len(lines), start + max_lines)
         chunk_lines = lines[start:end]
         chunk = "\n".join(chunk_lines)
         node = clone_layout_node(child, include_children=False)
         node.content["text"] = chunk
-        node.resolved_height = max(child.style.line_height, len(chunk_lines) * child.style.line_height)
+        node.resolved_height = max(child.style.line_height, len(chunk_lines) * child.style.line_height) + child.style.padding.vertical
         result.append(node)
         start = end
-        max_lines = _max_text_lines(following_content_height, child.style.line_height)
+        max_lines = _max_text_lines(following_content_height - child.style.padding.vertical, child.style.line_height)
     return result or [clone_layout_node(child)]
 
 
@@ -198,51 +197,6 @@ def _clone_table_slice(child: LayoutNode, rows: list[list[str]], source_row_indi
     return node
 
 
-def _wrap_text_lines(text: str, width: float, font_name: str, font_size: float) -> list[str]:
-    if not text:
-        return [""]
-
-    pdfmetrics = import_module("reportlab.pdfbase.pdfmetrics")
-    string_width = cast(StringWidthFn, getattr(pdfmetrics, "stringWidth"))
-    lines: list[str] = []
-
-    for paragraph in text.splitlines() or [text]:
-        if not paragraph.strip():
-            lines.append("")
-            continue
-        current_line = ""
-        for word in paragraph.split():
-            candidate = word if not current_line else f"{current_line} {word}"
-            if string_width(candidate, font_name, font_size) <= width:
-                current_line = candidate
-                continue
-            if current_line:
-                lines.append(current_line)
-                current_line = word
-                continue
-            lines.extend(_split_long_word(word, width, font_name, font_size, string_width))
-            current_line = ""
-        if current_line:
-            lines.append(current_line)
-
-    return lines or [""]
-
-
-def _split_long_word(word: str, width: float, font_name: str, font_size: float, string_width: StringWidthFn) -> list[str]:
-    parts: list[str] = []
-    current = ""
-    for character in word:
-        candidate = f"{current}{character}"
-        if current and string_width(candidate, font_name, font_size) > width:
-            parts.append(current)
-            current = character
-            continue
-        current = candidate
-    if current:
-        parts.append(current)
-    return parts
-
-
 def _current_page_flow_extent(page: LayoutNode) -> float:
     if not page.children:
         return page.style.padding.top
@@ -256,10 +210,6 @@ def _current_page_flow_extent(page: LayoutNode) -> float:
         ),
         default=page.style.padding.top,
     )
-
-
-class StringWidthFn(Protocol):
-    def __call__(self, text: str, font_name: str, font_size: float) -> float: ...
 
 
 def _clone_page_shell(page: LayoutNode) -> LayoutNode:

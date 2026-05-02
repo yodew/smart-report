@@ -7,6 +7,7 @@ from importlib import import_module
 from typing import Protocol, cast
 
 from .node import Edges, LayoutNode
+from .text_wrap import wrap_text
 from ..style.color import RGBA, parse_color
 from ..style.units import Auto, SizeInput, SizeSpec, parse_size, resolve_size
 
@@ -294,47 +295,6 @@ def table_cell_boxes(node: LayoutNode, x: float, y: float, width: float, height:
             cursor_x += column_widths[column_index]
         cursor_y += row_height
     return boxes
-
-
-def wrap_text(text: str, width: float, font_name: str, font_size: float, string_width: StringWidthFn | None = None) -> list[str]:
-    if not text:
-        return [""]
-    measure = string_width or _string_width_fn()
-    lines: list[str] = []
-    for paragraph in text.splitlines() or [text]:
-        if not paragraph.strip():
-            lines.append("")
-            continue
-        current_line = ""
-        for word in paragraph.split():
-            candidate = word if not current_line else f"{current_line} {word}"
-            if measure(candidate, font_name, font_size) <= width:
-                current_line = candidate
-                continue
-            if current_line:
-                lines.append(current_line)
-                current_line = word
-                continue
-            lines.extend(_split_long_word(word, width, font_name, font_size, measure))
-            current_line = ""
-        if current_line:
-            lines.append(current_line)
-    return lines or [""]
-
-
-def _split_long_word(word: str, width: float, font_name: str, font_size: float, string_width: StringWidthFn) -> list[str]:
-    parts: list[str] = []
-    current = ""
-    for character in word:
-        candidate = f"{current}{character}"
-        if current and string_width(candidate, font_name, font_size) > width:
-            parts.append(current)
-            current = character
-            continue
-        current = candidate
-    if current:
-        parts.append(current)
-    return parts
 
 
 def _normalize_align(value: str) -> str:

@@ -2,17 +2,10 @@
 
 from __future__ import annotations
 
-from importlib import import_module
-from math import ceil
-from typing import Protocol, cast
-
 from .node import LayoutNode
 from .table_model import table_height
+from .text_wrap import wrap_text
 from ..style.units import Auto, Percent, resolve_size
-
-
-class StringWidthFn(Protocol):
-    def __call__(self, text: str, font_name: str, font_size: float) -> float: ...
 
 
 def resolve_heights(root: LayoutNode, available_height: float | None = None) -> None:
@@ -100,53 +93,12 @@ def _resolve_leaf_height(node: LayoutNode, explicit_height: float | None) -> flo
 def _measure_text_height(node: LayoutNode) -> float:
     text = str(node.content.get("text", ""))
     if not text:
-        return node.style.line_height
+        return node.style.line_height + node.style.padding.vertical
 
     available_width = max(1.0, node.resolved_width - node.style.padding.horizontal)
     font_name = node.style.font_name
     font_size = node.style.font_size
     line_height = node.style.line_height
 
-    pdfmetrics = import_module("reportlab.pdfbase.pdfmetrics")
-    string_width = cast(StringWidthFn, getattr(pdfmetrics, "stringWidth"))
-
-    wrapped_lines = 0
-    for paragraph in text.splitlines() or [text]:
-        if not paragraph.strip():
-            wrapped_lines += 1
-            continue
-        wrapped_lines += _count_wrapped_lines(paragraph, available_width, font_name, font_size, string_width)
-
-    return max(line_height, wrapped_lines * line_height)
-
-
-def _count_wrapped_lines(
-    text: str,
-    available_width: float,
-    font_name: str,
-    font_size: float,
-    string_width: StringWidthFn,
-) -> int:
-    words = text.split()
-    if not words:
-        return 1
-
-    current_line = ""
-    lines = 1
-    for word in words:
-        candidate = word if not current_line else f"{current_line} {word}"
-        candidate_width = float(string_width(candidate, font_name, font_size))
-        if candidate_width <= available_width:
-            current_line = candidate
-            continue
-
-        if current_line:
-            lines += 1
-            current_line = word
-            continue
-
-        single_word_width = float(string_width(word, font_name, font_size))
-        lines += max(0, ceil(single_word_width / available_width) - 1)
-        current_line = word
-
-    return lines
+    wrapped_lines = wrap_text(text, available_width, font_name, font_size)
+    return max(line_height, len(wrapped_lines) * line_height) + node.style.padding.vertical
