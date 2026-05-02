@@ -19,3 +19,4 @@ dist/
 
 examples/*.pdf
 test_table_v2_qa.py
+/.opencode/
