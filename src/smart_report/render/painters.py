@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Callable
 
 from ..layout.node import Rect, RenderItem
-from ..layout.table_model import table_cell_boxes
+from ..layout.table_model import TableCellBox, table_cell_boxes
 from .rl_adapter import ReportLabCanvasAdapter
 
 Painter = Callable[[ReportLabCanvasAdapter, RenderItem], None]
@@ -25,15 +25,16 @@ def paint_render_item(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None
 def paint_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     node = item.node
     bounds = item.absolute_bounds
+    padding = node.style.padding
     text_value = str(node.content.get("text", ""))
     text_value = text_value.replace("{page_number}", str(node.page_index + 1))
     total_pages = node.content.get("total_pages")
     if isinstance(total_pages, int):
         text_value = text_value.replace("{total_pages}", str(total_pages))
     adapter.draw_text(
-        x=bounds.x,
-        y=bounds.y,
-        width=bounds.width,
+        x=bounds.x + padding.left,
+        y=bounds.y + padding.top,
+        width=max(1.0, bounds.width - padding.horizontal),
         text=text_value,
         font_name=node.style.font_name,
         font_size=node.style.font_size,
@@ -89,6 +90,24 @@ def paint_table(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     if not cell_boxes:
         return
 
+    radius = node.style.border_radius
+    if radius > 0:
+        with adapter.isolated_state():
+            adapter.apply_clip_rounded_rect(bounds, radius)
+            _paint_table_cells(adapter, item, cell_boxes)
+        adapter.draw_rect(
+            rect=bounds,
+            stroke=node.style.stroke_color or node.style.color,
+            stroke_width=node.style.stroke_width or 1.0,
+            radius=radius,
+        )
+        return
+
+    _paint_table_cells(adapter, item, cell_boxes)
+
+
+def _paint_table_cells(adapter: ReportLabCanvasAdapter, item: RenderItem, cell_boxes: list[TableCellBox]) -> None:
+    node = item.node
     border_color = node.style.stroke_color or node.style.color
 
     for cell_box in cell_boxes:
