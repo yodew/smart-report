@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 from typing import cast
 
-from smart_report import Frame, Table, document
-from smart_report.layout.paginate import _split_table_node
+from smart_report import Frame, Table, document, get_font, set_default_font
+from smart_report.layout.node import Rect, RenderItem, Style
+from smart_report.layout.paginate import _split_table_node, _split_text_node
 from smart_report.layout.table_model import table_cell_boxes, table_cell_padding, table_column_widths, table_height
+from smart_report.layout.text_wrap import wrap_text
+from smart_report.render.painters import paint_table
+from smart_report.render.rl_adapter import ReportLabCanvasAdapter
 
 try:
     from pypdf import PdfReader
@@ -18,6 +24,44 @@ except ImportError:  # pragma: no cover
 
 
 class TableV2ModelTests(unittest.TestCase):
+    def test_font_api_sets_default_for_future_styles(self) -> None:
+        original = get_font().name
+        try:
+            self.assertEqual(set_default_font("Helvetica").name, "Helvetica")
+            self.assertEqual(Style().font_name, "Helvetica")
+        finally:
+            _ = set_default_font(original)
+
+    def test_cjk_wrap_uses_character_boundaries_without_spaces(self) -> None:
+        def fixed_width(text: str, font_name: str, font_size: float) -> float:
+            _ = (font_name, font_size)
+            return float(len(text))
+
+        self.assertEqual(wrap_text("中文没有空格", 3, "Helvetica", 12, fixed_width), ["中文没", "有空格"])
+        self.assertEqual(wrap_text("superlong", 4, "Helvetica", 12, fixed_width), ["supe", "rlon", "g"])
+
+    def test_text_pagination_uses_cjk_wrap_helper(self) -> None:
+        text = Frame().add_text("中文没有空格也应该稳定分页")
+        text.width(48).font_size(12).line_height(12)
+        text.node.resolved_width = 48
+        text.node.resolved_height = 60
+
+        slices = _split_text_node(text.node, 24, 24)
+        self.assertGreater(len(slices), 1)
+        self.assertTrue(all(" " not in str(node.content["text"]) for node in slices))
+
+    def test_rounded_table_painter_clips_cells_and_strokes_outer_radius(self) -> None:
+        table = Table([["H1", "H2"], ["A", "B"]]).radius(12).stroke("#94a3b8", 1).background("#ffffff")
+        table.node.resolved_width = 200
+        table.node.resolved_height = table_height(table.node)
+        item = RenderItem(table.node, Rect(10, 20, 200, table.node.resolved_height), (), (0,))
+        adapter = _SpyAdapter()
+
+        paint_table(cast(ReportLabCanvasAdapter, adapter), item)
+
+        self.assertEqual(adapter.rounded_clips, [(10, 20, 200, table.node.resolved_height, 12)])
+        self.assertIn(12, adapter.drawn_radii)
+
     def test_column_widths_support_fixed_percent_and_auto(self) -> None:
         table = Table([["A", "B", "C"]]).column_widths([80, "50%", "auto"])
         table.node.resolved_width = 300
@@ -270,6 +314,28 @@ class TableV2PdfTests(unittest.TestCase):
             page_texts = [(pdf_page.extract_text() or "") for pdf_page in PdfReader(str(output)).pages]
             self.assertGreater(len(page_texts), 1)
             self.assertIn("Region", page_texts[0])
+
+class _SpyAdapter:
+    def __init__(self) -> None:
+        self.rounded_clips: list[tuple[float, float, float, float, float]] = []
+        self.drawn_radii: list[float] = []
+
+    @contextmanager
+    def isolated_state(self) -> Iterator["_SpyAdapter"]:
+        yield self
+
+    def apply_clip_rounded_rect(self, rect: Rect, radius: float) -> None:
+        self.rounded_clips.append((rect.x, rect.y, rect.width, rect.height, radius))
+
+    def apply_clip_rect(self, _rect: Rect) -> None:
+        return
+
+    def draw_rect(self, rect: Rect, fill: object = None, stroke: object = None, stroke_width: float = 0.0, radius: float = 0.0) -> None:
+        _ = (rect, fill, stroke, stroke_width)
+        self.drawn_radii.append(radius)
+
+    def draw_text(self, **_kwargs: object) -> None:
+        return
 
 
 if __name__ == "__main__":
