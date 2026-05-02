@@ -5,7 +5,9 @@
 ## 快速开始
 
 ```python
-from smart_report import Canvas, Frame, document
+from smart_report import Canvas, Frame, document, register_font
+
+register_font("SourceHanSansSC-Normal", "examples/fonts/SourceHanSansSC-Normal.ttf", set_default=True)
 
 doc = document()
 page = doc.page("A4")
@@ -73,7 +75,7 @@ page.add(hero)
 
 ### `Table`
 
-`Table` 接受二维数组，并提供适合报表场景的列宽、对齐、单元格 padding、表头样式、斑马纹和跨页重复表头能力。
+`Table` 接受二维数组，并提供适合报表场景的列宽、对齐、单元格 padding、表头样式、斑马纹、圆角边框和跨页重复表头能力。
 
 ```python
 table = Table([
@@ -88,7 +90,8 @@ table = Table([
     .zebra("#f8fafc") \
     .font_size(11) \
     .line_height(14) \
-    .stroke("#94a3b8", 1)
+    .stroke("#94a3b8", 1) \
+    .radius(10)
 
 frame.add(table)
 ```
@@ -108,6 +111,7 @@ frame.add(table)
 | `.row_style(index, ...)` | 覆盖指定逻辑行的 `background` / `color` / `align` |
 | `.column_style(index, ...)` | 覆盖指定列的 `background` / `color` / `align` |
 | `.cell_style(row_index, column_index, ...)` | 覆盖指定单元格的 `background` / `color` / `align` |
+| `.radius(value)` | 设置表格外边框圆角；渲染时会裁剪外角单元格背景 |
 
 样式覆盖优先级：
 
@@ -154,7 +158,21 @@ frame.add_text("中文文本").font_size(14).line_height(18).color("#0f172a")
 | `.color(value)` | 设置文字颜色 |
 | `.margin(...)` | 设置外边距 |
 
-> 注意：中文字体需要先注册可用字体；当前默认字体为 `Helvetica`，并不适合中文正式输出。
+> 注意：中文字体需要先注册可用字体；当前默认字体为 `Helvetica`，并不适合中文正式输出。中文连续文本会按实际字形宽度换行，表格测量、分页和最终绘制使用同一套换行逻辑。
+
+## 字体注册
+
+推荐从顶层 API 注册字体：
+
+```python
+from smart_report import register_font, set_default_font
+
+register_font("SourceHanSansSC-Normal", "examples/fonts/SourceHanSansSC-Normal.ttf", set_default=True)
+register_font("SourceHanSansSC-Bold", "examples/fonts/SourceHanSansSC-Bold.ttf")
+set_default_font("SourceHanSansSC-Normal")
+```
+
+`set_default=True` 只影响后续创建的节点；已经创建的 `Text` / `Table` 仍保留自己的字体设置。
 
 ### `Image`
 
@@ -234,4 +252,4 @@ height("auto")   # 内容自适应
 - 分页主要针对 `Frame` 内的流式内容
 - 大型非文本/非表格块可能整体移动到下一页，而不是深度拆分
 - 尚未实现 flex/grid/columns 约束布局
-- 中文字体注册和字体 fallback 需要在后续版本系统化
+- 字体 fallback 仍需后续系统化
