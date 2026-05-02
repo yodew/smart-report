@@ -8,14 +8,17 @@ from .elements.image import Image
 from .elements.shape import Line, Rect
 from .elements.spacer import Spacer
 from .elements.text import Text
+from .style.font import FontFace, FontRegistry, get_font, register_font, set_default_font
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "Canvas",
     "Document",
     "DocumentBuilder",
     "Frame",
+    "FontFace",
+    "FontRegistry",
     "Image",
     "Line",
     "Rect",
@@ -23,4 +26,7 @@ __all__ = [
     "Table",
     "Text",
     "document",
+    "get_font",
+    "register_font",
+    "set_default_font",
 ]

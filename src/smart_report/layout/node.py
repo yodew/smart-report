@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from ..style.color import RGBA
+from ..style.font import get_default_font_name
 from ..style.units import AUTO, SizeSpec
 
 
@@ -75,7 +76,7 @@ class Style:
     z_index: int = 0
     overflow: OverflowMode = OverflowMode.VISIBLE
     position: PositionMode = PositionMode.FLOW
-    font_name: str = "Helvetica"
+    font_name: str = field(default_factory=get_default_font_name)
     font_size: float = 12.0
     line_height: float = 14.0
     border_radius: float = 0.0
