@@ -11,7 +11,8 @@ from typing import cast
 
 from smart_report import Frame, Table, document, get_fallback_fonts, get_font, register_font, resolve_text_runs, set_default_font, set_fallback_fonts
 from smart_report.layout.node import Rect, RenderItem, Style
-from smart_report.layout.paginate import _split_table_node, _split_text_node
+from smart_report.layout.paginate import _split_flow_child, _split_table_node, _split_text_node, split_frame_node
+from smart_report.layout.pass3_heights import resolve_heights
 from smart_report.layout.table_model import table_cell_boxes, table_cell_padding, table_column_widths, table_height, table_row_heights
 from smart_report.layout.text_wrap import wrap_text
 from smart_report.render.painters import paint_table
@@ -311,6 +312,109 @@ class TableV2PaginationTests(unittest.TestCase):
         self.assertTrue(any({2, 3}.issubset(source_set) for source_set in source_sets))
         self.assertTrue(all(not ({2, 3}.intersection(source_set) and not {2, 3}.issubset(source_set)) for source_set in source_sets))
         self.assertIn({"rowspan": 2, "colspan": 1}, slice_spans.values())
+
+    def test_nested_frame_splits_across_pages(self) -> None:
+        outer = Frame().padding(4)
+        nested = outer.add_frame().padding(2)
+        for index in range(8):
+            nested.add_text(f"Nested line {index}").font_size(10).line_height(12)
+        outer.node.resolved_width = 200
+        nested.node.resolved_width = 180
+        for child in nested.node.children:
+            child.resolved_width = 180
+            child.resolved_height = 12
+        nested.node.resolved_height = 8 * 12 + 4
+
+        slices = split_frame_node(outer.node, 44, 44)
+
+        self.assertGreater(len(slices), 1)
+        self.assertTrue(all(slice_node.children for slice_node in slices))
+        self.assertTrue(all(slice_node.resolved_height <= 44 for slice_node in slices))
+
+    def test_fixed_height_rect_splits_by_available_height(self) -> None:
+        rect = Frame().add_rect().height(120).background("#dbeafe")
+        rect.node.resolved_width = 100
+        rect.node.resolved_height = 120
+
+        slices = _split_flow_child(rect.node, 50, 40)
+        shell = Frame()
+        shell.node.resolved_width = 100
+        for slice_node in slices:
+            _ = shell.node.add_child(slice_node)
+        resolve_heights(shell.node, None)
+
+        self.assertEqual([slice_node.resolved_height for slice_node in slices], [50, 40, 30])
+
+    def test_fixed_height_split_rejects_non_finite_height(self) -> None:
+        rect = Frame().add_rect().height(120)
+        rect.node.resolved_width = 100
+        rect.node.resolved_height = float("inf")
+
+        with self.assertRaises(ValueError):
+            _ = _split_flow_child(rect.node, 50, 40)
+
+
+class LayoutPrimitiveTests(unittest.TestCase):
+    def test_layout_api_rejects_unbounded_track_counts_and_nonfinite_gap(self) -> None:
+        with self.assertRaises(ValueError):
+            _ = Frame().columns(65)
+        with self.assertRaises(ValueError):
+            _ = Frame().grid(65)
+        with self.assertRaises(ValueError):
+            _ = Frame().gap(float("inf"))
+        with self.assertRaises(ValueError):
+            _ = Frame().flex("row", wrap=True)
+
+    def test_flex_row_positions_children_horizontally(self) -> None:
+        frame = Frame().flex("row", gap=10).width(300)
+        first = frame.add_text("A")
+        second = frame.add_text("B")
+        frame.node.resolved_width = 300
+        for child in frame.node.children:
+            child.resolved_width = 145
+            child.resolved_height = 20
+
+        from smart_report.layout.pass3_heights import _layout_container
+
+        _layout_container(frame.node, None)
+
+        self.assertEqual(first.node.local_x, 0)
+        self.assertEqual(second.node.local_x, 155)
+        self.assertEqual(frame.node.resolved_height, 20)
+
+    def test_grid_positions_children_in_tracks(self) -> None:
+        frame = Frame().grid(2, gap=8).width(208)
+        children = [frame.add_text(str(index)) for index in range(3)]
+        frame.node.resolved_width = 208
+        for child in frame.node.children:
+            child.resolved_width = 100
+            child.resolved_height = 20
+
+        from smart_report.layout.pass3_heights import _layout_container
+
+        _layout_container(frame.node, None)
+
+        self.assertEqual((children[0].node.local_x, children[0].node.local_y), (0, 0))
+        self.assertEqual((children[1].node.local_x, children[1].node.local_y), (108, 0))
+        self.assertEqual((children[2].node.local_x, children[2].node.local_y), (0, 28))
+
+    def test_columns_place_children_in_shortest_column(self) -> None:
+        frame = Frame().columns(2, gap=12).width(212)
+        children = [frame.add_text(str(index)) for index in range(3)]
+        frame.node.resolved_width = 212
+        heights = [40, 20, 20]
+        for child, height in zip(frame.node.children, heights):
+            child.resolved_width = 100
+            child.resolved_height = height
+
+        from smart_report.layout.pass3_heights import _layout_container
+
+        _layout_container(frame.node, None)
+
+        self.assertEqual(children[0].node.local_x, 0)
+        self.assertEqual(children[1].node.local_x, 112)
+        self.assertEqual(children[2].node.local_x, 112)
+        self.assertEqual(children[2].node.local_y, 32)
 
 
 @unittest.skipIf(PdfReader is None, "pypdf is not installed")
