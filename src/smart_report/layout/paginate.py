@@ -3,7 +3,17 @@
 from __future__ import annotations
 
 from .node import LayoutNode, clone_layout_node
-from .table_model import table_column_count, table_column_widths, table_header_rows, table_height, table_repeat_header, table_row_heights, table_rows
+from .table_model import (
+    table_column_count,
+    table_column_widths,
+    table_header_rows,
+    table_height,
+    table_repeat_header,
+    table_row_heights,
+    table_rows,
+    table_slice_spans,
+    table_span_ranges,
+)
 from .text_wrap import wrap_text
 
 
@@ -143,6 +153,7 @@ def _split_table_node(child: LayoutNode, first_content_height: float, following_
 
     column_widths = table_column_widths(child, child.resolved_width, table_column_count(rows))
     row_heights = table_row_heights(child, rows, column_widths)
+    span_ranges = table_span_ranges(child, len(rows), table_column_count(rows))
     header_count = min(table_header_rows(child), len(rows))
     repeat_header = table_repeat_header(child) and header_count > 0
     header_rows = rows[:header_count]
@@ -166,7 +177,11 @@ def _split_table_node(child: LayoutNode, first_content_height: float, following_
     for body_index, row in enumerate(body_rows):
         row_offset = body_index + body_start
         row_height = row_heights[row_offset]
-        if len(current_rows) >= minimum_rows_in_slice and current_height + row_height > current_capacity:
+        if (
+            len(current_rows) >= minimum_rows_in_slice
+            and current_height + row_height > current_capacity
+            and not _source_rows_have_open_rowspan(source_row_indices, span_ranges, current_source_indices)
+        ):
             slices.append(_clone_table_slice(child, current_rows, current_source_indices, current_header_rows))
             current_rows = list(header_rows) if repeat_header else []
             current_source_indices = list(header_source_indices) if repeat_header else []
@@ -193,8 +208,22 @@ def _clone_table_slice(child: LayoutNode, rows: list[list[str]], source_row_indi
     node.content["rows"] = rows
     node.content["source_row_indices"] = source_row_indices
     node.content["header_rows"] = header_rows
+    node.content["cell_spans"] = table_slice_spans(child, source_row_indices)
     node.resolved_height = table_height(node)
     return node
+
+
+def _source_rows_have_open_rowspan(
+    all_source_row_indices: list[int],
+    span_ranges: list[tuple[int, int]],
+    candidate_source_indices: list[int],
+) -> bool:
+    candidate_sources = set(candidate_source_indices)
+    for start, end in span_ranges:
+        span_sources = set(all_source_row_indices[start:end])
+        if candidate_sources.intersection(span_sources) and not span_sources.issubset(candidate_sources):
+            return True
+    return False
 
 
 def _current_page_flow_extent(page: LayoutNode) -> float:

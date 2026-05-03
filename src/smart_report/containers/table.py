@@ -167,6 +167,13 @@ class Table(NodeBuilder):
         styles[key] = _merge_style_override(styles.get(key), background=background, color=color, align=align)
         return self
 
+    def span(self, row_index: int, column_index: int, *, rowspan: int = 1, colspan: int = 1) -> "Table":
+        if rowspan < 1 or colspan < 1:
+            raise ValueError("Table span values must be >= 1")
+        spans = _style_map(self.node.content, "cell_spans")
+        spans[f"{row_index}:{column_index}"] = {"rowspan": rowspan, "colspan": colspan}
+        return self
+
 
 def _edge_points(value: SizeInput) -> float:
     parsed = parse_size(value)
