@@ -11,7 +11,7 @@ FONT_BOLD = "SourceHanSansSC-Bold"
 
 
 def register_demo_fonts() -> None:
-    register_font(FONT_NORMAL, FONT_DIR / "SourceHanSansSC-Normal.ttf", set_default=True)
+    register_font(FONT_NORMAL, FONT_DIR / "SourceHanSansSC-Normal.ttf", set_default=True, fallback=True)
     register_font(FONT_MEDIUM, FONT_DIR / "SourceHanSansSC-Medium.ttf")
     register_font(FONT_BOLD, FONT_DIR / "SourceHanSansSC-Bold.ttf")
 
@@ -25,7 +25,7 @@ def main() -> None:
     frame = Frame().padding(32)
     frame.add_text("中文表格示例").font(FONT_BOLD).font_size(20).color("#0f172a").margin(bottom=16)
     frame.add_text(
-        "这个示例展示列宽、对齐、单元格内边距、表头样式、斑马纹、圆角边框以及跨页重复表头。"
+        "这个示例展示列宽、对齐、单元格内边距、跨行单元格、表头样式、斑马纹、圆角边框以及跨页重复表头。"
     ).font(FONT_MEDIUM).font_size(12).color("#475569").margin(bottom=8)
     frame.add_text("标题使用 Bold，说明使用 Medium，表格内容使用 Normal。").font(FONT_NORMAL).font_size(10).color("#64748b").margin(bottom=20)
 
@@ -47,6 +47,8 @@ def main() -> None:
         .header(background="#1d4ed8", color="#ffffff", repeat=True)
         .header_style(font=FONT_BOLD, font_size=11, line_height=14, align="center")
         .zebra("#f8fafc")
+        .span(1, 0, rowspan=2)
+        .span(5, 2, colspan=2)
         .row_style(3, background="#ecfeff")
         .column_style(2, color="#166534")
         .cell_style(6, 1, background="#dcfce7", color="#166534", align="right")

@@ -20,27 +20,37 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Absolute positioning inside `Canvas`
 - Repeating page overlays via `header()`, `footer()`, and `watermark()`
 - Basic automatic pagination for flow content
-- Table column widths, alignment, cell padding, header styling, zebra rows, rounded borders, and repeated headers on pagination
+- Table column widths, alignment, cell padding, `rowspan` / `colspan`, header styling, zebra rows, rounded borders, and repeated headers on pagination
 - Public font registration helpers and width-based CJK text wrapping
 - PNG and SVG image rendering
 - Top-down width resolution and bottom-up height measurement
 - Paint ordering through `z-index`
 - `Text`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
 
-## v0.4 status
+## v0.6 status
 
 - Chinese API documentation is available in `docs/zh/api.md`
-- Table v2 supports column widths, alignment, padding, header styling, zebra rows, rounded borders, repeated headers, and row/column/cell style overrides
+- Table v2 supports column widths, alignment, padding, `rowspan`, `colspan`, header styling, zebra rows, rounded borders, repeated headers, and row/column/cell style overrides
 - CJK text wraps by measured glyph width across text, table measurement, pagination, and rendering
-- Fonts can be registered from the top-level API with `register_font(...)`
+- Fonts can be registered from the top-level API with `register_font(...)`, including fallback chains for mixed-language text
 - Chinese runnable examples live in `examples/`, including `examples/zh_table_demo.py`
+
+## Table spans
+
+```python
+Table([
+    ["Region", "Revenue", "Growth"],
+    ["North", "$120K", "+8%"],
+    ["", "$96K", "+5%"],
+]).span(1, 0, rowspan=2)
+```
 
 ## Font registration
 
 ```python
 from smart_report import register_font
 
-register_font("SourceHanSansSC-Normal", "examples/fonts/SourceHanSansSC-Normal.ttf", set_default=True)
+register_font("SourceHanSansSC-Normal", "examples/fonts/SourceHanSansSC-Normal.ttf", set_default=True, fallback=True)
 ```
 
 ## Install
@@ -140,9 +150,16 @@ Run one with:
 
 MIT. See [LICENSE](./LICENSE).
 
+## Roadmap
+
+- **v0.7: Pagination enhancements** — deeper splitting for complex table cells and large non-text/non-table blocks.
+- **v0.8: Modern layout primitives** — flex, grid, and columns constraint layout.
+
+After v0.8, the project should enter the 1.0 stabilization phase: API tightening, performance work, broader tests, and documentation polish.
+
 ## Current limitations
 
-- No `rowspan` / `colspan` yet
+- `rowspan` content is kept together during pagination rather than split across pages
 - Pagination is currently optimized for flow content inside `Frame`
 - Very large single non-text, non-table blocks are moved rather than deeply split
 - No flexbox/grid constraint solver yet

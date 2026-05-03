@@ -7,7 +7,7 @@
 ```python
 from smart_report import Canvas, Frame, document, register_font
 
-register_font("SourceHanSansSC-Normal", "examples/fonts/SourceHanSansSC-Normal.ttf", set_default=True)
+register_font("SourceHanSansSC-Normal", "examples/fonts/SourceHanSansSC-Normal.ttf", set_default=True, fallback=True)
 
 doc = document()
 page = doc.page("A4")
@@ -135,10 +135,17 @@ table = Table(rows) \
     .header_style(font="SourceHanSansSC-Bold", font_size=11, line_height=14, align="center")
 ```
 
-当前表格限制：
+跨行/跨列单元格使用 `span(...)`：
 
-- 暂不支持 `rowspan` / `colspan`
-- 支持基础跨页拆分，但复杂单元格内容仍需后续增强
+```python
+table = Table([
+    ["地区", "收入", "增长"],
+    ["华北", "¥120K", "+8%"],
+    ["", "¥96K", "+5%"],
+]).span(1, 0, rowspan=2)
+```
+
+分页遇到 `rowspan` 时会把断点移动到合法行边界，避免把一个跨行单元格拆到两页。复杂单元格内容的深度拆分仍需后续增强。
 
 ## 元素 API
 
@@ -165,14 +172,16 @@ frame.add_text("中文文本").font_size(14).line_height(18).color("#0f172a")
 推荐从顶层 API 注册字体：
 
 ```python
-from smart_report import register_font, set_default_font
+from smart_report import register_font, set_default_font, set_fallback_fonts
 
-register_font("SourceHanSansSC-Normal", "examples/fonts/SourceHanSansSC-Normal.ttf", set_default=True)
+register_font("SourceHanSansSC-Normal", "examples/fonts/SourceHanSansSC-Normal.ttf", set_default=True, fallback=True)
 register_font("SourceHanSansSC-Bold", "examples/fonts/SourceHanSansSC-Bold.ttf")
 set_default_font("SourceHanSansSC-Normal")
+set_fallback_fonts(["SourceHanSansSC-Normal"])
 ```
 
 `set_default=True` 只影响后续创建的节点；已经创建的 `Text` / `Table` 仍保留自己的字体设置。
+`fallback=True` 或 `set_fallback_fonts(...)` 用于混合文本：当主字体不支持某个字符时，渲染器会切换到第一个覆盖该字符的 fallback 字体，同时测量、分页和绘制保持一致。
 
 ### `Image`
 
@@ -248,8 +257,8 @@ height("auto")   # 内容自适应
 
 ## 当前限制
 
-- 表格暂不支持 `rowspan` / `colspan`
+- 表格支持 `rowspan` / `colspan`；跨行单元格分页时会整体保留在同一页切片中
 - 分页主要针对 `Frame` 内的流式内容
 - 大型非文本/非表格块可能整体移动到下一页，而不是深度拆分
 - 尚未实现 flex/grid/columns 约束布局
-- 字体 fallback 仍需后续系统化
+- 字体 fallback 已支持；复杂字体 shaping 和 OpenType 特性仍需后续增强
