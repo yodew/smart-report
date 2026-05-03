@@ -224,6 +224,25 @@ frame.add_spacer(12)
 | `.radius(value)` | 设置圆角半径 |
 | `.margin(...)` | 设置外边距 |
 | `.padding(...)` | 设置内边距 |
+| `.flex(direction="row", gap=None)` | 使用 flex 行/列布局 |
+| `.grid(columns, gap=None)` | 使用固定列数网格布局 |
+| `.columns(count, gap=None)` | 使用多列瀑布流布局 |
+
+布局示例：
+
+```python
+cards = Frame().grid(3, gap=10)
+cards.add_text("收入").padding(10).background("#f8fafc")
+cards.add_text("增长").padding(10).background("#f8fafc")
+
+summary = Frame().flex("row", gap=12)
+summary.add_text("A")
+summary.add_text("B")
+
+notes = Frame().columns(2, gap=16)
+notes.add_text("长说明一")
+notes.add_text("长说明二")
+```
 
 ## `margin()` / `padding()` 参数语义
 
@@ -258,7 +277,7 @@ height("auto")   # 内容自适应
 ## 当前限制
 
 - 表格支持 `rowspan` / `colspan`；跨行单元格分页时会整体保留在同一页切片中
-- 分页主要针对 `Frame` 内的流式内容
-- 大型非文本/非表格块可能整体移动到下一页，而不是深度拆分
-- 尚未实现 flex/grid/columns 约束布局
+- 分页支持嵌套 `Frame` 和固定高度 `Rect` / `Spacer` 的更细粒度切分
+- 图片和复杂表格单元格内容仍保持原子分页
+- `flex` / `grid` / `columns` 是实用布局模式，并非完整 CSS 约束求解器
 - 字体 fallback 已支持；复杂字体 shaping 和 OpenType 特性仍需后续增强

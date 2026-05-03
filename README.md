@@ -20,6 +20,8 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Absolute positioning inside `Canvas`
 - Repeating page overlays via `header()`, `footer()`, and `watermark()`
 - Basic automatic pagination for flow content
+- Deeper pagination for nested frames and fixed-height blocks
+- Practical `flex`, `grid`, and `columns` container layout modes
 - Table column widths, alignment, cell padding, `rowspan` / `colspan`, header styling, zebra rows, rounded borders, and repeated headers on pagination
 - Public font registration helpers and width-based CJK text wrapping
 - PNG and SVG image rendering
@@ -27,13 +29,14 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Paint ordering through `z-index`
 - `Text`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
 
-## v0.6 status
+## v0.8 status
 
 - Chinese API documentation is available in `docs/zh/api.md`
 - Table v2 supports column widths, alignment, padding, `rowspan`, `colspan`, header styling, zebra rows, rounded borders, repeated headers, and row/column/cell style overrides
 - CJK text wraps by measured glyph width across text, table measurement, pagination, and rendering
 - Fonts can be registered from the top-level API with `register_font(...)`, including fallback chains for mixed-language text
 - Chinese runnable examples live in `examples/`, including `examples/zh_table_demo.py`
+- Layout primitives are available through `.flex(...)`, `.grid(...)`, and `.columns(...)`
 
 ## Table spans
 
@@ -43,6 +46,22 @@ Table([
     ["North", "$120K", "+8%"],
     ["", "$96K", "+5%"],
 ]).span(1, 0, rowspan=2)
+```
+
+## Layout primitives
+
+```python
+cards = Frame().grid(3, gap=10)
+cards.add_text("Revenue").padding(10).background("#f8fafc")
+cards.add_text("Growth").padding(10).background("#f8fafc")
+
+summary = Frame().flex("row", gap=12)
+summary.add_text("A")
+summary.add_text("B")
+
+notes = Frame().columns(2, gap=16)
+notes.add_text("Long note one")
+notes.add_text("Long note two")
 ```
 
 ## Font registration
@@ -138,6 +157,7 @@ margin((24, 24, 20, 24))    # top, right, bottom, left
 - `examples/layered_canvas.py`
 - `examples/report_demo.py`
 - `examples/paginated_report.py`
+- `examples/layout_primitives.py`
 - `examples/zh_table_demo.py`
 
 Run one with:
@@ -152,15 +172,11 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Roadmap
 
-- **v0.7: Pagination enhancements** — deeper splitting for complex table cells and large non-text/non-table blocks.
-- **v0.8: Modern layout primitives** — flex, grid, and columns constraint layout.
-
-After v0.8, the project should enter the 1.0 stabilization phase: API tightening, performance work, broader tests, and documentation polish.
+The v0.7/v0.8 roadmap is complete. The next phase is 1.0 stabilization: API tightening, performance work, broader tests, and documentation polish.
 
 ## Current limitations
 
 - `rowspan` content is kept together during pagination rather than split across pages
-- Pagination is currently optimized for flow content inside `Frame`
-- Very large single non-text, non-table blocks are moved rather than deeply split
-- No flexbox/grid constraint solver yet
+- Pagination still keeps images and complex table cells atomic
+- Flex/grid/columns are practical layout primitives, not a complete CSS constraint solver
 - `height="auto"` with percentage-based absolute `top` values follows a simplified rule
