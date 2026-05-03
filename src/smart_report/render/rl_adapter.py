@@ -11,6 +11,7 @@ from typing import Protocol, cast
 from ..layout.node import Rect
 from ..layout.text_wrap import wrap_text
 from ..style.color import RGBA
+from ..style.font import resolve_text_runs, string_width
 
 
 class CanvasLike(Protocol):
@@ -42,16 +43,13 @@ class TextObjectLike(Protocol):
     def setFillColorRGB(self, r: float, g: float, b: float) -> None: ...
     def setTextOrigin(self, x: float, y: float) -> None: ...
     def setLeading(self, leading: float) -> None: ...
+    def textOut(self, text: str) -> None: ...
     def textLine(self, text: str = "") -> None: ...
 
 
 class PathLike(Protocol):
     def rect(self, x: float, y: float, width: float, height: float) -> None: ...
     def roundRect(self, x: float, y: float, width: float, height: float, radius: float) -> None: ...
-
-
-class StringWidthFn(Protocol):
-    def __call__(self, text: str, font_name: str, font_size: float) -> float: ...
 
 
 class CanvasFactory(Protocol):
@@ -157,22 +155,20 @@ class ReportLabCanvasAdapter:
         if color is not None:
             text_object.setFillColorRGB(color.red, color.green, color.blue)
             self._canvas.setFillAlpha(color.alpha)
-        if align != "left":
-            pdfmetrics = import_module("reportlab.pdfbase.pdfmetrics")
-            string_width = cast(StringWidthFn, getattr(pdfmetrics, "stringWidth"))
-            current_baseline_y = baseline_y
-            for line in wrapped_lines:
-                line_width = string_width(line, font_name, font_size)
-                offset = max(0.0, width - line_width)
-                if align == "center":
-                    offset /= 2
-                text_object.setTextOrigin(x + offset, current_baseline_y)
-                text_object.textLine(line)
-                current_baseline_y -= line_height
-            self._canvas.drawText(text_object)
-            return
+        current_baseline_y = baseline_y
         for line in wrapped_lines:
-            text_object.textLine(line)
+            line_width = string_width(line, font_name, font_size)
+            offset = max(0.0, width - line_width)
+            if align == "center":
+                offset /= 2
+            elif align == "left":
+                offset = 0.0
+            text_object.setTextOrigin(x + offset, current_baseline_y)
+            for run in resolve_text_runs(line, font_name):
+                text_object.setFont(run.font_name, font_size, line_height)
+                text_object.textOut(run.text)
+            text_object.textLine()
+            current_baseline_y -= line_height
         self._canvas.drawText(text_object)
 
     def draw_image(self, image_path: str, rect: Rect, opacity: float = 1.0) -> None:

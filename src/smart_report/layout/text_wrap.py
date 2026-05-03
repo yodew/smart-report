@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from importlib import import_module
-from typing import Protocol, cast
+from typing import Protocol
+
+from ..style.font import string_width as fallback_string_width
 
 
 class StringWidthFn(Protocol):
@@ -40,6 +41,7 @@ def _wrap_paragraph(paragraph: str, width: float, font_name: str, font_size: flo
             current = candidate
             continue
         if current.strip():
+            current, token = _rebalance_for_line_break(current.rstrip(), token)
             lines.append(current.rstrip())
             current = token.lstrip()
             if not current:
@@ -90,6 +92,24 @@ def _is_cjk_or_punctuation(character: str) -> bool:
     )
 
 
+def _rebalance_for_line_break(current: str, next_token: str) -> tuple[str, str]:
+    while current and next_token and _cannot_start_line(next_token[0]):
+        next_token = f"{current[-1]}{next_token}"
+        current = current[:-1]
+    while current and _cannot_end_line(current[-1]) and next_token:
+        next_token = f"{current[-1]}{next_token}"
+        current = current[:-1]
+    return current, next_token
+
+
+def _cannot_start_line(character: str) -> bool:
+    return character in "，。！？；：、）】》〉」』”’)]}.,!?:;"
+
+
+def _cannot_end_line(character: str) -> bool:
+    return character in "（【《〈「『“‘([{"
+
+
 def _split_long_token(token: str, width: float, font_name: str, font_size: float, string_width: StringWidthFn) -> list[str]:
     parts: list[str] = []
     current = ""
@@ -106,5 +126,4 @@ def _split_long_token(token: str, width: float, font_name: str, font_size: float
 
 
 def _string_width_fn() -> StringWidthFn:
-    pdfmetrics = import_module("reportlab.pdfbase.pdfmetrics")
-    return cast(StringWidthFn, getattr(pdfmetrics, "stringWidth"))
+    return fallback_string_width
