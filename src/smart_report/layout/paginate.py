@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from math import isfinite
+
 from .node import LayoutNode, clone_layout_node
+from ..style.units import Fixed
 from .table_model import (
     table_column_count,
     table_column_widths,
@@ -15,6 +18,8 @@ from .table_model import (
     table_span_ranges,
 )
 from .text_wrap import wrap_text
+
+MAX_FIXED_SPLIT_CHUNKS = 10000
 
 
 def paginate_page(page: LayoutNode) -> list[LayoutNode]:
@@ -45,12 +50,13 @@ def _append_with_pagination(
     output_pages: list[LayoutNode],
     max_page_height: float,
 ) -> LayoutNode:
-    if child.local_y + child.resolved_height <= max_page_height:
+    content_bottom = max(1.0, max_page_height - current_page.style.padding.bottom)
+    if child.local_y + child.resolved_height <= content_bottom:
         _ = current_page.add_child(clone_layout_node(child))
         return current_page
 
     if child.node_type == "frame":
-        remaining_height = max(1.0, max_page_height - _current_page_flow_extent(current_page))
+        remaining_height = max(1.0, content_bottom - _current_page_flow_extent(current_page))
         frame_slices = split_frame_node(child, remaining_height, max_page_height)
         if not frame_slices:
             _ = current_page.add_child(clone_layout_node(child))
@@ -97,10 +103,15 @@ def split_frame_node(frame: LayoutNode, first_page_height: float, following_page
                 current_height = 0.0
                 current_capacity = following_content_height
 
+            split_node.local_x = frame.style.padding.left + split_node.style.margin.left
+            split_node.local_y = current_height + split_node.style.margin.top
             _ = current_frame.add_child(split_node)
             current_height += child_total_height
 
-    return [frame_slice for frame_slice in frame_slices if frame_slice.children]
+    result = [frame_slice for frame_slice in frame_slices if frame_slice.children]
+    for frame_slice in result:
+        frame_slice.resolved_height = _frame_slice_height(frame_slice)
+    return result
 
 
 def _split_flow_child(child: LayoutNode, first_content_height: float, following_content_height: float) -> list[LayoutNode]:
@@ -115,6 +126,10 @@ def _split_flow_child(child: LayoutNode, first_content_height: float, following_
         return _split_text_node(child, first_node_height, following_node_height)
     if child.node_type == "table":
         return _split_table_node(child, first_node_height, following_node_height)
+    if child.node_type == "frame":
+        return split_frame_node(child, first_node_height, following_node_height) or [clone_layout_node(child)]
+    if child.node_type in {"spacer", "rect"}:
+        return _split_fixed_height_node(child, first_node_height, following_node_height)
 
     return [clone_layout_node(child)]
 
@@ -201,6 +216,52 @@ def _split_table_node(child: LayoutNode, first_content_height: float, following_
 
 def _max_text_lines(content_height: float, line_height: float) -> int:
     return max(1, int(content_height // max(1.0, line_height)))
+
+
+def _split_fixed_height_node(child: LayoutNode, first_content_height: float, following_content_height: float) -> list[LayoutNode]:
+    if child.resolved_height <= 0:
+        return [clone_layout_node(child)]
+    if not isfinite(child.resolved_height):
+        raise ValueError("Fixed-height pagination requires finite heights")
+
+    result: list[LayoutNode] = []
+    remaining_height = child.resolved_height
+    capacity = max(1.0, first_content_height)
+    while remaining_height > 0:
+        if len(result) >= MAX_FIXED_SPLIT_CHUNKS:
+            raise ValueError("Fixed-height pagination produced too many fragments")
+        chunk_height = min(remaining_height, capacity)
+        node = clone_layout_node(child, include_children=False)
+        node.resolved_height = chunk_height
+        node.style.height = Fixed(chunk_height)
+        if node.node_type == "spacer":
+            node.content["height"] = chunk_height
+        result.append(node)
+        remaining_height -= chunk_height
+        capacity = max(1.0, following_content_height)
+    return result or [clone_layout_node(child)]
+
+
+def _frame_slice_height(frame: LayoutNode) -> float:
+    if not frame.children:
+        return frame.style.padding.vertical
+    flow_extent = max(
+        (
+            child.local_y
+            + child.resolved_height
+            + child.style.margin.bottom
+            for child in frame.flow_children
+        ),
+        default=frame.style.padding.top,
+    )
+    absolute_extent = max(
+        (
+            child.local_y + child.resolved_height
+            for child in frame.absolute_children
+        ),
+        default=frame.style.padding.top,
+    )
+    return max(flow_extent, absolute_extent) + frame.style.padding.bottom
 
 
 def _clone_table_slice(child: LayoutNode, rows: list[list[str]], source_row_indices: list[int], header_rows: int) -> LayoutNode:
