@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Iterator
 from typing import cast
 
-from smart_report import Frame, Table, document, get_font, set_default_font
+from smart_report import Frame, Table, document, get_fallback_fonts, get_font, register_font, resolve_text_runs, set_default_font, set_fallback_fonts
 from smart_report.layout.node import Rect, RenderItem, Style
 from smart_report.layout.paginate import _split_table_node, _split_text_node
-from smart_report.layout.table_model import table_cell_boxes, table_cell_padding, table_column_widths, table_height
+from smart_report.layout.table_model import table_cell_boxes, table_cell_padding, table_column_widths, table_height, table_row_heights
 from smart_report.layout.text_wrap import wrap_text
 from smart_report.render.painters import paint_table
 from smart_report.render.rl_adapter import ReportLabCanvasAdapter
@@ -24,6 +24,17 @@ except ImportError:  # pragma: no cover
 
 
 class TableV2ModelTests(unittest.TestCase):
+    def test_font_fallback_splits_mixed_text_runs(self) -> None:
+        font_dir = Path(__file__).resolve().parents[1] / "examples" / "fonts"
+        register_font("TestSourceHanSansSC", font_dir / "SourceHanSansSC-Normal.ttf")
+        original_fallbacks = list(get_fallback_fonts())
+        set_fallback_fonts(["TestSourceHanSansSC"])
+        try:
+            runs = resolve_text_runs("A中B", "Helvetica")
+            self.assertEqual([(run.text, run.font_name) for run in runs], [("A", "Helvetica"), ("中", "TestSourceHanSansSC"), ("B", "Helvetica")])
+        finally:
+            _ = set_fallback_fonts(original_fallbacks)
+
     def test_font_api_sets_default_for_future_styles(self) -> None:
         original = get_font().name
         try:
@@ -39,6 +50,13 @@ class TableV2ModelTests(unittest.TestCase):
 
         self.assertEqual(wrap_text("中文没有空格", 3, "Helvetica", 12, fixed_width), ["中文没", "有空格"])
         self.assertEqual(wrap_text("superlong", 4, "Helvetica", 12, fixed_width), ["supe", "rlon", "g"])
+
+    def test_cjk_wrap_avoids_bad_line_starts(self) -> None:
+        def fixed_width(text: str, font_name: str, font_size: float) -> float:
+            _ = (font_name, font_size)
+            return float(len(text))
+
+        self.assertEqual(wrap_text("你好，世界", 3, "Helvetica", 12, fixed_width), ["你好，", "世界"])
 
     def test_text_pagination_uses_cjk_wrap_helper(self) -> None:
         text = Frame().add_text("中文没有空格也应该稳定分页")
@@ -115,6 +133,42 @@ class TableV2ModelTests(unittest.TestCase):
         self.assertEqual(target.align, "center")
         self.assertIsNotNone(target.background)
         self.assertIsNotNone(target.color)
+
+    def test_colspan_cell_uses_combined_width_and_skips_covered_cells(self) -> None:
+        table = Table([["H1", "H2", "H3"], ["Merged", "", "Tail"]]).column_widths([80, 90, 100]).span(1, 0, colspan=2)
+        table.node.resolved_width = 270
+
+        boxes = table_cell_boxes(table.node, 0, 0, 270, table_height(table.node))
+        body_boxes = [box for box in boxes if box.row_index == 1]
+        merged_box = next(box for box in body_boxes if box.column_index == 0)
+
+        self.assertEqual(len(body_boxes), 2)
+        self.assertEqual(merged_box.colspan, 2)
+        self.assertEqual(merged_box.width, 170)
+
+    def test_rowspan_cell_uses_combined_height_and_skips_covered_cells(self) -> None:
+        rows = [["H1", "H2"], ["Group", "A"], ["", "B"]]
+        table = Table(rows).column_widths([120, 120]).span(1, 0, rowspan=2)
+        table.node.resolved_width = 240
+        row_heights = table_row_heights(table.node, rows, table_column_widths(table.node, 240, 2))
+
+        boxes = table_cell_boxes(table.node, 0, 0, 240, table_height(table.node))
+        rowspan_box = next(box for box in boxes if box.row_index == 1 and box.column_index == 0)
+
+        self.assertEqual(len([box for box in boxes if box.row_index in {1, 2}]), 3)
+        self.assertEqual(rowspan_box.rowspan, 2)
+        self.assertEqual(rowspan_box.height, sum(row_heights[1:3]))
+
+    def test_invalid_span_raises_for_overlap_or_bounds(self) -> None:
+        overlapping = Table([["A", "B"], ["C", "D"]]).span(0, 0, rowspan=2).span(1, 0, colspan=2)
+        overlapping.node.resolved_width = 200
+        with self.assertRaises(ValueError):
+            _ = table_height(overlapping.node)
+
+        out_of_bounds = Table([["A", "B"]]).span(0, 1, colspan=2)
+        out_of_bounds.node.resolved_width = 200
+        with self.assertRaises(ValueError):
+            _ = table_height(out_of_bounds.node)
 
     def test_header_style_can_override_font_metrics(self) -> None:
         table = (
@@ -242,6 +296,21 @@ class TableV2PaginationTests(unittest.TestCase):
         self.assertEqual(len(matched_boxes), 1)
         self.assertEqual(matched_boxes[0].align, "center")
         self.assertIsNotNone(matched_boxes[0].background)
+
+    def test_table_pagination_keeps_rowspan_rows_together(self) -> None:
+        rows = [["Region", "Value"], ["A", "1"], ["Merged", "2"], ["", "3"], ["D", "4"]]
+        table = Table(rows).column_widths([120, 120]).span(2, 0, rowspan=2).font_size(10).line_height(12)
+        table.node.resolved_width = 240
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 72, 72)
+        source_sets = [set(cast(list[int], table_slice.content["source_row_indices"])) for table_slice in slices]
+        slice_with_span = next(table_slice for table_slice in slices if {2, 3}.issubset(set(cast(list[int], table_slice.content["source_row_indices"]))))
+        slice_spans = cast(dict[str, dict[str, int]], slice_with_span.content["cell_spans"])
+
+        self.assertTrue(any({2, 3}.issubset(source_set) for source_set in source_sets))
+        self.assertTrue(all(not ({2, 3}.intersection(source_set) and not {2, 3}.issubset(source_set)) for source_set in source_sets))
+        self.assertIn({"rowspan": 2, "colspan": 1}, slice_spans.values())
 
 
 @unittest.skipIf(PdfReader is None, "pypdf is not installed")
