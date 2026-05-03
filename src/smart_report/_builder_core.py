@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from importlib import import_module
+from math import isfinite
 from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
 from .layout.node import Edges, LayoutNode, OverflowMode, PositionMode, Style
@@ -60,12 +61,15 @@ PAGE_SIZES: dict[str, tuple[float, float]] = {
     "A4": (595.2756, 841.8898),
     "LETTER": (612.0, 792.0),
 }
+MAX_LAYOUT_TRACKS = 64
 
 
 def _edge_points(value: SizeInput) -> float:
     parsed = parse_size(value)
     if not isinstance(parsed, Fixed):
         raise ValueError("Padding and margin require fixed point-compatible values")
+    if not isfinite(parsed.points):
+        raise ValueError("Size values must be finite")
     return parsed.points
 
 
@@ -263,6 +267,51 @@ class NodeBuilder:
 
     def radius(self: BuilderT, value: float) -> BuilderT:
         self.node.style.border_radius = value
+        return self
+
+    def layout(self: BuilderT, value: str) -> BuilderT:
+        normalized = value.lower()
+        if normalized not in {"flow", "flex", "grid", "columns"}:
+            raise ValueError(f"Unsupported layout mode: {value}")
+        self.node.content["layout"] = normalized
+        return self
+
+    def gap(self: BuilderT, value: SizeInput) -> BuilderT:
+        self.node.content["gap"] = _edge_points(value)
+        return self
+
+    def flex(self: BuilderT, direction: str = "row", *, gap: SizeInput | None = None, wrap: bool = False) -> BuilderT:
+        normalized = direction.lower()
+        if normalized not in {"row", "column"}:
+            raise ValueError(f"Unsupported flex direction: {direction}")
+        if wrap:
+            raise ValueError("Flex wrapping is not supported yet")
+        self.node.content["layout"] = "flex"
+        self.node.content["flex_direction"] = normalized
+        if gap is not None:
+            self.node.content["gap"] = _edge_points(gap)
+        return self
+
+    def grid(self: BuilderT, columns: int, *, gap: SizeInput | None = None) -> BuilderT:
+        if columns < 1:
+            raise ValueError("Grid columns must be >= 1")
+        if columns > MAX_LAYOUT_TRACKS:
+            raise ValueError(f"Grid columns must be <= {MAX_LAYOUT_TRACKS}")
+        self.node.content["layout"] = "grid"
+        self.node.content["grid_columns"] = columns
+        if gap is not None:
+            self.node.content["gap"] = _edge_points(gap)
+        return self
+
+    def columns(self: BuilderT, count: int, *, gap: SizeInput | None = None) -> BuilderT:
+        if count < 1:
+            raise ValueError("Column count must be >= 1")
+        if count > MAX_LAYOUT_TRACKS:
+            raise ValueError(f"Column count must be <= {MAX_LAYOUT_TRACKS}")
+        self.node.content["layout"] = "columns"
+        self.node.content["column_count"] = count
+        if gap is not None:
+            self.node.content["gap"] = _edge_points(gap)
         return self
 
     def build(self) -> LayoutNode:
