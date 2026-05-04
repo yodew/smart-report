@@ -5,18 +5,19 @@ from __future__ import annotations
 import tempfile
 import unittest
 from contextlib import contextmanager
+from io import BytesIO
 from pathlib import Path
 from typing import Iterator
 from typing import cast
 
-from smart_report import DEFAULT_FONT_NAME, Frame, Spacer, Table, document, get_default_font_name, get_fallback_fonts, get_font, register_font, resolve_text_runs, set_default_font, set_fallback_fonts, string_width
+from smart_report import DEFAULT_FONT_NAME, Frame, Image, Spacer, Table, document, get_default_font_name, get_fallback_fonts, get_font, register_font, resolve_text_runs, set_default_font, set_fallback_fonts, string_width
 from smart_report.builder import resolve_page_size
 from smart_report.layout.node import Rect, RenderItem, Style
 from smart_report.layout.paginate import _split_flow_child, _split_table_node, _split_text_node, split_frame_node
 from smart_report.layout.pass3_heights import resolve_heights
-from smart_report.layout.table_model import table_cell_boxes, table_cell_padding, table_column_widths, table_height, table_row_heights
+from smart_report.layout.table_model import table_cell_boxes, table_cell_padding, table_column_widths, table_height, table_row_heights, table_rows
 from smart_report.layout.text_wrap import wrap_text
-from smart_report.render.painters import paint_table
+from smart_report.render.painters import paint_image, paint_table
 from smart_report.render.rl_adapter import ReportLabCanvasAdapter
 
 try:
@@ -270,6 +271,135 @@ class TableV2ModelTests(unittest.TestCase):
         self.assertEqual(first_padding, 40)
         self.assertEqual(second_padding, 40)
         self.assertEqual(updated_padding, 60)
+
+    def test_rich_table_cell_uses_nested_layout_content(self) -> None:
+        rich_cell = Frame().padding(4)
+        rich_cell.add_text("Nested table content wraps inside a cell").font_size(10).line_height(12)
+        table = Table([["Name", "Details"], ["A", rich_cell]]).column_widths([80, 120]).cell_padding(4)
+        table.node.resolved_width = 200
+
+        height = table_height(table.node)
+        boxes = table_cell_boxes(table.node, 0, 0, 200, height)
+        rich_box = next(box for box in boxes if box.row_index == 1 and box.column_index == 1)
+
+        self.assertIsNotNone(rich_box.rich_content)
+        self.assertGreater(rich_box.height, 24)
+
+    def test_table_footer_repeats_in_paginated_slices(self) -> None:
+        rows = [["Metric", "Value"]] + [[f"M{index}", str(index)] for index in range(12)]
+        table = Table(rows).footer([["Total", "66"]], repeat=True, background="#e2e8f0")
+        table.node.resolved_width = 200
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 90, 90)
+
+        self.assertGreater(len(slices), 1)
+        self.assertTrue(all(table_rows(table_slice)[-1][0] == "Total" for table_slice in slices))
+
+    def test_non_repeated_footer_keeps_footer_style_on_final_slice(self) -> None:
+        rows = [["Metric", "Value"]] + [[f"M{index}", str(index)] for index in range(12)]
+        table = Table(rows).footer([["Total", "66"]], repeat=False, background="#e2e8f0")
+        table.node.resolved_width = 200
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 90, 90)
+        final_slice = slices[-1]
+        boxes = table_cell_boxes(final_slice, 0, 0, 200, final_slice.resolved_height)
+        footer_box = next(box for box in boxes if box.row_index == len(table_rows(final_slice)) - 1 and box.column_index == 0)
+
+        self.assertGreater(len(slices), 1)
+        self.assertTrue(all(table_rows(table_slice)[-1][0] != "Total" for table_slice in slices[:-1]))
+        self.assertEqual(table_rows(final_slice)[-1][0], "Total")
+        self.assertEqual(footer_box.background, table.node.content["footer_background"])
+
+    def test_footer_background_takes_precedence_over_zebra(self) -> None:
+        table = (
+            Table([["Metric", "Value"], ["A", "1"], ["B", "2"]])
+            .zebra("#111111")
+            .footer([["Total", "3"]], background="#e2e8f0")
+        )
+        table.node.resolved_width = 200
+        boxes = table_cell_boxes(table.node, 0, 0, 200, table_height(table.node))
+        footer_box = next(box for box in boxes if box.row_index == 3 and box.column_index == 0)
+
+        self.assertEqual(footer_box.background, table.node.content["footer_background"])
+
+    def test_cell_border_override_is_reflected_in_cell_box(self) -> None:
+        table = Table([["A", "B"]]).borders("#111827", width=0.5, inner_width=0.25, outer_width=2).cell_border(0, 1, color="#dc2626", width=3)
+        table.node.resolved_width = 200
+        boxes = table_cell_boxes(table.node, 0, 0, 200, table_height(table.node))
+        cell = next(box for box in boxes if box.column_index == 1)
+
+        self.assertEqual(cell.border_width, 3)
+
+    def test_cell_border_override_controls_painted_line_widths(self) -> None:
+        table = Table([["A", "B"]]).borders("#111827", width=0.5, inner_width=0.25, outer_width=2).cell_border(0, 1, color="#dc2626", width=3)
+        table.node.resolved_width = 200
+        table.node.resolved_height = table_height(table.node)
+        adapter = _SpyAdapter()
+
+        paint_table(cast(ReportLabCanvasAdapter, adapter), RenderItem(table.node, Rect(0, 0, 200, table.node.resolved_height), (), (0,)))
+
+        self.assertIn(3, adapter.line_widths)
+
+    def test_table_inner_and_outer_border_widths_are_painted(self) -> None:
+        table = Table([["A", "B"], ["C", "D"]]).borders("#111827", width=0.5, inner_width=0.25, outer_width=2)
+        table.node.resolved_width = 200
+        table.node.resolved_height = table_height(table.node)
+        adapter = _SpyAdapter()
+
+        paint_table(cast(ReportLabCanvasAdapter, adapter), RenderItem(table.node, Rect(0, 0, 200, table.node.resolved_height), (), (0,)))
+
+        self.assertIn(0.25, adapter.line_widths)
+        self.assertIn(2, adapter.line_widths)
+
+    def test_cell_border_override_is_painted_after_neighbor_borders(self) -> None:
+        table = Table([["A", "B"], ["C", "D"]]).borders("#111827", width=0.5, inner_width=0.25, outer_width=2).cell_border(0, 0, width=3)
+        table.node.resolved_width = 200
+        table.node.resolved_height = table_height(table.node)
+        adapter = _SpyAdapter()
+
+        paint_table(cast(ReportLabCanvasAdapter, adapter), RenderItem(table.node, Rect(0, 0, 200, table.node.resolved_height), (), (0,)))
+
+        self.assertEqual(adapter.line_widths[-4:], [3, 3, 3, 3])
+
+    def test_pagination_control_flags_affect_frame_splitting(self) -> None:
+        frame = Frame().padding(0)
+        first = Spacer(20)
+        second = Spacer(20).page_break_before()
+        frame.add(first).add(second)
+        frame.node.resolved_width = 200
+        frame.node.resolved_height = 40
+        for child in frame.node.children:
+            child.resolved_width = 200
+            child.resolved_height = 20
+
+        slices = split_frame_node(frame.node, 100, 100)
+
+        self.assertEqual(len(slices), 2)
+        self.assertEqual(len(slices[0].children), 1)
+        self.assertEqual(len(slices[1].children), 1)
+
+    def test_keep_together_prevents_fixed_height_split_when_following_page_can_fit(self) -> None:
+        spacer = Spacer(80).keep_together()
+        spacer.node.resolved_height = 80
+
+        slices = _split_flow_child(spacer.node, 40, 100)
+
+        self.assertEqual(len(slices), 1)
+        self.assertEqual(slices[0].resolved_height, 80)
+
+    def test_image_bytes_fit_and_rounded_clip_are_supported(self) -> None:
+        image_bytes = _png_bytes(16, 8)
+        image = Image(image_bytes).contain().radius(5).width(80)
+        image.node.resolved_width = 80
+        image.node.resolved_height = 40
+        adapter = _SpyAdapter()
+
+        paint_image(cast(ReportLabCanvasAdapter, adapter), RenderItem(image.node, Rect(10, 20, 80, 40), (), (0,)))
+
+        self.assertEqual(adapter.rounded_clips, [(10, 20, 80, 40, 5)])
+        self.assertEqual(adapter.images[0][1], "contain")
 
 
 class TableV2PaginationTests(unittest.TestCase):
@@ -539,6 +669,9 @@ class _SpyAdapter:
     def __init__(self) -> None:
         self.rounded_clips: list[tuple[float, float, float, float, float]] = []
         self.drawn_radii: list[float] = []
+        self.images: list[tuple[Rect, str]] = []
+        self.line_widths: list[float] = []
+        self.lines: list[tuple[float, float, float, float, float]] = []
 
     @contextmanager
     def isolated_state(self) -> Iterator["_SpyAdapter"]:
@@ -556,6 +689,23 @@ class _SpyAdapter:
 
     def draw_text(self, **_kwargs: object) -> None:
         return
+
+    def draw_line(self, x1: float, y1: float, x2: float, y2: float, _color: object, stroke_width: float) -> None:
+        self.line_widths.append(float(stroke_width))
+        self.lines.append((float(x1), float(y1), float(x2), float(y2), float(stroke_width)))
+
+    def draw_image(self, _source: object, rect: Rect, opacity: float = 1.0, fit: str = "stretch") -> None:
+        _ = opacity
+        self.images.append((rect, fit))
+
+
+def _png_bytes(width: int, height: int) -> bytes:
+    from PIL import Image as PillowImage
+
+    buffer = BytesIO()
+    image = PillowImage.new("RGB", (width, height), "white")
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 if __name__ == "__main__":

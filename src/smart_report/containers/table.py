@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from .._builder_core import NodeBuilder
 from ..layout.node import Edges, LayoutNode, Style
 from ..style.color import RGBA, parse_color
@@ -11,13 +13,13 @@ ColorInput = str | RGBA | None
 
 
 class Table(NodeBuilder):
-    def __init__(self, rows: list[list[str]]) -> None:
+    def __init__(self, rows: Sequence[Sequence[object]]) -> None:
         style = Style(width=parse_size("100%"), height=parse_size("auto"))
         node = LayoutNode(
             node_type="table",
             style=style,
             content={
-                "rows": rows,
+                "rows": _normalize_rows(rows),
                 "header_rows": 1,
                 "repeat_header": True,
                 "cell_padding": Edges.all(6.0),
@@ -25,8 +27,22 @@ class Table(NodeBuilder):
         )
         super().__init__(node)
 
-    def rows(self, values: list[list[str]]) -> "Table":
-        self.node.content["rows"] = values
+    def rows(self, values: Sequence[Sequence[object]]) -> "Table":
+        self.node.content["rows"] = _normalize_rows(values)
+        return self
+
+    def cell(self, row_index: int, column_index: int, value: object) -> "Table":
+        rows = self.node.content.get("rows")
+        if not isinstance(rows, list):
+            raise ValueError("Table rows are not initialized")
+        while len(rows) <= row_index:
+            rows.append([])
+        row = rows[row_index]
+        if not isinstance(row, list):
+            raise ValueError(f"Table row is not a list: {row_index}")
+        while len(row) <= column_index:
+            row.append("")
+        row[column_index] = value.build() if isinstance(value, NodeBuilder) else value
         return self
 
     def column_widths(self, values: list[SizeInput]) -> "Table":
@@ -121,6 +137,68 @@ class Table(NodeBuilder):
         if align is not None:
             _validate_align_value(align)
             self.node.content["header_align"] = align
+        return self
+
+    def footer(
+        self,
+        rows: Sequence[Sequence[object]],
+        *,
+        repeat: bool = False,
+        background: ColorInput = None,
+        color: ColorInput = None,
+    ) -> "Table":
+        self.node.content["footer_rows"] = _normalize_rows(rows)
+        self.node.content["repeat_footer"] = repeat
+        if background is not None:
+            self.node.content["footer_background"] = parse_color(background)
+        if color is not None:
+            self.node.content["footer_color"] = parse_color(color)
+        return self
+
+    def footer_style(
+        self,
+        *,
+        background: ColorInput = None,
+        color: ColorInput = None,
+        align: str | list[str] | None = None,
+    ) -> "Table":
+        if background is not None:
+            self.node.content["footer_background"] = parse_color(background)
+        if color is not None:
+            self.node.content["footer_color"] = parse_color(color)
+        if align is not None:
+            _validate_align_value(align)
+            self.node.content["footer_align"] = align
+        return self
+
+    def subtotal(self, row: list[object], *, background: ColorInput = "#f1f5f9") -> "Table":
+        return self.footer([row], repeat=False, background=background)
+
+    def borders(
+        self,
+        color: ColorInput = "#cbd5e1",
+        *,
+        width: float = 1.0,
+        inner_width: float | None = None,
+        outer_width: float | None = None,
+    ) -> "Table":
+        self.node.content["border_color"] = parse_color(color)
+        self.node.content["border_width"] = float(width)
+        if inner_width is not None:
+            self.node.content["inner_border_width"] = float(inner_width)
+        if outer_width is not None:
+            self.node.content["outer_border_width"] = float(outer_width)
+        return self
+
+    def cell_border(self, row_index: int, column_index: int, *, color: ColorInput = None, width: float = 1.0) -> "Table":
+        styles = _style_map(self.node.content, "cell_styles")
+        key = f"{row_index}:{column_index}"
+        existing = styles.get(key)
+        style: dict[str, object] = dict(existing) if isinstance(existing, dict) else {}
+        if color is not None:
+            style["border_color"] = parse_color(color)
+        style["border_width"] = float(width)
+        styles[key] = style
         return self
 
     def zebra(self, background: ColorInput = "#f8fafc") -> "Table":
@@ -250,3 +328,10 @@ def _validate_align_value(value: str | list[str]) -> None:
         return
     for item in value:
         _validate_align(item)
+
+
+def _normalize_rows(rows: Sequence[Sequence[object]]) -> list[list[object]]:
+    normalized: list[list[object]] = []
+    for row in rows:
+        normalized.append([cell.build() if isinstance(cell, NodeBuilder) else cell for cell in row])
+    return normalized

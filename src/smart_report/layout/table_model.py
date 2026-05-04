@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Sequence
 from importlib import import_module
 from typing import Protocol, cast
 
-from .node import Edges, LayoutNode
+from .node import Edges, LayoutNode, clone_layout_node
 from .text_wrap import wrap_text
 from ..style.color import RGBA, parse_color
-from ..style.units import Auto, SizeInput, SizeSpec, parse_size, resolve_size
+from ..style.units import Auto, Fixed, SizeInput, SizeSpec, parse_size, resolve_size
 
 
 class StringWidthFn(Protocol):
@@ -26,6 +27,7 @@ class TableCellBox:
     width: float
     height: float
     text: str
+    rich_content: LayoutNode | None
     align: str
     background: RGBA | None
     color: RGBA | None
@@ -33,6 +35,8 @@ class TableCellBox:
     font_size: float
     line_height: float
     padding: Edges
+    border_color: RGBA | None = None
+    border_width: float | None = None
     rowspan: int = 1
     colspan: int = 1
 
@@ -45,16 +49,21 @@ class TableCellSpan:
     colspan: int = 1
 
 
-def table_rows(node: LayoutNode) -> list[list[str]]:
+def table_rows(node: LayoutNode) -> list[list[object]]:
     rows = node.content.get("rows")
     if not isinstance(rows, list):
         return []
 
-    normalized_rows: list[list[str]] = []
+    normalized_rows: list[list[object]] = []
     for row in cast(list[object], rows):
         if not isinstance(row, list):
             continue
-        normalized_rows.append([str(cell) for cell in cast(list[object], row)])
+        normalized_rows.append(list(cast(list[object], row)))
+    footer_rows = node.content.get("footer_rows")
+    if isinstance(footer_rows, list):
+        for row in cast(list[object], footer_rows):
+            if isinstance(row, list):
+                normalized_rows.append(list(cast(list[object], row)))
     return normalized_rows
 
 
@@ -67,6 +76,21 @@ def table_header_rows(node: LayoutNode) -> int:
 
 def table_repeat_header(node: LayoutNode) -> bool:
     value = node.content.get("repeat_header", True)
+    return bool(value)
+
+
+def table_footer_rows(node: LayoutNode) -> int:
+    slice_value = node.content.get("slice_footer_rows")
+    if isinstance(slice_value, int):
+        return max(0, slice_value)
+    value = node.content.get("footer_rows")
+    if not isinstance(value, list):
+        return 0
+    return sum(1 for row in cast(list[object], value) if isinstance(row, list))
+
+
+def table_repeat_footer(node: LayoutNode) -> bool:
+    value = node.content.get("repeat_footer", False)
     return bool(value)
 
 
@@ -132,7 +156,32 @@ def table_header_line_height(node: LayoutNode) -> float:
     return node.style.line_height
 
 
-def table_column_count(rows: list[list[str]]) -> int:
+def table_footer_background(node: LayoutNode) -> RGBA | None:
+    value = node.content.get("footer_background")
+    if isinstance(value, RGBA):
+        return value
+    if isinstance(value, str):
+        return parse_color(value)
+    return None
+
+
+def table_footer_color(node: LayoutNode) -> RGBA | None:
+    value = node.content.get("footer_color")
+    if isinstance(value, RGBA):
+        return value
+    if isinstance(value, str):
+        return parse_color(value)
+    return node.style.color
+
+
+def table_footer_alignments(node: LayoutNode, column_count: int) -> list[str] | None:
+    value = node.content.get("footer_align")
+    if value is None:
+        return None
+    return _resolve_alignments(value, column_count)
+
+
+def table_column_count(rows: Sequence[Sequence[object]]) -> int:
     return max((len(row) for row in rows), default=0)
 
 
@@ -226,11 +275,12 @@ def table_column_widths(node: LayoutNode, total_width: float, column_count: int)
     return [auto_width if width is None else width for width in widths]
 
 
-def table_row_heights(node: LayoutNode, rows: list[list[str]], column_widths: list[float]) -> list[float]:
+def table_row_heights(node: LayoutNode, rows: Sequence[Sequence[object]], column_widths: list[float]) -> list[float]:
     body_padding = table_cell_padding(node)
     header_padding = table_header_cell_padding(node)
     string_width = _string_width_fn()
     header_rows = table_header_rows(node)
+    footer_rows = table_footer_rows(node)
     header_font_name = table_header_font_name(node)
     header_font_size = table_header_font_size(node)
     header_line_height = table_header_line_height(node)
@@ -251,8 +301,9 @@ def table_row_heights(node: LayoutNode, rows: list[list[str]], column_widths: li
             span = spans.get((row_index, column_index), TableCellSpan(row_index=row_index, column_index=column_index))
             column_width = sum(column_widths[column_index:column_index + span.colspan])
             text_width = max(1.0, column_width - padding.horizontal)
-            lines = wrap_text(str(cell), text_width, font_name, font_size, string_width)
-            required_height = max(24.0, (len(lines) * line_height) + padding.vertical)
+            required_height = _measure_cell_height(cell, text_width, padding, font_name, font_size, line_height, string_width)
+            if footer_rows and row_index >= len(rows) - footer_rows:
+                required_height = max(required_height, line_height + padding.vertical)
             if span.rowspan == 1:
                 heights[row_index] = max(heights[row_index], required_height)
                 continue
@@ -290,6 +341,7 @@ def table_cell_boxes(node: LayoutNode, x: float, y: float, width: float, height:
         row_heights = [row_height * scale for row_height in row_heights]
 
     header_rows = table_header_rows(node)
+    footer_rows = table_footer_rows(node)
     header_background = table_header_background(node)
     header_color = table_header_color(node)
     header_alignments = table_header_alignments(node, column_count)
@@ -297,6 +349,9 @@ def table_cell_boxes(node: LayoutNode, x: float, y: float, width: float, height:
     header_font_size = table_header_font_size(node)
     header_line_height = table_header_line_height(node)
     header_padding = table_header_cell_padding(node)
+    footer_background = table_footer_background(node)
+    footer_color = table_footer_color(node)
+    footer_alignments = table_footer_alignments(node, column_count)
     body_padding = table_cell_padding(node)
     zebra_background = table_zebra_background(node)
     alignments = table_alignments(node, column_count)
@@ -311,10 +366,13 @@ def table_cell_boxes(node: LayoutNode, x: float, y: float, width: float, height:
                 cursor_x += column_widths[column_index]
                 continue
             is_header = row_index < header_rows
+            is_footer = footer_rows > 0 and row_index >= len(rows) - footer_rows
             background = header_background if is_header and header_background is not None else node.style.background
-            if not is_header and zebra_background is not None and (row_index - header_rows) % 2 == 1:
+            if not is_header and not is_footer and zebra_background is not None and (row_index - header_rows) % 2 == 1:
                 background = zebra_background
-            color = header_color if is_header else node.style.color
+            if is_footer and footer_background is not None:
+                background = footer_background
+            color = header_color if is_header else footer_color if is_footer else node.style.color
             font_name = header_font_name if is_header else node.style.font_name
             font_size = header_font_size if is_header else node.style.font_size
             line_height = header_line_height if is_header else node.style.line_height
@@ -325,8 +383,12 @@ def table_cell_boxes(node: LayoutNode, x: float, y: float, width: float, height:
             background = _style_color(background, column_override, row_override, cell_override, "background")
             color = _style_color(color, column_override, row_override, cell_override, "color")
             base_align = header_alignments[column_index] if is_header and header_alignments is not None else alignments[column_index]
+            if is_footer and footer_alignments is not None:
+                base_align = footer_alignments[column_index]
             align = _style_align(base_align, column_override, row_override, cell_override)
-            text = row[column_index] if column_index < len(row) else ""
+            cell = row[column_index] if column_index < len(row) else ""
+            rich_content = _cell_rich_content(cell)
+            text = "" if rich_content is not None else _cell_text(cell)
             span = spans.get((row_index, column_index), TableCellSpan(row_index=row_index, column_index=column_index))
             cell_width = sum(column_widths[column_index:column_index + span.colspan])
             cell_height = sum(row_heights[row_index:row_index + span.rowspan])
@@ -340,6 +402,7 @@ def table_cell_boxes(node: LayoutNode, x: float, y: float, width: float, height:
                     width=cell_width,
                     height=cell_height,
                     text=text,
+                    rich_content=rich_content,
                     align=align,
                     background=background,
                     color=color,
@@ -347,6 +410,8 @@ def table_cell_boxes(node: LayoutNode, x: float, y: float, width: float, height:
                     font_size=font_size,
                     line_height=line_height,
                     padding=padding,
+                    border_color=_style_border_color(node, column_override, row_override, cell_override),
+                    border_width=_style_border_width(node, column_override, row_override, cell_override),
                     rowspan=span.rowspan,
                     colspan=span.colspan,
                 )
@@ -418,6 +483,18 @@ def table_slice_spans(node: LayoutNode, source_row_indices: list[int]) -> dict[s
     return sliced_spans
 
 
+def layout_rich_cell_content(content: LayoutNode, width: float, x: float, y: float) -> LayoutNode:
+    resolve_widths = import_module("smart_report.layout.pass2_widths").resolve_widths
+    resolve_heights = import_module("smart_report.layout.pass3_heights").resolve_heights
+    rich_node = clone_layout_node(content)
+    rich_node.style.width = Fixed(width)
+    rich_node.local_x = x
+    rich_node.local_y = y
+    resolve_widths(rich_node, width)
+    resolve_heights(rich_node)
+    return rich_node
+
+
 def _string_width_fn() -> StringWidthFn:
     pdfmetrics = import_module("reportlab.pdfbase.pdfmetrics")
     return cast(StringWidthFn, getattr(pdfmetrics, "stringWidth"))
@@ -462,4 +539,63 @@ def _style_align(
         value = override.get("align")
         if isinstance(value, str):
             resolved = _normalize_align(value)
+    return resolved
+
+
+def _cell_text(cell: object) -> str:
+    if isinstance(cell, LayoutNode):
+        return ""
+    return str(cell)
+
+
+def _cell_rich_content(cell: object) -> LayoutNode | None:
+    if isinstance(cell, LayoutNode):
+        return cell
+    return None
+
+
+def _measure_cell_height(
+    cell: object,
+    text_width: float,
+    padding: Edges,
+    font_name: str,
+    font_size: float,
+    line_height: float,
+    string_width: StringWidthFn,
+) -> float:
+    rich_content = _cell_rich_content(cell)
+    if rich_content is not None:
+        rich_node = layout_rich_cell_content(rich_content, text_width, 0.0, 0.0)
+        return max(24.0, rich_node.resolved_height + padding.vertical)
+    lines = wrap_text(_cell_text(cell), text_width, font_name, font_size, string_width)
+    return max(24.0, (len(lines) * line_height) + padding.vertical)
+
+
+def _style_border_color(
+    node: LayoutNode,
+    column_override: dict[str, object],
+    row_override: dict[str, object],
+    cell_override: dict[str, object],
+) -> RGBA | None:
+    base = node.content.get("border_color")
+    resolved = base if isinstance(base, RGBA) else node.style.stroke_color or node.style.color
+    for override in (column_override, row_override, cell_override):
+        value = override.get("border_color")
+        if isinstance(value, RGBA):
+            resolved = value
+    return resolved
+
+
+def _style_border_width(
+    node: LayoutNode,
+    column_override: dict[str, object],
+    row_override: dict[str, object],
+    cell_override: dict[str, object],
+) -> float | None:
+    _ = node
+    resolved: float | None = None
+    for override in (column_override, row_override, cell_override):
+        value = override.get("border_width")
+        if isinstance(value, (int, float)):
+            resolved = float(value)
     return resolved
