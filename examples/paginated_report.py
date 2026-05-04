@@ -7,7 +7,7 @@ def main() -> None:
     doc = document()
 
     header = doc.header().height(40)
-    header.add_text("smart-report v0.3 demo").absolute(24, 12).font_size(11).color("#334155")
+    header.add_text("smart-report v1.0 demo").absolute(24, 12).font_size(11).color("#334155")
     header.add_text("Page {page_number} / {total_pages}").absolute("78%", 12).font_size(11).color("#334155")
 
     footer = doc.footer().height(32)
