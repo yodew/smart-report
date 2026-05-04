@@ -180,6 +180,7 @@ class NodeBuilder:
             vertical=vertical,
             horizontal=horizontal,
         )
+        _ = self.node.content.pop("base_padding", None)
         return self
 
     def margin(
@@ -455,6 +456,9 @@ class DocumentBuilder:
 
 def resolve_page_size(size: str | tuple[float, float]) -> tuple[float, float]:
     if isinstance(size, tuple):
+        width, height = size
+        if not isfinite(width) or not isfinite(height) or width <= 0 or height <= 0:
+            raise ValueError("Page size must contain positive finite width and height")
         return size
 
     normalized = size.upper()
@@ -502,11 +506,12 @@ class Document:
         for page in self.pages:
             page_size = self._page_size(page, resolve_size_fn)
             reserved_top, reserved_bottom = self._reserved_overlay_space(page_size[1], resolve_size_fn)
+            base_padding = self._base_page_padding(page)
             page.style.padding = Edges(
-                top=max(page.style.padding.top, reserved_top),
-                right=page.style.padding.right,
-                bottom=max(page.style.padding.bottom, reserved_bottom),
-                left=page.style.padding.left,
+                top=max(base_padding.top, reserved_top),
+                right=base_padding.right,
+                bottom=max(base_padding.bottom, reserved_bottom),
+                left=base_padding.left,
             )
             resolve_widths_fn(page, page_size[0])
             resolve_heights_fn(page, page_size[1])
@@ -535,7 +540,22 @@ class Document:
     def _page_size(self, page: LayoutNode, resolve_size_fn: ResolveSizeFnProto) -> tuple[float, float]:
         width = float(resolve_size_fn(page.style.width, None, 0.0))
         height = float(resolve_size_fn(page.style.height, None, 0.0))
+        if not isfinite(width) or not isfinite(height) or width <= 0 or height <= 0:
+            raise ValueError("Page size must contain positive finite width and height")
         return (width, height)
+
+    def _base_page_padding(self, page: LayoutNode) -> Edges:
+        value = page.content.get("base_padding")
+        if isinstance(value, Edges):
+            return value
+        base_padding = Edges(
+            top=page.style.padding.top,
+            right=page.style.padding.right,
+            bottom=page.style.padding.bottom,
+            left=page.style.padding.left,
+        )
+        page.content["base_padding"] = base_padding
+        return base_padding
 
     def _apply_overlays(
         self,

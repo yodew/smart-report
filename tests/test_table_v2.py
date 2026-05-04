@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Iterator
 from typing import cast
 
-from smart_report import Frame, Table, document, get_fallback_fonts, get_font, register_font, resolve_text_runs, set_default_font, set_fallback_fonts
+from smart_report import DEFAULT_FONT_NAME, Frame, Spacer, Table, document, get_default_font_name, get_fallback_fonts, get_font, register_font, resolve_text_runs, set_default_font, set_fallback_fonts, string_width
+from smart_report.builder import resolve_page_size
 from smart_report.layout.node import Rect, RenderItem, Style
 from smart_report.layout.paginate import _split_flow_child, _split_table_node, _split_text_node, split_frame_node
 from smart_report.layout.pass3_heights import resolve_heights
@@ -219,10 +220,56 @@ class TableV2ModelTests(unittest.TestCase):
         self.assertGreater(header_box.height, body_box.height)
 
     def test_invalid_alignment_raises(self) -> None:
-        table = Table([["A"]]).align("justify")
-        table.node.resolved_width = 100
         with self.assertRaises(ValueError):
-            _ = table_cell_boxes(table.node, 0, 0, 100, table_height(table.node))
+            _ = Table([["A"]]).align("justify")
+        with self.assertRaises(ValueError):
+            _ = Table([["A"]]).align(["left", "justify"])
+        with self.assertRaises(ValueError):
+            _ = Table([["A"]]).header_style(align="justify")
+        with self.assertRaises(ValueError):
+            _ = Table([["A"]]).header_style(align=["center", "justify"])
+
+    def test_public_font_exports_are_available(self) -> None:
+        self.assertEqual(DEFAULT_FONT_NAME, "Helvetica")
+        self.assertEqual(get_default_font_name(), get_font().name)
+        self.assertGreater(string_width("A", "Helvetica", 12), 0)
+
+    def test_page_size_tuple_validation(self) -> None:
+        self.assertEqual(resolve_page_size((200, 300)), (200, 300))
+        with self.assertRaises(ValueError):
+            _ = resolve_page_size((0, 300))
+        with self.assertRaises(ValueError):
+            _ = resolve_page_size((float("inf"), 300))
+
+    def test_spacer_requires_fixed_height(self) -> None:
+        self.assertEqual(Spacer(12).node.content["height"], 12)
+        with self.assertRaises(ValueError):
+            _ = Spacer("auto")
+        with self.assertRaises(ValueError):
+            _ = Spacer(float("inf"))
+        with self.assertRaises(ValueError):
+            _ = Spacer(float("nan"))
+        with self.assertRaises(ValueError):
+            _ = Spacer(-1)
+
+    def test_document_save_does_not_accumulate_overlay_padding(self) -> None:
+        doc = document()
+        doc.header().height(40).add_text("Header")
+        page = doc.page("A4")
+        page.padding(top=12)
+        page.add(Frame().padding(10).add_text("Hello"))
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = Path(tmp_dir) / "stable.pdf"
+            doc.save(str(output))
+            first_padding = page.node.style.padding.top
+            doc.save(str(output))
+            second_padding = page.node.style.padding.top
+            page.padding(top=60)
+            doc.save(str(output))
+            updated_padding = page.node.style.padding.top
+        self.assertEqual(first_padding, 40)
+        self.assertEqual(second_padding, 40)
+        self.assertEqual(updated_padding, 60)
 
 
 class TableV2PaginationTests(unittest.TestCase):

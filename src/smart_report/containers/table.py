@@ -34,6 +34,7 @@ class Table(NodeBuilder):
         return self
 
     def align(self, value: str | list[str]) -> "Table":
+        _validate_align_value(value)
         self.node.content["align"] = value
         return self
 
@@ -118,6 +119,7 @@ class Table(NodeBuilder):
         if line_height is not None:
             self.node.content["header_line_height"] = float(line_height)
         if align is not None:
+            _validate_align_value(align)
             self.node.content["header_align"] = align
         return self
 
@@ -232,5 +234,19 @@ def _merge_style_override(
     if color is not None:
         style["color"] = parse_color(color)
     if align is not None:
+        _validate_align(align)
         style["align"] = align
     return style
+
+
+def _validate_align(value: str) -> None:
+    if value.lower() not in {"left", "center", "right"}:
+        raise ValueError(f"Unsupported table alignment: {value}")
+
+
+def _validate_align_value(value: str | list[str]) -> None:
+    if isinstance(value, str):
+        _validate_align(value)
+        return
+    for item in value:
+        _validate_align(item)

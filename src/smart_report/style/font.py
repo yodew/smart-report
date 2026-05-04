@@ -90,18 +90,18 @@ class FontRegistry:
         resolved_primary = self.get(font_name).name
         runs: list[TextRun] = []
         current_font = ""
-        current_text = ""
+        current_chars: list[str] = []
         for character in text:
             resolved_font = self.font_for_character(character, resolved_primary)
             if resolved_font == current_font:
-                current_text += character
+                current_chars.append(character)
                 continue
-            if current_text:
-                runs.append(TextRun(text=current_text, font_name=current_font))
+            if current_chars:
+                runs.append(TextRun(text="".join(current_chars), font_name=current_font))
             current_font = resolved_font
-            current_text = character
-        if current_text:
-            runs.append(TextRun(text=current_text, font_name=current_font))
+            current_chars = [character]
+        if current_chars:
+            runs.append(TextRun(text="".join(current_chars), font_name=current_font))
         return runs
 
     def font_for_character(self, character: str, font_name: str | None = None) -> str:
