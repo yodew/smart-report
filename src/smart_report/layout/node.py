@@ -132,7 +132,7 @@ class LayoutNode:
 
     @property
     def is_renderable(self) -> bool:
-        return self.node_type not in {"document", "page", "frame"}
+        return self.node_type not in {"document", "page"}
 
 
 @dataclass(frozen=True, slots=True)

@@ -126,10 +126,11 @@ def _paint_table_cells(adapter: ReportLabCanvasAdapter, item: RenderItem, cell_b
     for cell_box in cell_boxes:
         cell_rect = Rect(x=cell_box.x, y=cell_box.y, width=cell_box.width, height=cell_box.height)
         cell_rects.append((cell_box, cell_rect))
-        adapter.draw_rect(
-            rect=cell_rect,
-            fill=cell_box.background,
-        )
+        with adapter.isolated_state():
+            adapter.draw_rect(
+                rect=cell_rect,
+                fill=cell_box.background,
+            )
         with adapter.isolated_state():
             adapter.apply_clip_rect(cell_rect)
             content_width = max(1.0, cell_rect.width - cell_box.padding.horizontal)
@@ -219,5 +220,6 @@ PAINTERS: dict[str, Painter] = {
     "rect": paint_rect,
     "line": paint_line,
     "canvas": paint_canvas_background,
+    "frame": paint_canvas_background,
     "table": paint_table,
 }
