@@ -14,6 +14,8 @@ from ..layout.text_wrap import wrap_text
 from ..style.color import RGBA
 from ..style.font import resolve_text_runs, string_width
 
+DEFAULT_TEXT_COLOR = RGBA(0.0, 0.0, 0.0, 1.0)
+
 
 class CanvasLike(Protocol):
     def saveState(self) -> None: ...
@@ -153,9 +155,9 @@ class ReportLabCanvasAdapter:
         text_object = cast(TextObjectLike, self._canvas.beginText(x, baseline_y))
         text_object.setFont(font_name, font_size, line_height)
         text_object.setLeading(line_height)
-        if color is not None:
-            text_object.setFillColorRGB(color.red, color.green, color.blue)
-            self._canvas.setFillAlpha(color.alpha)
+        text_color = color or DEFAULT_TEXT_COLOR
+        text_object.setFillColorRGB(text_color.red, text_color.green, text_color.blue)
+        self._canvas.setFillAlpha(text_color.alpha)
         current_baseline_y = baseline_y
         for line in wrapped_lines:
             line_width = string_width(line, font_name, font_size)
