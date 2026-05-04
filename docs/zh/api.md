@@ -106,6 +106,10 @@ frame.add(table)
 | `.header_padding(...)` | 单独设置表头单元格内边距；未设置时沿用 `.cell_padding(...)` |
 | `.header(rows=1, background=None, color=None, repeat=True)` | 设置表头行数、表头颜色，以及跨页时是否重复表头 |
 | `.header_style(background=None, color=None, font=None, font_size=None, line_height=None, align=None)` | 设置表头颜色、字体与对齐样式 |
+| `.footer(rows, repeat=False, ...)` | 添加 footer 行；`repeat=True` 时跨页重复 footer |
+| `.subtotal(row, ...)` | 添加单行汇总 footer |
+| `.borders(color, width=1, inner_width=None, outer_width=None)` | 设置表格内外边框宽度 |
+| `.cell_border(row_index, column_index, ...)` | 覆盖单元格边框 |
 | `.zebra(background="#f8fafc")` | 设置隔行背景色 |
 | `.repeat_header(value=True)` | 单独控制跨页重复表头 |
 | `.row_style(index, ...)` | 覆盖指定逻辑行的 `background` / `color` / `align` |
@@ -146,6 +150,17 @@ table = Table([
 ```
 
 分页遇到 `rowspan` 时会把断点移动到合法行边界，避免把一个跨行单元格拆到两页。复杂单元格内容的深度拆分仍需后续增强。
+
+v1.1 起，单元格可以放入 `Frame` / `Text` / `Image` 等 builder：
+
+```python
+details = Frame().padding(4)
+details.add_text("嵌套说明").font_size(10)
+
+table = Table([["指标", "详情"], ["收入", details]]) \
+    .footer([["合计", "216K"]], repeat=True, background="#e2e8f0") \
+    .borders("#94a3b8", width=0.5, inner_width=0.25, outer_width=1.5)
+```
 
 ## 元素 API
 
@@ -191,12 +206,16 @@ set_fallback_fonts(["SourceHanSansSC-Normal"])
 ```python
 hero.add_image("examples/box.png").absolute(24, 218).size(260, 37)
 hero.add_image("examples/box.svg").absolute(286, 218).size(260, 37)
+hero.add_image(png_bytes).size(120, 80).contain().radius(8)
+hero.add_image("examples/photo.png").size(120, 80).cover()
 ```
 
 说明：
 
 - PNG/JPEG 走 ReportLab `drawImage`
 - SVG 走 `svglib -> ReportLab Drawing -> renderPDF.draw`
+- `.contain()` 保持比例完整显示；`.cover()` 保持比例并裁剪填满区域
+- `Image(...)` / `.add_image(...)` 可接受图片 bytes 或 `data:image/...;base64,...` 字符串
 - 透明 PNG 建议搭配深色背景测试，以确认白色图案是否可见
 
 ### `Rect` / `Line` / `Spacer`
@@ -228,6 +247,10 @@ frame.add_spacer(12)
 | `.flex(direction="row", gap=None)` | 使用 flex 行/列布局 |
 | `.grid(columns, gap=None)` | 使用固定列数网格布局 |
 | `.columns(count, gap=None)` | 使用多列瀑布流布局 |
+| `.keep_together()` | 分页时尽量整体移动到下一页，不拆分该节点 |
+| `.keep_with_next()` | 分页时尽量和下一个流式节点放在同一页 |
+| `.page_break_before()` | 在节点前强制分页 |
+| `.page_break_after()` | 在节点后强制分页 |
 
 布局示例：
 

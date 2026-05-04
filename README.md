@@ -29,7 +29,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Paint ordering through `z-index`
 - `Text`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
 
-## v1.0 status
+## v1.1 status
 
 - Chinese API documentation is available in `docs/zh/api.md`
 - Table v2 supports column widths, alignment, padding, `rowspan`, `colspan`, header styling, zebra rows, rounded borders, repeated headers, and row/column/cell style overrides
@@ -38,6 +38,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Chinese runnable examples live in `examples/`, including `examples/zh_table_demo.py`
 - Layout primitives are available through `.flex(...)`, `.grid(...)`, and `.columns(...)`
 - Public API exports and validation behavior are stabilized for 1.0
+- v1.1 adds rich table cells, pagination controls, table footers/subtotals, configurable borders, and image fit/bytes support
 
 ## Table spans
 
@@ -63,6 +64,26 @@ summary.add_text("B")
 notes = Frame().columns(2, gap=16)
 notes.add_text("Long note one")
 notes.add_text("Long note two")
+```
+
+## v1.1 report controls
+
+```python
+from smart_report import Frame, Image, Table
+
+rich_cell = Frame().padding(4)
+rich_cell.add_text("Nested content in a table cell")
+
+table = (
+    Table([["Metric", "Details"], ["Revenue", rich_cell]])
+    .footer([["Total", "$216K"]], repeat=True, background="#e2e8f0")
+    .borders("#94a3b8", width=0.5, inner_width=0.25, outer_width=1.5)
+    .cell_border(1, 0, color="#2563eb", width=2)
+)
+
+Frame().add_text("Section title").keep_with_next()
+Frame().page_break_before()
+Image("chart.png").cover().radius(8)
 ```
 
 ## Font registration
@@ -159,6 +180,7 @@ margin((24, 24, 20, 24))    # top, right, bottom, left
 - `examples/report_demo.py`
 - `examples/paginated_report.py`
 - `examples/layout_primitives.py`
+- `examples/v1_1_features.py`
 - `examples/zh_table_demo.py`
 
 Run one with:
@@ -173,7 +195,7 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v1.0 release stabilizes the public builder API, font helper exports, pagination behavior, and documentation examples. Future work should remain backward-compatible unless a major version bump is planned.
+The v1.1 release expands practical report authoring while preserving the v1.0 builder API. Future work should remain backward-compatible unless a major version bump is planned.
 
 ## Current limitations
 
