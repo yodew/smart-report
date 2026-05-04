@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from io import BytesIO
 from importlib import import_module
 from pathlib import Path
 from typing import Protocol, cast
@@ -30,7 +31,7 @@ class CanvasLike(Protocol):
     def setFont(self, font_name: str, font_size: float, leading: float | None = None) -> None: ...
     def beginText(self, x: float, y: float) -> object: ...
     def drawText(self, text_object: object) -> None: ...
-    def drawImage(self, image: str, x: float, y: float, width: float, height: float, mask: object | None = None) -> None: ...
+    def drawImage(self, image: object, x: float, y: float, width: float, height: float, mask: object | None = None) -> None: ...
     def translate(self, dx: float, dy: float) -> None: ...
     def scale(self, x: float, y: float) -> None: ...
     def setPageSize(self, size: tuple[float, float]) -> None: ...
@@ -171,17 +172,21 @@ class ReportLabCanvasAdapter:
             current_baseline_y -= line_height
         self._canvas.drawText(text_object)
 
-    def draw_image(self, image_path: str, rect: Rect, opacity: float = 1.0) -> None:
-        if Path(image_path).suffix.lower() == ".svg":
-            self.draw_svg(image_path, rect, opacity=opacity)
+    def draw_image(self, image_source: str | bytes, rect: Rect, opacity: float = 1.0, fit: str = "stretch") -> None:
+        if isinstance(image_source, str) and Path(image_source).suffix.lower() == ".svg":
+            self.draw_svg(image_source, rect, opacity=opacity, fit=fit)
             return
 
         if opacity < 1.0:
             self._canvas.setFillAlpha(opacity)
             self._canvas.setStrokeAlpha(opacity)
-        self._canvas.drawImage(image_path, rect.x, self.to_rl_y(rect.y, rect.height), rect.width, rect.height, mask="auto")
+        image_reader = self._image_reader(image_source)
+        draw_rect = self._fit_rect(rect, self._image_size(image_reader), fit)
+        if fit == "cover":
+            self.apply_clip_rect(rect)
+        self._canvas.drawImage(image_reader, draw_rect.x, self.to_rl_y(draw_rect.y, draw_rect.height), draw_rect.width, draw_rect.height, mask="auto")
 
-    def draw_svg(self, image_path: str, rect: Rect, opacity: float = 1.0) -> None:
+    def draw_svg(self, image_path: str, rect: Rect, opacity: float = 1.0, fit: str = "stretch") -> None:
         svglib_module = import_module("svglib.svglib")
         render_pdf_module = import_module("reportlab.graphics.renderPDF")
         svg_to_drawing = cast(SvgToDrawingFn, getattr(svglib_module, "svg2rlg"))
@@ -193,16 +198,47 @@ class ReportLabCanvasAdapter:
 
         drawing_width = float(getattr(drawing, "width", rect.width) or rect.width)
         drawing_height = float(getattr(drawing, "height", rect.height) or rect.height)
-        scale_x = rect.width / drawing_width if drawing_width else 1.0
-        scale_y = rect.height / drawing_height if drawing_height else 1.0
+        draw_rect = self._fit_rect(rect, (drawing_width, drawing_height), fit)
+        scale_x = draw_rect.width / drawing_width if drawing_width else 1.0
+        scale_y = draw_rect.height / drawing_height if drawing_height else 1.0
 
         if opacity < 1.0:
             self._canvas.setFillAlpha(opacity)
             self._canvas.setStrokeAlpha(opacity)
 
-        self._canvas.translate(rect.x, self.to_rl_y(rect.y, rect.height))
+        if fit == "cover":
+            self.apply_clip_rect(rect)
+        self._canvas.translate(draw_rect.x, self.to_rl_y(draw_rect.y, draw_rect.height))
         self._canvas.scale(scale_x, scale_y)
         render_draw(drawing, self._canvas, 0.0, 0.0)
+
+    def _image_reader(self, image_source: str | bytes) -> object:
+        image_module = import_module("reportlab.lib.utils")
+        image_reader = getattr(image_module, "ImageReader")
+        if isinstance(image_source, bytes):
+            return image_reader(BytesIO(image_source))
+        return image_reader(image_source)
+
+    def _image_size(self, image_reader: object) -> tuple[float, float]:
+        get_size = getattr(image_reader, "getSize")
+        width, height = cast(tuple[int, int], get_size())
+        return float(width), float(height)
+
+    def _fit_rect(self, rect: Rect, intrinsic_size: tuple[float, float], fit: str) -> Rect:
+        intrinsic_width, intrinsic_height = intrinsic_size
+        if fit not in {"contain", "cover"} or intrinsic_width <= 0 or intrinsic_height <= 0:
+            return rect
+        scale_x = rect.width / intrinsic_width
+        scale_y = rect.height / intrinsic_height
+        scale = min(scale_x, scale_y) if fit == "contain" else max(scale_x, scale_y)
+        width = intrinsic_width * scale
+        height = intrinsic_height * scale
+        return Rect(
+            x=rect.x + ((rect.width - width) / 2.0),
+            y=rect.y + ((rect.height - height) / 2.0),
+            width=width,
+            height=height,
+        )
 
     def draw_line(self, x1: float, y1: float, x2: float, y2: float, color: RGBA | None, stroke_width: float) -> None:
         self.set_stroke(color, stroke_width)

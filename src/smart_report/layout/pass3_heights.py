@@ -150,7 +150,10 @@ def _resolve_leaf_height(node: LayoutNode, explicit_height: float | None) -> flo
     if node.node_type == "text":
         return _measure_text_height(node)
     if node.node_type == "image":
+        intrinsic_width = node.content.get("intrinsic_width")
         intrinsic_height = node.content.get("intrinsic_height")
+        if isinstance(intrinsic_width, (int, float)) and isinstance(intrinsic_height, (int, float)) and intrinsic_width > 0:
+            return max(0.0, (node.resolved_width / float(intrinsic_width)) * float(intrinsic_height))
         if isinstance(intrinsic_height, (int, float)):
             return float(intrinsic_height)
     if node.node_type == "spacer":
