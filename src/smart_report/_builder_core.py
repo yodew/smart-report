@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Sequence
 from importlib import import_module
 from math import isfinite
 from typing import TYPE_CHECKING, Protocol, TypeVar, cast
@@ -315,6 +316,22 @@ class NodeBuilder:
             self.node.content["gap"] = _edge_points(gap)
         return self
 
+    def keep_together(self: BuilderT, value: bool = True) -> BuilderT:
+        self.node.content["keep_together"] = value
+        return self
+
+    def keep_with_next(self: BuilderT, value: bool = True) -> BuilderT:
+        self.node.content["keep_with_next"] = value
+        return self
+
+    def page_break_before(self: BuilderT, value: bool = True) -> BuilderT:
+        self.node.content["page_break_before"] = value
+        return self
+
+    def page_break_after(self: BuilderT, value: bool = True) -> BuilderT:
+        self.node.content["page_break_after"] = value
+        return self
+
     def build(self) -> LayoutNode:
         return self.node
 
@@ -331,7 +348,7 @@ class ContainerBuilder(NodeBuilder):
         _ = self.add(child)
         return child
 
-    def add_image(self, src: str) -> "Image":
+    def add_image(self, src: str | bytes) -> "Image":
         from .elements.image import Image
 
         child = Image(src)
@@ -373,7 +390,7 @@ class ContainerBuilder(NodeBuilder):
         _ = self.add(child)
         return child
 
-    def add_table(self, rows: list[list[str]]) -> "Table":
+    def add_table(self, rows: Sequence[Sequence[object]]) -> "Table":
         from .containers.table import Table
 
         child = Table(rows)

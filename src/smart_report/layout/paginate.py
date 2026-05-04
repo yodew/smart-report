@@ -10,7 +10,9 @@ from .table_model import (
     table_column_count,
     table_column_widths,
     table_header_rows,
+    table_footer_rows,
     table_height,
+    table_repeat_footer,
     table_repeat_header,
     table_row_heights,
     table_rows,
@@ -32,6 +34,9 @@ def paginate_page(page: LayoutNode) -> list[LayoutNode]:
             _ = current_page.add_child(clone_layout_node(child))
             continue
 
+        if _flag(child, "page_break_before") and current_page.children:
+            current_page = _new_generated_page(page, paginated_pages)
+
         current_page = _append_with_pagination(
             current_page=current_page,
             source_page=page,
@@ -39,8 +44,10 @@ def paginate_page(page: LayoutNode) -> list[LayoutNode]:
             output_pages=paginated_pages,
             max_page_height=max_page_height,
         )
+        if _flag(child, "page_break_after"):
+            current_page = _new_generated_page(page, paginated_pages)
 
-    return paginated_pages
+    return [page_slice for page_slice in paginated_pages if page_slice.children]
 
 
 def _append_with_pagination(
@@ -52,6 +59,11 @@ def _append_with_pagination(
 ) -> LayoutNode:
     content_bottom = max(1.0, max_page_height - current_page.style.padding.bottom)
     if child.local_y + child.resolved_height <= content_bottom:
+        _ = current_page.add_child(clone_layout_node(child))
+        return current_page
+
+    if _flag(child, "keep_together"):
+        current_page = _new_generated_page(source_page, output_pages)
         _ = current_page.add_child(clone_layout_node(child))
         return current_page
 
@@ -88,12 +100,27 @@ def split_frame_node(frame: LayoutNode, first_page_height: float, following_page
     frame_slices: list[LayoutNode] = [current_frame]
     current_capacity = first_content_height
 
-    for child in frame.children:
+    children = frame.children
+    for index, child in enumerate(children):
         if child.style.position.value == "absolute":
             _ = current_frame.add_child(clone_layout_node(child))
             continue
 
         remaining_content_height = max(1.0, current_capacity - current_height)
+        if _flag(child, "page_break_before") and current_frame.children:
+            current_frame = _clone_frame_shell(frame)
+            frame_slices.append(current_frame)
+            current_height = 0.0
+            current_capacity = following_content_height
+            remaining_content_height = current_capacity
+        if _flag(child, "keep_with_next") and index + 1 < len(children):
+            pair_height = _child_total_height(child) + _child_total_height(children[index + 1])
+            if current_frame.children and pair_height > remaining_content_height and pair_height <= following_content_height:
+                current_frame = _clone_frame_shell(frame)
+                frame_slices.append(current_frame)
+                current_height = 0.0
+                current_capacity = following_content_height
+                remaining_content_height = current_capacity
         split_nodes = _split_flow_child(child, remaining_content_height, following_content_height)
         for split_node in split_nodes:
             child_total_height = split_node.resolved_height + split_node.style.margin.top + split_node.style.margin.bottom
@@ -107,6 +134,11 @@ def split_frame_node(frame: LayoutNode, first_page_height: float, following_page
             split_node.local_y = current_height + split_node.style.margin.top
             _ = current_frame.add_child(split_node)
             current_height += child_total_height
+        if _flag(child, "page_break_after") and current_frame.children:
+            current_frame = _clone_frame_shell(frame)
+            frame_slices.append(current_frame)
+            current_height = 0.0
+            current_capacity = following_content_height
 
     result = [frame_slice for frame_slice in frame_slices if frame_slice.children]
     for frame_slice in result:
@@ -117,6 +149,9 @@ def split_frame_node(frame: LayoutNode, first_page_height: float, following_page
 def _split_flow_child(child: LayoutNode, first_content_height: float, following_content_height: float) -> list[LayoutNode]:
     child_total_height = child.resolved_height + child.style.margin.top + child.style.margin.bottom
     if child_total_height <= first_content_height:
+        return [clone_layout_node(child)]
+
+    if _flag(child, "keep_together") and child_total_height <= following_content_height:
         return [clone_layout_node(child)]
 
     first_node_height = max(1.0, first_content_height - child.style.margin.top - child.style.margin.bottom)
@@ -165,26 +200,33 @@ def _split_table_node(child: LayoutNode, first_content_height: float, following_
     source_row_indices = child.content.get("source_row_indices")
     if not isinstance(source_row_indices, list) or len(source_row_indices) != len(rows):
         source_row_indices = list(range(len(rows)))
+    source_indices = [item if isinstance(item, int) else index for index, item in enumerate(source_row_indices)]
 
     column_widths = table_column_widths(child, child.resolved_width, table_column_count(rows))
     row_heights = table_row_heights(child, rows, column_widths)
     span_ranges = table_span_ranges(child, len(rows), table_column_count(rows))
-    header_count = min(table_header_rows(child), len(rows))
+    footer_count = min(table_footer_rows(child), len(rows))
+    header_count = min(table_header_rows(child), len(rows) - footer_count)
     repeat_header = table_repeat_header(child) and header_count > 0
+    repeat_footer = table_repeat_footer(child) and footer_count > 0
     header_rows = rows[:header_count]
-    header_source_indices = source_row_indices[:header_count]
+    header_source_indices = source_indices[:header_count]
+    footer_rows = rows[len(rows) - footer_count:] if footer_count else []
+    footer_source_indices = source_indices[len(rows) - footer_count:] if footer_count else []
     body_start = header_count if repeat_header else 0
-    body_rows = rows[body_start:]
-    body_source_indices = source_row_indices[body_start:]
+    body_end = len(rows) - footer_count
+    body_rows = rows[body_start:body_end]
+    body_source_indices = source_indices[body_start:body_end]
 
     if not body_rows or len(rows) == 1:
         return [clone_layout_node(child)]
 
     header_height = sum(row_heights[:header_count]) if repeat_header else 0.0
+    footer_height = sum(row_heights[len(rows) - footer_count:]) if repeat_footer else 0.0
     slices: list[LayoutNode] = []
-    current_rows: list[list[str]] = list(header_rows) if repeat_header else []
+    current_rows: list[list[object]] = list(header_rows) if repeat_header else []
     current_source_indices: list[int] = list(header_source_indices) if repeat_header else []
-    current_height = header_height
+    current_height = header_height + footer_height
     current_capacity = first_content_height
     current_header_rows = header_count if repeat_header else header_count
     minimum_rows_in_slice = len(current_rows) + 1
@@ -195,12 +237,12 @@ def _split_table_node(child: LayoutNode, first_content_height: float, following_
         if (
             len(current_rows) >= minimum_rows_in_slice
             and current_height + row_height > current_capacity
-            and not _source_rows_have_open_rowspan(source_row_indices, span_ranges, current_source_indices)
+            and not _source_rows_have_open_rowspan(source_indices, span_ranges, current_source_indices)
         ):
-            slices.append(_clone_table_slice(child, current_rows, current_source_indices, current_header_rows))
+            slices.append(_clone_table_slice(child, _with_footer_rows(current_rows, footer_rows, repeat_footer), current_source_indices + list(footer_source_indices) if repeat_footer else current_source_indices, current_header_rows, footer_count if repeat_footer else 0))
             current_rows = list(header_rows) if repeat_header else []
             current_source_indices = list(header_source_indices) if repeat_header else []
-            current_height = header_height
+            current_height = header_height + footer_height
             current_capacity = following_content_height
             current_header_rows = header_count if repeat_header else 0
 
@@ -209,7 +251,8 @@ def _split_table_node(child: LayoutNode, first_content_height: float, following_
         current_height += row_height
 
     if current_rows:
-        slices.append(_clone_table_slice(child, current_rows, current_source_indices, current_header_rows))
+        append_footer = bool(footer_count)
+        slices.append(_clone_table_slice(child, _with_footer_rows(current_rows, footer_rows, append_footer), current_source_indices + list(footer_source_indices) if append_footer else current_source_indices, current_header_rows, footer_count if append_footer else 0))
 
     return slices or [clone_layout_node(child)]
 
@@ -264,14 +307,22 @@ def _frame_slice_height(frame: LayoutNode) -> float:
     return max(flow_extent, absolute_extent) + frame.style.padding.bottom
 
 
-def _clone_table_slice(child: LayoutNode, rows: list[list[str]], source_row_indices: list[int], header_rows: int) -> LayoutNode:
+def _clone_table_slice(child: LayoutNode, rows: list[list[object]], source_row_indices: list[int], header_rows: int, footer_rows: int = 0) -> LayoutNode:
     node = clone_layout_node(child, include_children=False)
     node.content["rows"] = rows
+    node.content["footer_rows"] = []
     node.content["source_row_indices"] = source_row_indices
     node.content["header_rows"] = header_rows
+    node.content["slice_footer_rows"] = footer_rows
     node.content["cell_spans"] = table_slice_spans(child, source_row_indices)
     node.resolved_height = table_height(node)
     return node
+
+
+def _with_footer_rows(rows: list[list[object]], footer_rows: list[list[object]], repeat_footer: bool) -> list[list[object]]:
+    if not repeat_footer:
+        return rows
+    return rows + list(footer_rows)
 
 
 def _source_rows_have_open_rowspan(
@@ -318,3 +369,11 @@ def _new_generated_page(source_page: LayoutNode, output_pages: list[LayoutNode])
     new_page = _clone_page_shell(source_page)
     output_pages.append(new_page)
     return new_page
+
+
+def _flag(node: LayoutNode, key: str) -> bool:
+    return bool(node.content.get(key, False))
+
+
+def _child_total_height(child: LayoutNode) -> float:
+    return child.resolved_height + child.style.margin.top + child.style.margin.bottom
