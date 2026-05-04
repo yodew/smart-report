@@ -182,6 +182,7 @@ set_fallback_fonts(["SourceHanSansSC-Normal"])
 
 `set_default=True` 只影响后续创建的节点；已经创建的 `Text` / `Table` 仍保留自己的字体设置。
 `fallback=True` 或 `set_fallback_fonts(...)` 用于混合文本：当主字体不支持某个字符时，渲染器会切换到第一个覆盖该字符的 fallback 字体，同时测量、分页和绘制保持一致。
+顶层还导出 `get_font()`、`get_fallback_fonts()`、`add_fallback_font()`、`get_default_font_name()`、`resolve_text_runs()` 和 `string_width()`，方便调试字体注册和测量行为。
 
 ### `Image`
 
@@ -280,4 +281,5 @@ height("auto")   # 内容自适应
 - 分页支持嵌套 `Frame` 和固定高度 `Rect` / `Spacer` 的更细粒度切分
 - 图片和复杂表格单元格内容仍保持原子分页
 - `flex` / `grid` / `columns` 是实用布局模式，并非完整 CSS 约束求解器
+- `height="auto"` 搭配百分比绝对定位 `top` 时仍采用简化规则
 - 字体 fallback 已支持；复杂字体 shaping 和 OpenType 特性仍需后续增强

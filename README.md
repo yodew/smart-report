@@ -29,7 +29,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Paint ordering through `z-index`
 - `Text`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
 
-## v0.8 status
+## v1.0 status
 
 - Chinese API documentation is available in `docs/zh/api.md`
 - Table v2 supports column widths, alignment, padding, `rowspan`, `colspan`, header styling, zebra rows, rounded borders, repeated headers, and row/column/cell style overrides
@@ -37,6 +37,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Fonts can be registered from the top-level API with `register_font(...)`, including fallback chains for mixed-language text
 - Chinese runnable examples live in `examples/`, including `examples/zh_table_demo.py`
 - Layout primitives are available through `.flex(...)`, `.grid(...)`, and `.columns(...)`
+- Public API exports and validation behavior are stabilized for 1.0
 
 ## Table spans
 
@@ -170,9 +171,9 @@ Run one with:
 
 MIT. See [LICENSE](./LICENSE).
 
-## Roadmap
+## Stability
 
-The v0.7/v0.8 roadmap is complete. The next phase is 1.0 stabilization: API tightening, performance work, broader tests, and documentation polish.
+The v1.0 release stabilizes the public builder API, font helper exports, pagination behavior, and documentation examples. Future work should remain backward-compatible unless a major version bump is planned.
 
 ## Current limitations
 
