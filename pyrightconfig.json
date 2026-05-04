@@ -5,6 +5,8 @@
   "reportMissingImports": "none",
   "reportMissingModuleSource": "none",
   "include": [
-    "src"
+    "src",
+    "tests",
+    "examples"
   ]
 }
