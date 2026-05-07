@@ -638,6 +638,43 @@ class TableV2PaginationTests(unittest.TestCase):
         self.assertTrue(all(isinstance(cell, LayoutNode) and cell.node_type == "text" for cell in detail_cells))
         self.assertTrue(all(table_slice.resolved_height <= 70 for table_slice in slices))
 
+    def test_row_with_multiple_rich_text_cells_splits_across_table_slices(self) -> None:
+        first_text = Text(" ".join(f"left-{index}" for index in range(80))).font_size(10).line_height(12)
+        second_text = Text(" ".join(f"right-{index}" for index in range(80))).font_size(10).line_height(12)
+        table = (
+            Table([["Metric", "Left", "Right"], ["Revenue", first_text, second_text]])
+            .column_widths([80, 100, 100])
+            .header(background="#1d4ed8", color="#ffffff", repeat=True)
+            .cell_style(1, 1, background="#dcfce7")
+            .cell_style(1, 2, background="#e0f2fe")
+            .cell_padding(vertical=6, horizontal=6)
+        )
+        table.node.resolved_width = 280
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 82, 82)
+        source_rows = [source for table_slice in slices for source in cast(list[int], table_slice.content["source_row_indices"])]
+        text_cells: list[object] = []
+        styled_fragment_boxes = []
+        for table_slice in slices:
+            slice_rows = cast(list[list[object]], table_slice.content["rows"])
+            slice_source_rows = cast(list[int], table_slice.content["source_row_indices"])
+            self.assertEqual(slice_rows[0], ["Metric", "Left", "Right"])
+            if 1 in slice_source_rows:
+                row = slice_rows[slice_source_rows.index(1)]
+                text_cells.extend([row[1], row[2]])
+            styled_fragment_boxes.extend(
+                box
+                for box in table_cell_boxes(table_slice, 0, 0, table_slice.resolved_width, table_slice.resolved_height)
+                if box.source_row_index == 1 and box.column_index in {1, 2}
+            )
+
+        self.assertGreater(source_rows.count(1), 1)
+        self.assertTrue(any(isinstance(cell, LayoutNode) and cell.node_type == "text" for cell in text_cells))
+        self.assertTrue(all(table_slice.resolved_height <= 82 for table_slice in slices))
+        self.assertEqual(len(styled_fragment_boxes), source_rows.count(1) * 2)
+        self.assertTrue(all(box.background is not None for box in styled_fragment_boxes))
+
     def test_rich_text_table_cell_with_span_remains_atomic(self) -> None:
         rich_text = Text(" ".join(f"note-{index}" for index in range(60))).font_size(10).line_height(12)
         table = Table([["Metric", "Details"], [rich_text, ""]]).column_widths([130, 130]).cell_padding(vertical=6, horizontal=6).span(1, 0, colspan=2)
@@ -656,6 +693,30 @@ class TableV2PaginationTests(unittest.TestCase):
             rich_frame.add(Spacer(20))
         table = Table([["Left", "Right"], [rich_text, rich_frame]]).column_widths([130, 130]).cell_padding(vertical=6, horizontal=6)
         table.node.resolved_width = 260
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 70, 70)
+        source_rows = [source for table_slice in slices for source in cast(list[int], table_slice.content["source_row_indices"])]
+
+        self.assertEqual(source_rows.count(1), 1)
+
+    def test_row_with_rich_text_and_rich_image_cells_remains_atomic(self) -> None:
+        rich_text = Text(" ".join(f"note-{index}" for index in range(60))).font_size(10).line_height(12)
+        rich_image = Image(_png_bytes(16, 40)).size(40, 100)
+        table = Table([["Left", "Right"], [rich_text, rich_image]]).column_widths([130, 130]).cell_padding(vertical=6, horizontal=6)
+        table.node.resolved_width = 260
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 70, 70)
+        source_rows = [source for table_slice in slices for source in cast(list[int], table_slice.content["source_row_indices"])]
+
+        self.assertEqual(source_rows.count(1), 1)
+
+    def test_multiple_rich_text_table_cells_with_span_remain_atomic(self) -> None:
+        first_text = Text(" ".join(f"left-{index}" for index in range(60))).font_size(10).line_height(12)
+        second_text = Text(" ".join(f"right-{index}" for index in range(60))).font_size(10).line_height(12)
+        table = Table([["Metric", "Left", "Right"], ["Revenue", first_text, second_text]]).column_widths([80, 100, 100]).cell_padding(vertical=6, horizontal=6).span(1, 1, colspan=2)
+        table.node.resolved_width = 280
         table.node.resolved_height = table_height(table.node)
 
         slices = _split_table_node(table.node, 70, 70)

@@ -309,27 +309,39 @@ def _spanned_row_indices(table: LayoutNode, row_count: int, column_count: int) -
 
 def _rich_row_fragments(table: LayoutNode, row: list[object], column_widths: list[float], rich_row_capacity: float) -> list[list[object]]:
     rich_cells = [(column_index, cell) for column_index, cell in enumerate(row) if isinstance(cell, LayoutNode)]
-    if len(rich_cells) != 1:
+    if not rich_cells:
         return [row]
-    column_index, rich_cell = rich_cells[0]
-    if column_index >= len(column_widths):
+    if len(rich_cells) > 1 and not all(cell.node_type == "text" for _column_index, cell in rich_cells):
         return [row]
+
     padding = table_cell_padding(table)
-    content_width = max(1.0, column_widths[column_index] - padding.horizontal)
-    laid_out = layout_rich_cell_content(rich_cell, content_width, 0.0, 0.0)
     content_capacity = max(1.0, rich_row_capacity - padding.vertical)
-    if laid_out.resolved_height <= content_capacity:
+    rich_fragments_by_column: dict[int, list[LayoutNode]] = {}
+    changed = False
+    for column_index, rich_cell in rich_cells:
+        if column_index >= len(column_widths):
+            return [row]
+        content_width = max(1.0, column_widths[column_index] - padding.horizontal)
+        laid_out = layout_rich_cell_content(rich_cell, content_width, 0.0, 0.0)
+        if laid_out.resolved_height <= content_capacity:
+            rich_fragments = [laid_out]
+        else:
+            rich_fragments = _split_rich_cell_node(laid_out, content_capacity)
+        if len(rich_fragments) > 1:
+            changed = True
+        rich_fragments_by_column[column_index] = rich_fragments
+    if not changed:
         return [row]
-    rich_fragments = _split_rich_cell_node(laid_out, content_capacity)
-    if len(rich_fragments) <= 1:
-        return [row]
+
+    fragment_count = max(len(fragments) for fragments in rich_fragments_by_column.values())
     rows: list[list[object]] = []
-    for fragment_index, rich_fragment in enumerate(rich_fragments):
+    for fragment_index in range(fragment_count):
         fragment_row = list(row)
-        fragment_row[column_index] = rich_fragment
+        for column_index, rich_fragments in rich_fragments_by_column.items():
+            fragment_row[column_index] = rich_fragments[fragment_index] if fragment_index < len(rich_fragments) else ""
         if fragment_index > 0:
             for cell_index, cell in enumerate(fragment_row):
-                if cell_index != column_index and not isinstance(cell, LayoutNode):
+                if cell_index not in rich_fragments_by_column and not isinstance(cell, LayoutNode):
                     fragment_row[cell_index] = ""
         rows.append(fragment_row)
     return rows
