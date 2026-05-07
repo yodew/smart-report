@@ -29,7 +29,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Paint ordering through `z-index`
 - `Text`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
 
-## v1.3 status
+## v1.5 status
 
 - Chinese API documentation is available in `docs/zh/api.md`
 - Table v2 supports column widths, alignment, padding, `rowspan`, `colspan`, header styling, zebra rows, rounded borders, repeated headers, and row/column/cell style overrides
@@ -41,6 +41,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - v1.1 adds rich table cells, pagination controls, table footers/subtotals, configurable borders, and image fit/bytes support
 - v1.2 adds conservative rich table-cell pagination: a single unspanned `Frame` cell can split across table slices while repeated headers/footers and logical row styles are preserved
 - v1.3 extends conservative rich table-cell pagination to single unspanned `Text` cells
+- v1.5 extends conservative rich table-cell pagination to rows with multiple unspanned rich `Text` cells
 
 ## Table spans
 
@@ -88,7 +89,7 @@ Frame().page_break_before()
 Image("chart.png").cover().radius(8)
 ```
 
-## v1.3 rich-cell pagination
+## v1.5 rich-cell pagination
 
 ```python
 details = Frame().padding(4).background("#f8fafc")
@@ -102,7 +103,7 @@ table = (
 )
 ```
 
-Single rich `Frame` or `Text` table cells with no `rowspan` / `colspan` can now split across pages. Spanned rows and rows with multiple rich cells are intentionally kept atomic so span boundaries remain valid.
+Single rich `Frame` or `Text` table cells with no `rowspan` / `colspan` can split across pages. Rows with multiple rich `Text` cells can also split when every rich cell in that row is `Text`. Spanned rows, images, and mixed rich-content rows are intentionally kept atomic so span boundaries remain valid.
 
 ## Font registration
 
@@ -201,6 +202,7 @@ margin((24, 24, 20, 24))    # top, right, bottom, left
 - `examples/v1_1_features.py`
 - `examples/v1_2_features.py`
 - `examples/v1_3_features.py`
+- `examples/v1_5_features.py`
 - `examples/zh_table_demo.py`
 
 Run one with:
@@ -215,12 +217,12 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v1.3 release expands table pagination while preserving the v1.0 builder API. Future work should remain backward-compatible unless a major version bump is planned.
+The v1.5 release expands table pagination while preserving the v1.0 builder API. Future work should remain backward-compatible unless a major version bump is planned.
 
 ## Current limitations
 
 - `rowspan` content is kept together during pagination rather than split across pages
 - Pagination still keeps images atomic
-- Rich table-cell pagination is conservative: only a single unspanned rich `Frame` or `Text` cell is split; spanned or multi-rich-cell rows remain atomic
+- Rich table-cell pagination is conservative: single unspanned rich `Frame`/`Text` cells and rows whose rich cells are all unspanned `Text` cells can split; spanned rows, images, and mixed rich-content rows remain atomic
 - Flex/grid/columns are practical layout primitives, not a complete CSS constraint solver
 - `height="auto"` with percentage-based absolute `top` values follows a simplified rule
