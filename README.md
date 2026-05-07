@@ -29,7 +29,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Paint ordering through `z-index`
 - `Text`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
 
-## v1.5 status
+## v2.0 status
 
 - Chinese API documentation is available in `docs/zh/api.md`
 - Table v2 supports column widths, alignment, padding, `rowspan`, `colspan`, header styling, zebra rows, rounded borders, repeated headers, and row/column/cell style overrides
@@ -42,6 +42,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - v1.2 adds conservative rich table-cell pagination: a single unspanned `Frame` cell can split across table slices while repeated headers/footers and logical row styles are preserved
 - v1.3 extends conservative rich table-cell pagination to single unspanned `Text` cells
 - v1.5 extends conservative rich table-cell pagination to rows with multiple unspanned rich `Text` cells
+- v2.0 resolves percentage absolute `top` inside auto-height containers and locks practical `flex`, `grid`, and `columns` semantics with regression coverage
 
 ## Table spans
 
@@ -68,6 +69,16 @@ notes = Frame().columns(2, gap=16)
 notes.add_text("Long note one")
 notes.add_text("Long note two")
 ```
+
+## v2.0 absolute positioning in auto-height containers
+
+```python
+panel = Frame().padding(12).width(240)
+panel.add_text("Flow content determines the auto height.")
+panel.add_text("Badge").absolute(0, "50%").background("#dbeafe")
+```
+
+Percentage absolute `top` values now resolve against the final auto content height. Values at or above `100%` are rejected for auto-height parents because they cannot produce a finite containing height.
 
 ## v1.1 report controls
 
@@ -203,6 +214,7 @@ margin((24, 24, 20, 24))    # top, right, bottom, left
 - `examples/v1_2_features.py`
 - `examples/v1_3_features.py`
 - `examples/v1_5_features.py`
+- `examples/v2_0_features.py`
 - `examples/zh_table_demo.py`
 
 Run one with:
@@ -217,12 +229,12 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v1.5 release expands table pagination while preserving the v1.0 builder API. Future work should remain backward-compatible unless a major version bump is planned.
+The v2.0 release stabilizes practical layout and table pagination behavior while preserving the existing builder API where possible. Future work should remain backward-compatible unless another major version bump is planned.
 
 ## Current limitations
 
 - `rowspan` content is kept together during pagination rather than split across pages
-- Pagination still keeps images atomic
+- Pagination still keeps images and SVG content atomic; users should size images or place them on the next page explicitly
 - Rich table-cell pagination is conservative: single unspanned rich `Frame`/`Text` cells and rows whose rich cells are all unspanned `Text` cells can split; spanned rows, images, and mixed rich-content rows remain atomic
 - Flex/grid/columns are practical layout primitives, not a complete CSS constraint solver
-- `height="auto"` with percentage-based absolute `top` values follows a simplified rule
+- Complex text shaping, bidi, and advanced OpenType behavior require optional ReportLab support and are not guaranteed by the default text path
