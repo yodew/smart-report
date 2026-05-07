@@ -688,12 +688,50 @@ class TableV2PaginationTests(unittest.TestCase):
 
         self.assertEqual(source_rows.count(1), 1)
 
-    def test_row_with_rich_text_and_rich_frame_cells_remains_atomic(self) -> None:
+    def test_row_with_rich_text_and_rich_frame_cells_splits_across_table_slices(self) -> None:
         rich_text = Text(" ".join(f"note-{index}" for index in range(60))).font_size(10).line_height(12)
         rich_frame = Frame().padding(0)
         for _ in range(5):
             rich_frame.add(Spacer(20))
-        table = Table([["Left", "Right"], [rich_text, rich_frame]]).column_widths([130, 130]).cell_padding(vertical=6, horizontal=6)
+        table = (
+            Table([["Left", "Right"], [rich_text, rich_frame]])
+            .column_widths([130, 130])
+            .cell_style(1, 0, background="#dcfce7")
+            .cell_style(1, 1, background="#e0f2fe")
+            .cell_padding(vertical=6, horizontal=6)
+        )
+        table.node.resolved_width = 260
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 70, 70)
+        source_rows = [source for table_slice in slices for source in cast(list[int], table_slice.content["source_row_indices"])]
+        rich_cells = []
+        styled_fragment_boxes = []
+        for table_slice in slices:
+            slice_rows = cast(list[list[object]], table_slice.content["rows"])
+            slice_source_rows = cast(list[int], table_slice.content["source_row_indices"])
+            if 1 in slice_source_rows:
+                row = slice_rows[slice_source_rows.index(1)]
+                rich_cells.extend([row[0], row[1]])
+            styled_fragment_boxes.extend(
+                box
+                for box in table_cell_boxes(table_slice, 0, 0, table_slice.resolved_width, table_slice.resolved_height)
+                if box.source_row_index == 1 and box.column_index in {0, 1}
+            )
+
+        self.assertGreater(source_rows.count(1), 1)
+        self.assertTrue(any(isinstance(cell, LayoutNode) and cell.node_type == "text" for cell in rich_cells))
+        self.assertTrue(any(isinstance(cell, LayoutNode) and cell.node_type == "frame" for cell in rich_cells))
+        self.assertEqual(len(styled_fragment_boxes), source_rows.count(1) * 2)
+        self.assertTrue(all(box.background is not None for box in styled_fragment_boxes))
+
+    def test_row_with_multiple_rich_frame_cells_remains_atomic(self) -> None:
+        first_frame = Frame().padding(0)
+        second_frame = Frame().padding(0)
+        for _ in range(5):
+            first_frame.add(Spacer(20))
+            second_frame.add(Spacer(20))
+        table = Table([["Left", "Right"], [first_frame, second_frame]]).column_widths([130, 130]).cell_padding(vertical=6, horizontal=6)
         table.node.resolved_width = 260
         table.node.resolved_height = table_height(table.node)
 
@@ -706,6 +744,17 @@ class TableV2PaginationTests(unittest.TestCase):
         rich_text = Text(" ".join(f"note-{index}" for index in range(60))).font_size(10).line_height(12)
         rich_image = Image(_png_bytes(16, 40)).size(40, 100)
         table = Table([["Left", "Right"], [rich_text, rich_image]]).column_widths([130, 130]).cell_padding(vertical=6, horizontal=6)
+        table.node.resolved_width = 260
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 70, 70)
+        source_rows = [source for table_slice in slices for source in cast(list[int], table_slice.content["source_row_indices"])]
+
+        self.assertEqual(source_rows.count(1), 1)
+
+    def test_single_rich_image_table_cell_remains_atomic(self) -> None:
+        rich_image = Image(_png_bytes(16, 40)).size(40, 100)
+        table = Table([["Metric", "Image"], ["Preview", rich_image]]).column_widths([130, 130]).cell_padding(vertical=6, horizontal=6)
         table.node.resolved_width = 260
         table.node.resolved_height = table_height(table.node)
 
@@ -865,6 +914,23 @@ class LayoutPrimitiveTests(unittest.TestCase):
         self.assertEqual(first.node.local_x, 0)
         self.assertEqual(second.node.local_x, 155)
         self.assertEqual(frame.node.resolved_height, 20)
+
+    def test_flex_column_gap_positions_children_vertically(self) -> None:
+        frame = Frame().flex("column", gap=10).width(120)
+        first = Spacer(20)
+        second = Spacer(30)
+        frame.add(first).add(second)
+        frame.node.resolved_width = 120
+        first.node.resolved_width = 120
+        first.node.resolved_height = 20
+        second.node.resolved_width = 120
+        second.node.resolved_height = 30
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual((first.node.local_x, first.node.local_y), (0, 0))
+        self.assertEqual((second.node.local_x, second.node.local_y), (0, 30))
+        self.assertEqual(frame.node.resolved_height, 60)
 
     def test_grid_positions_children_in_tracks(self) -> None:
         frame = Frame().grid(2, gap=8).width(208)

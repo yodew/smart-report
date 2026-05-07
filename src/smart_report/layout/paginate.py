@@ -317,8 +317,10 @@ def _rich_row_fragments(table: LayoutNode, row: list[object], column_widths: lis
     rich_cells = [(column_index, cell) for column_index, cell in enumerate(row) if isinstance(cell, LayoutNode)]
     if not rich_cells:
         return [row]
-    if len(rich_cells) > 1 and not all(cell.node_type == "text" for _column_index, cell in rich_cells):
-        return [row]
+    if len(rich_cells) > 1:
+        rich_types = [cell.node_type for _column_index, cell in rich_cells]
+        if any(node_type not in {"frame", "text"} for node_type in rich_types) or rich_types.count("frame") > 1:
+            return [row]
 
     padding = table_cell_padding(table)
     content_capacity = max(1.0, rich_row_capacity - padding.vertical)

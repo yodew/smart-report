@@ -98,7 +98,7 @@ def _layout_flow_children(node: LayoutNode, start_x: float, start_y: float) -> f
 def _layout_flex_children(node: LayoutNode, start_x: float, start_y: float) -> float:
     direction = node.content.get("flex_direction", "row")
     if direction == "column":
-        return _layout_flow_children(node, start_x, start_y)
+        return _layout_flex_column_children(node, start_x, start_y)
 
     flow_children = node.flow_children
     if not flow_children:
@@ -112,6 +112,23 @@ def _layout_flex_children(node: LayoutNode, start_x: float, start_y: float) -> f
         cursor_x += child.resolved_width + child.style.margin.horizontal + gap
         max_bottom = max(max_bottom, child.local_y + child.resolved_height + child.style.margin.bottom)
     return max_bottom
+
+
+def _layout_flex_column_children(node: LayoutNode, start_x: float, start_y: float) -> float:
+    flow_children = node.flow_children
+    if not flow_children:
+        return start_y
+    gap = _layout_gap(node)
+    cursor_y = start_y
+    max_flow_extent = start_y
+    for index, child in enumerate(flow_children):
+        if index > 0:
+            cursor_y += gap
+        child.local_x = start_x + child.style.margin.left
+        child.local_y = cursor_y + child.style.margin.top
+        cursor_y = child.local_y + child.resolved_height + child.style.margin.bottom
+        max_flow_extent = max(max_flow_extent, cursor_y)
+    return max_flow_extent
 
 
 def _layout_grid_children(node: LayoutNode, start_x: float, start_y: float, content_width: float) -> float:
