@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Iterator
 from typing import cast
 
-from smart_report import DEFAULT_FONT_NAME, Frame, Image, Spacer, Table, document, get_default_font_name, get_fallback_fonts, get_font, register_font, resolve_text_runs, set_default_font, set_fallback_fonts, string_width
+from smart_report import DEFAULT_FONT_NAME, Frame, Image, Spacer, Table, Text, document, get_default_font_name, get_fallback_fonts, get_font, register_font, resolve_text_runs, set_default_font, set_fallback_fonts, string_width
 from smart_report.builder import resolve_page_size
 from smart_report.layout.node import LayoutNode, Rect, RenderItem, Style
 from smart_report.layout.paginate import _split_flow_child, _split_table_node, _split_text_node, split_frame_node
@@ -612,6 +612,49 @@ class TableV2PaginationTests(unittest.TestCase):
             first_cell.add(Spacer(20))
             second_cell.add(Spacer(20))
         table = Table([["Left", "Right"], [first_cell, second_cell]]).column_widths([130, 130]).cell_padding(vertical=6, horizontal=6)
+        table.node.resolved_width = 260
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 70, 70)
+        source_rows = [source for table_slice in slices for source in cast(list[int], table_slice.content["source_row_indices"])]
+
+        self.assertEqual(source_rows.count(1), 1)
+
+    def test_rich_text_table_cell_splits_across_table_slices(self) -> None:
+        rich_text = Text(" ".join(f"note-{index}" for index in range(60))).font_size(10).line_height(12)
+        table = Table([["Metric", "Details"], ["Revenue", rich_text]]).column_widths([100, 160]).cell_padding(vertical=6, horizontal=6)
+        table.node.resolved_width = 260
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 70, 70)
+        source_rows = [source for table_slice in slices for source in cast(list[int], table_slice.content["source_row_indices"])]
+        detail_cells = []
+        for table_slice in slices:
+            slice_source_rows = cast(list[int], table_slice.content["source_row_indices"])
+            if 1 in slice_source_rows:
+                detail_cells.append(cast(list[list[object]], table_slice.content["rows"])[slice_source_rows.index(1)][1])
+
+        self.assertGreater(source_rows.count(1), 1)
+        self.assertTrue(all(isinstance(cell, LayoutNode) and cell.node_type == "text" for cell in detail_cells))
+        self.assertTrue(all(table_slice.resolved_height <= 70 for table_slice in slices))
+
+    def test_rich_text_table_cell_with_span_remains_atomic(self) -> None:
+        rich_text = Text(" ".join(f"note-{index}" for index in range(60))).font_size(10).line_height(12)
+        table = Table([["Metric", "Details"], [rich_text, ""]]).column_widths([130, 130]).cell_padding(vertical=6, horizontal=6).span(1, 0, colspan=2)
+        table.node.resolved_width = 260
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 70, 70)
+        source_rows = [source for table_slice in slices for source in cast(list[int], table_slice.content["source_row_indices"])]
+
+        self.assertEqual(source_rows.count(1), 1)
+
+    def test_row_with_rich_text_and_rich_frame_cells_remains_atomic(self) -> None:
+        rich_text = Text(" ".join(f"note-{index}" for index in range(60))).font_size(10).line_height(12)
+        rich_frame = Frame().padding(0)
+        for _ in range(5):
+            rich_frame.add(Spacer(20))
+        table = Table([["Left", "Right"], [rich_text, rich_frame]]).column_widths([130, 130]).cell_padding(vertical=6, horizontal=6)
         table.node.resolved_width = 260
         table.node.resolved_height = table_height(table.node)
 

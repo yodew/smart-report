@@ -312,7 +312,7 @@ def _rich_row_fragments(table: LayoutNode, row: list[object], column_widths: lis
     if len(rich_cells) != 1:
         return [row]
     column_index, rich_cell = rich_cells[0]
-    if rich_cell.node_type != "frame" or column_index >= len(column_widths):
+    if column_index >= len(column_widths):
         return [row]
     padding = table_cell_padding(table)
     content_width = max(1.0, column_widths[column_index] - padding.horizontal)
@@ -320,7 +320,7 @@ def _rich_row_fragments(table: LayoutNode, row: list[object], column_widths: lis
     content_capacity = max(1.0, rich_row_capacity - padding.vertical)
     if laid_out.resolved_height <= content_capacity:
         return [row]
-    rich_fragments = split_frame_node(laid_out, content_capacity, content_capacity)
+    rich_fragments = _split_rich_cell_node(laid_out, content_capacity)
     if len(rich_fragments) <= 1:
         return [row]
     rows: list[list[object]] = []
@@ -333,6 +333,14 @@ def _rich_row_fragments(table: LayoutNode, row: list[object], column_widths: lis
                     fragment_row[cell_index] = ""
         rows.append(fragment_row)
     return rows
+
+
+def _split_rich_cell_node(rich_cell: LayoutNode, content_capacity: float) -> list[LayoutNode]:
+    if rich_cell.node_type == "frame":
+        return split_frame_node(rich_cell, content_capacity, content_capacity)
+    if rich_cell.node_type == "text":
+        return _split_text_node(rich_cell, content_capacity, content_capacity)
+    return [clone_layout_node(rich_cell)]
 
 
 def _max_text_lines(content_height: float, line_height: float) -> int:
