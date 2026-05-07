@@ -29,7 +29,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Paint ordering through `z-index`
 - `Text`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
 
-## v1.1 status
+## v1.2 status
 
 - Chinese API documentation is available in `docs/zh/api.md`
 - Table v2 supports column widths, alignment, padding, `rowspan`, `colspan`, header styling, zebra rows, rounded borders, repeated headers, and row/column/cell style overrides
@@ -39,6 +39,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Layout primitives are available through `.flex(...)`, `.grid(...)`, and `.columns(...)`
 - Public API exports and validation behavior are stabilized for 1.0
 - v1.1 adds rich table cells, pagination controls, table footers/subtotals, configurable borders, and image fit/bytes support
+- v1.2 adds conservative rich table-cell pagination: a single unspanned `Frame` cell can split across table slices while repeated headers/footers and logical row styles are preserved
 
 ## Table spans
 
@@ -85,6 +86,22 @@ Frame().add_text("Section title").keep_with_next()
 Frame().page_break_before()
 Image("chart.png").cover().radius(8)
 ```
+
+## v1.2 rich-cell pagination
+
+```python
+details = Frame().padding(4).background("#f8fafc")
+for index in range(20):
+    details.add_text(f"Nested note {index + 1}").font_size(9).line_height(12)
+
+table = (
+    Table([["Metric", "Details"], ["Revenue", details]])
+    .column_widths([90, "auto"])
+    .header(background="#1d4ed8", color="#ffffff", repeat=True)
+)
+```
+
+Rich table cells with no `rowspan` / `colspan` can now split across pages. Spanned rich cells are intentionally kept atomic so span boundaries remain valid.
 
 ## Font registration
 
@@ -181,6 +198,7 @@ margin((24, 24, 20, 24))    # top, right, bottom, left
 - `examples/paginated_report.py`
 - `examples/layout_primitives.py`
 - `examples/v1_1_features.py`
+- `examples/v1_2_features.py`
 - `examples/zh_table_demo.py`
 
 Run one with:
@@ -195,11 +213,12 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v1.1 release expands practical report authoring while preserving the v1.0 builder API. Future work should remain backward-compatible unless a major version bump is planned.
+The v1.2 release expands table pagination while preserving the v1.0 builder API. Future work should remain backward-compatible unless a major version bump is planned.
 
 ## Current limitations
 
 - `rowspan` content is kept together during pagination rather than split across pages
-- Pagination still keeps images and complex table cells atomic
+- Pagination still keeps images atomic
+- Rich table-cell pagination is conservative: only a single unspanned rich `Frame` cell is split; spanned or multi-rich-cell rows remain atomic
 - Flex/grid/columns are practical layout primitives, not a complete CSS constraint solver
 - `height="auto"` with percentage-based absolute `top` values follows a simplified rule

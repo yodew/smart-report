@@ -149,7 +149,7 @@ table = Table([
 ]).span(1, 0, rowspan=2)
 ```
 
-分页遇到 `rowspan` 时会把断点移动到合法行边界，避免把一个跨行单元格拆到两页。复杂单元格内容的深度拆分仍需后续增强。
+分页遇到 `rowspan` 时会把断点移动到合法行边界，避免把一个跨行单元格拆到两页。
 
 v1.1 起，单元格可以放入 `Frame` / `Text` / `Image` 等 builder：
 
@@ -161,6 +161,8 @@ table = Table([["指标", "详情"], ["收入", details]]) \
     .footer([["合计", "216K"]], repeat=True, background="#e2e8f0") \
     .borders("#94a3b8", width=0.5, inner_width=0.25, outer_width=1.5)
 ```
+
+v1.2 起，普通富单元格可以更细粒度分页：当某一行只有一个未参与 `rowspan` / `colspan` 的 `Frame` 富单元格时，该 `Frame` 会随表格切片拆分，重复表头/表尾和基于原始逻辑行号的样式仍会保留。含跨行/跨列或一行多个富内容的场景仍保持原子分页，以避免破坏 span 边界。
 
 ## 元素 API
 
@@ -302,7 +304,8 @@ height("auto")   # 内容自适应
 
 - 表格支持 `rowspan` / `colspan`；跨行单元格分页时会整体保留在同一页切片中
 - 分页支持嵌套 `Frame` 和固定高度 `Rect` / `Spacer` 的更细粒度切分
-- 图片和复杂表格单元格内容仍保持原子分页
+- 图片仍保持原子分页
+- 富表格单元格分页是保守实现：只拆分单个未跨行/跨列的 `Frame` 富单元格，跨行/跨列或多个富单元格的行仍保持原子分页
 - `flex` / `grid` / `columns` 是实用布局模式，并非完整 CSS 约束求解器
 - `height="auto"` 搭配百分比绝对定位 `top` 时仍采用简化规则
 - 字体 fallback 已支持；复杂字体 shaping 和 OpenType 特性仍需后续增强
