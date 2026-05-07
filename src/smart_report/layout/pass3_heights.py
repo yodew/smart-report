@@ -53,6 +53,9 @@ def _layout_container(node: LayoutNode, explicit_height: float | None) -> None:
     else:
         max_flow_extent = _layout_flow_children(node, padding.left, padding.top)
 
+    if explicit_height is None:
+        content_height = _auto_content_height_for_absolute_children(node, max_flow_extent - padding.top)
+
     max_absolute_extent = padding.top
     for child in node.absolute_children:
         child.local_x = padding.left + resolve_size(child.style.left or Auto(), content_width, 0.0)
@@ -64,6 +67,21 @@ def _layout_container(node: LayoutNode, explicit_height: float | None) -> None:
         return
 
     node.resolved_height = max(max_flow_extent, max_absolute_extent) + padding.bottom
+
+
+def _auto_content_height_for_absolute_children(node: LayoutNode, flow_content_height: float) -> float:
+    content_height = max(0.0, flow_content_height)
+    for child in node.absolute_children:
+        top = child.style.top or Auto()
+        if isinstance(top, Percent):
+            if top.ratio >= 1.0:
+                raise ValueError("Percentage absolute top must be less than 100% when parent height is auto")
+            if top.ratio < 1.0:
+                content_height = max(content_height, child.resolved_height / max(0.000001, 1.0 - top.ratio))
+            continue
+        top_offset = resolve_size(top, None, 0.0)
+        content_height = max(content_height, top_offset + child.resolved_height)
+    return content_height
 
 
 def _layout_flow_children(node: LayoutNode, start_x: float, start_y: float) -> float:

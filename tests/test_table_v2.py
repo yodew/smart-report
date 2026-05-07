@@ -645,6 +645,7 @@ class TableV2PaginationTests(unittest.TestCase):
             Table([["Metric", "Left", "Right"], ["Revenue", first_text, second_text]])
             .column_widths([80, 100, 100])
             .header(background="#1d4ed8", color="#ffffff", repeat=True)
+            .footer([["Total", "Reviewed", "Tracked"]], repeat=True, background="#e2e8f0")
             .cell_style(1, 1, background="#dcfce7")
             .cell_style(1, 2, background="#e0f2fe")
             .cell_padding(vertical=6, horizontal=6)
@@ -660,6 +661,7 @@ class TableV2PaginationTests(unittest.TestCase):
             slice_rows = cast(list[list[object]], table_slice.content["rows"])
             slice_source_rows = cast(list[int], table_slice.content["source_row_indices"])
             self.assertEqual(slice_rows[0], ["Metric", "Left", "Right"])
+            self.assertEqual(slice_rows[-1], ["Total", "Reviewed", "Tracked"])
             if 1 in slice_source_rows:
                 row = slice_rows[slice_source_rows.index(1)]
                 text_cells.extend([row[1], row[2]])
@@ -826,6 +828,114 @@ class LayoutPrimitiveTests(unittest.TestCase):
         self.assertEqual(children[1].node.local_x, 112)
         self.assertEqual(children[2].node.local_x, 112)
         self.assertEqual(children[2].node.local_y, 32)
+
+    def test_auto_height_resolves_percentage_absolute_top_against_final_content_height(self) -> None:
+        frame = Frame().width(100)
+        marker = Spacer(20).absolute(0, "50%")
+        frame.add(marker)
+        frame.node.resolved_width = 100
+        marker.node.resolved_width = 100
+        marker.node.resolved_height = 20
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual(marker.node.local_y, 20)
+        self.assertEqual(frame.node.resolved_height, 40)
+
+    def test_auto_height_percentage_absolute_top_includes_flow_content(self) -> None:
+        frame = Frame().width(100).padding(vertical=10)
+        flow = frame.add_spacer(80)
+        marker = Spacer(20).absolute(0, "50%")
+        frame.add(marker)
+        frame.node.resolved_width = 100
+        flow.node.resolved_width = 100
+        flow.node.resolved_height = 80
+        marker.node.resolved_width = 100
+        marker.node.resolved_height = 20
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual(marker.node.local_y, 50)
+        self.assertEqual(frame.node.resolved_height, 100)
+
+    def test_auto_height_rejects_percentage_absolute_top_at_or_above_full_height(self) -> None:
+        frame = Frame().width(100)
+        marker = Spacer(20).absolute(0, "100%")
+        frame.add(marker)
+        frame.node.resolved_width = 100
+        marker.node.resolved_width = 100
+        marker.node.resolved_height = 20
+
+        with self.assertRaises(ValueError):
+            resolve_heights(frame.node, None)
+
+    def test_auto_height_rejects_percentage_absolute_top_even_for_zero_height_child(self) -> None:
+        frame = Frame().width(100)
+        marker = Spacer(0).absolute(0, "150%")
+        frame.add(marker)
+        frame.node.resolved_width = 100
+        marker.node.resolved_width = 100
+        marker.node.resolved_height = 0
+
+        with self.assertRaises(ValueError):
+            resolve_heights(frame.node, None)
+
+    def test_flex_auto_height_includes_absolute_percentage_child_extent(self) -> None:
+        frame = Frame().flex("row", gap=10).width(220)
+        first = frame.add_text("A")
+        second = frame.add_text("B")
+        marker = Spacer(30).absolute(0, "75%")
+        frame.add(marker)
+        frame.node.resolved_width = 220
+        for child in (first.node, second.node):
+            child.resolved_width = 100
+            child.resolved_height = 20
+        marker.node.resolved_width = 100
+        marker.node.resolved_height = 30
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual((first.node.local_x, second.node.local_x), (0, 110))
+        self.assertEqual(marker.node.local_y, 90)
+        self.assertEqual(frame.node.resolved_height, 120)
+
+    def test_grid_auto_height_includes_absolute_percentage_child_extent(self) -> None:
+        frame = Frame().grid(2, gap=8).width(208)
+        children = [frame.add_text(str(index)) for index in range(2)]
+        marker = Spacer(20).absolute(0, "50%")
+        frame.add(marker)
+        frame.node.resolved_width = 208
+        for child in children:
+            child.node.resolved_width = 100
+            child.node.resolved_height = 20
+        marker.node.resolved_width = 100
+        marker.node.resolved_height = 20
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual((children[0].node.local_x, children[1].node.local_x), (0, 108))
+        self.assertEqual(marker.node.local_y, 20)
+        self.assertEqual(frame.node.resolved_height, 40)
+
+    def test_columns_auto_height_includes_absolute_percentage_child_extent(self) -> None:
+        frame = Frame().columns(2, gap=12).width(212)
+        first = frame.add_text("A")
+        second = frame.add_text("B")
+        marker = Spacer(20).absolute(0, "50%")
+        frame.add(marker)
+        frame.node.resolved_width = 212
+        first.node.resolved_width = 100
+        first.node.resolved_height = 40
+        second.node.resolved_width = 100
+        second.node.resolved_height = 20
+        marker.node.resolved_width = 100
+        marker.node.resolved_height = 20
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual((first.node.local_x, second.node.local_x), (0, 112))
+        self.assertEqual(marker.node.local_y, 20)
+        self.assertEqual(frame.node.resolved_height, 40)
 
 
 @unittest.skipIf(PdfReader is None, "pypdf is not installed")
