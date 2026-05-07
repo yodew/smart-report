@@ -234,7 +234,7 @@ The v2.0 release stabilizes practical layout and table pagination behavior while
 ## Current limitations
 
 - `rowspan` content is kept together during pagination rather than split across pages
-- Pagination still keeps images and SVG content atomic; users should size images or place them on the next page explicitly
+- Pagination keeps images and SVG content atomic: if the current page lacks space, the whole image moves to the next page; oversized images are not sliced
 - Rich table-cell pagination is conservative: single unspanned rich `Frame`/`Text` cells and rows whose rich cells are all unspanned `Text` cells can split; spanned rows, images, and mixed rich-content rows remain atomic
 - Flex/grid/columns are practical layout primitives, not a complete CSS constraint solver
 - Complex text shaping, bidi, and advanced OpenType behavior require optional ReportLab support and are not guaranteed by the default text path
