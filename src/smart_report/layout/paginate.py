@@ -25,6 +25,7 @@ from .table_model import (
 from .text_wrap import wrap_text
 
 MAX_FIXED_SPLIT_CHUNKS = 10000
+STARTS_ON_FOLLOWING_PAGE = "_starts_on_following_page"
 
 
 def paginate_page(page: LayoutNode) -> list[LayoutNode]:
@@ -80,6 +81,8 @@ def _append_with_pagination(
         first_slice = True
         for frame_slice in frame_slices:
             if first_slice:
+                if bool(frame_slice.content.pop(STARTS_ON_FOLLOWING_PAGE, False)):
+                    current_page = _new_generated_page(source_page, output_pages)
                 _ = current_page.add_child(frame_slice)
                 first_slice = False
                 continue
@@ -127,8 +130,11 @@ def split_frame_node(frame: LayoutNode, first_page_height: float, following_page
         split_nodes = _split_flow_child(child, remaining_content_height, following_content_height)
         for split_node in split_nodes:
             child_total_height = split_node.resolved_height + split_node.style.margin.top + split_node.style.margin.bottom
-            if current_frame.children and current_height + child_total_height > current_capacity:
+            if current_height + child_total_height > current_capacity and (current_frame.children or child_total_height <= following_content_height):
+                starts_on_following_page = not current_frame.children and current_height == 0.0
                 current_frame = _clone_frame_shell(frame)
+                if starts_on_following_page:
+                    current_frame.content[STARTS_ON_FOLLOWING_PAGE] = True
                 frame_slices.append(current_frame)
                 current_height = 0.0
                 current_capacity = following_content_height

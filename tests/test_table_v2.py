@@ -13,7 +13,7 @@ from typing import cast
 from smart_report import DEFAULT_FONT_NAME, Frame, Image, Spacer, Table, Text, document, get_default_font_name, get_fallback_fonts, get_font, register_font, resolve_text_runs, set_default_font, set_fallback_fonts, string_width
 from smart_report.builder import resolve_page_size
 from smart_report.layout.node import LayoutNode, Rect, RenderItem, Style
-from smart_report.layout.paginate import _split_flow_child, _split_table_node, _split_text_node, split_frame_node
+from smart_report.layout.paginate import _split_flow_child, _split_table_node, _split_text_node, paginate_page, split_frame_node
 from smart_report.layout.pass4_render import build_render_list
 from smart_report.layout.pass3_heights import resolve_heights
 from smart_report.layout.table_model import table_cell_boxes, table_cell_padding, table_column_widths, table_height, table_row_heights, table_rows
@@ -757,6 +757,77 @@ class TableV2PaginationTests(unittest.TestCase):
         resolve_heights(shell.node, None)
 
         self.assertEqual([slice_node.resolved_height for slice_node in slices], [50, 40, 30])
+
+    def test_image_moves_to_next_frame_slice_when_current_page_lacks_space(self) -> None:
+        frame = Frame().padding(0)
+        image = Image(_png_bytes(16, 40)).size(40, 80)
+        frame.add(image)
+        frame.node.resolved_width = 100
+        frame.node.resolved_height = 80
+        image.node.resolved_width = 40
+        image.node.resolved_height = 80
+
+        slices = split_frame_node(frame.node, 40, 100)
+
+        self.assertEqual(len(slices), 1)
+        self.assertEqual(slices[0].children[0].node_type, "image")
+        self.assertEqual(slices[0].children[0].resolved_height, 80)
+        self.assertEqual(slices[0].resolved_height, 80)
+
+    def test_svg_image_moves_to_next_frame_slice_when_current_page_lacks_space(self) -> None:
+        frame = Frame().padding(0)
+        image = Image("examples/box.svg").size(80, 80)
+        frame.add(image)
+        frame.node.resolved_width = 100
+        frame.node.resolved_height = 80
+        image.node.resolved_width = 80
+        image.node.resolved_height = 80
+
+        slices = split_frame_node(frame.node, 40, 100)
+
+        self.assertEqual(len(slices), 1)
+        self.assertEqual(slices[0].children[0].node_type, "image")
+        self.assertEqual(slices[0].children[0].content["src"], "examples/box.svg")
+
+    def test_image_frame_slice_starts_on_next_paginated_page_when_current_page_lacks_space(self) -> None:
+        page = document().page((100, 100))
+        intro = page.add_spacer(60)
+        frame = Frame().padding(0)
+        image = Image(_png_bytes(16, 40)).size(40, 80)
+        frame.add(image)
+        page.add(frame)
+        page.node.resolved_width = 100
+        page.node.resolved_height = 100
+        intro.node.resolved_width = 100
+        intro.node.resolved_height = 60
+        intro.node.local_y = 0
+        frame.node.resolved_width = 100
+        frame.node.resolved_height = 80
+        frame.node.local_y = 60
+        image.node.resolved_width = 40
+        image.node.resolved_height = 80
+
+        pages = paginate_page(page.node)
+
+        self.assertEqual(len(pages), 2)
+        self.assertEqual([child.node_type for child in pages[0].children], ["spacer"])
+        self.assertEqual([child.node_type for child in pages[1].children], ["frame"])
+        self.assertEqual(pages[1].children[0].children[0].node_type, "image")
+
+    def test_oversized_image_remains_atomic_when_following_page_cannot_fit_it(self) -> None:
+        frame = Frame().padding(0)
+        image = Image(_png_bytes(16, 40)).size(40, 140)
+        frame.add(image)
+        frame.node.resolved_width = 100
+        frame.node.resolved_height = 140
+        image.node.resolved_width = 40
+        image.node.resolved_height = 140
+
+        slices = split_frame_node(frame.node, 40, 100)
+
+        self.assertEqual(len(slices), 1)
+        self.assertEqual(slices[0].children[0].node_type, "image")
+        self.assertEqual(slices[0].children[0].resolved_height, 140)
 
     def test_fixed_height_split_rejects_non_finite_height(self) -> None:
         rect = Frame().add_rect().height(120)
