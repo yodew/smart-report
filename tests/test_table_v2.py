@@ -12,13 +12,14 @@ from typing import cast
 
 from smart_report import DEFAULT_FONT_NAME, Frame, Image, Spacer, Table, document, get_default_font_name, get_fallback_fonts, get_font, register_font, resolve_text_runs, set_default_font, set_fallback_fonts, string_width
 from smart_report.builder import resolve_page_size
-from smart_report.layout.node import Rect, RenderItem, Style
+from smart_report.layout.node import LayoutNode, Rect, RenderItem, Style
 from smart_report.layout.paginate import _split_flow_child, _split_table_node, _split_text_node, split_frame_node
+from smart_report.layout.pass4_render import build_render_list
 from smart_report.layout.pass3_heights import resolve_heights
 from smart_report.layout.table_model import table_cell_boxes, table_cell_padding, table_column_widths, table_height, table_row_heights, table_rows
 from smart_report.layout.text_wrap import wrap_text
-from smart_report.render.painters import paint_image, paint_table
-from smart_report.render.rl_adapter import ReportLabCanvasAdapter
+from smart_report.render.painters import paint_image, paint_render_item, paint_table
+from smart_report.render.rl_adapter import DEFAULT_TEXT_COLOR, ReportLabCanvasAdapter
 
 try:
     from pypdf import PdfReader
@@ -272,6 +273,17 @@ class TableV2ModelTests(unittest.TestCase):
         self.assertEqual(second_padding, 40)
         self.assertEqual(updated_padding, 60)
 
+    def test_frame_background_is_painted_by_render_pipeline(self) -> None:
+        frame = Frame().background("#f8fafc").size(120, 40)
+        frame.node.resolved_width = 120
+        frame.node.resolved_height = 40
+        adapter = _SpyAdapter()
+
+        for item in build_render_list(frame.node):
+            paint_render_item(cast(ReportLabCanvasAdapter, adapter), item)
+
+        self.assertIn(frame.node.style.background, adapter.rect_fills)
+
     def test_rich_table_cell_uses_nested_layout_content(self) -> None:
         rich_cell = Frame().padding(4)
         rich_cell.add_text("Nested table content wraps inside a cell").font_size(10).line_height(12)
@@ -284,6 +296,18 @@ class TableV2ModelTests(unittest.TestCase):
 
         self.assertIsNotNone(rich_box.rich_content)
         self.assertGreater(rich_box.height, 24)
+
+    def test_rich_table_cell_frame_background_is_painted(self) -> None:
+        rich_cell = Frame().padding(4).background("#f8fafc")
+        rich_cell.add_text("Nested table content").font_size(10).line_height(12)
+        table = Table([["Name", "Details"], ["A", rich_cell]]).column_widths([80, 120]).cell_padding(4)
+        table.node.resolved_width = 200
+        table.node.resolved_height = table_height(table.node)
+        adapter = _SpyAdapter()
+
+        paint_table(cast(ReportLabCanvasAdapter, adapter), RenderItem(table.node, Rect(0, 0, 200, table.node.resolved_height), (), (0,)))
+
+        self.assertIn(rich_cell.node.style.background, adapter.rect_fills)
 
     def test_table_footer_repeats_in_paginated_slices(self) -> None:
         rows = [["Metric", "Value"]] + [[f"M{index}", str(index)] for index in range(12)]
@@ -362,6 +386,30 @@ class TableV2ModelTests(unittest.TestCase):
         paint_table(cast(ReportLabCanvasAdapter, adapter), RenderItem(table.node, Rect(0, 0, 200, table.node.resolved_height), (), (0,)))
 
         self.assertEqual(adapter.line_widths[-4:], [3, 3, 3, 3])
+
+    def test_table_cell_backgrounds_do_not_bleed_between_cells(self) -> None:
+        table = Table([["A", "B"]]).cell_style(0, 0, background="#dcfce7")
+        table.node.resolved_width = 200
+        table.node.resolved_height = table_height(table.node)
+        adapter = _SpyAdapter()
+
+        paint_table(cast(ReportLabCanvasAdapter, adapter), RenderItem(table.node, Rect(0, 0, 200, table.node.resolved_height), (), (0,)))
+
+        cell_styles = cast(dict[str, dict[str, object]], table.node.content["cell_styles"])
+        self.assertEqual(adapter.rect_fills.count(cell_styles["0:0"]["background"]), 1)
+        self.assertGreaterEqual(adapter.rect_fills.count(None), 1)
+
+    def test_draw_text_defaults_to_black_when_color_is_none(self) -> None:
+        fake_canvas = _FakeCanvas()
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 200
+
+        adapter.draw_text(10, 10, 100, "Hello", "Helvetica", 12, 14, None)
+
+        self.assertEqual(fake_canvas.text_object.fill_colors[0], (DEFAULT_TEXT_COLOR.red, DEFAULT_TEXT_COLOR.green, DEFAULT_TEXT_COLOR.blue))
+        self.assertEqual(fake_canvas.fill_alphas[0], DEFAULT_TEXT_COLOR.alpha)
 
     def test_pagination_control_flags_affect_frame_splitting(self) -> None:
         frame = Frame().padding(0)
@@ -489,6 +537,88 @@ class TableV2PaginationTests(unittest.TestCase):
         self.assertTrue(any({2, 3}.issubset(source_set) for source_set in source_sets))
         self.assertTrue(all(not ({2, 3}.intersection(source_set) and not {2, 3}.issubset(source_set)) for source_set in source_sets))
         self.assertIn({"rowspan": 2, "colspan": 1}, slice_spans.values())
+
+    def test_rich_table_cell_splits_across_table_slices(self) -> None:
+        rich_cell = Frame().padding(0)
+        for _ in range(5):
+            rich_cell.add(Spacer(20))
+        table = (
+            Table([["Metric", "Details"], ["Revenue", rich_cell]])
+            .column_widths([100, 160])
+            .header(background="#1d4ed8", color="#ffffff", repeat=True)
+            .footer([["Total", "216K"]], repeat=True, background="#e2e8f0")
+            .cell_style(1, 1, background="#dcfce7")
+            .cell_padding(vertical=6, horizontal=6)
+        )
+        table.node.resolved_width = 260
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 90, 90)
+        source_rows = [source for table_slice in slices for source in cast(list[int], table_slice.content["source_row_indices"])]
+        detail_cells = []
+        for table_slice in slices:
+            slice_source_rows = cast(list[int], table_slice.content["source_row_indices"])
+            if 1 in slice_source_rows:
+                detail_cells.append(cast(list[list[object]], table_slice.content["rows"])[slice_source_rows.index(1)][1])
+        styled_fragment_boxes = []
+        for table_slice in slices:
+            slice_rows = cast(list[list[object]], table_slice.content["rows"])
+            self.assertEqual(slice_rows[0], ["Metric", "Details"])
+            self.assertEqual(slice_rows[-1], ["Total", "216K"])
+            styled_fragment_boxes.extend(
+                box
+                for box in table_cell_boxes(table_slice, 0, 0, table_slice.resolved_width, table_slice.resolved_height)
+                if box.source_row_index == 1 and box.column_index == 1
+            )
+
+        self.assertGreater(len(slices), 1)
+        self.assertGreater(source_rows.count(1), 1)
+        self.assertTrue(all(isinstance(cell, LayoutNode) for cell in detail_cells))
+        self.assertTrue(all(table_slice.resolved_height <= 90 for table_slice in slices))
+        self.assertEqual(len(styled_fragment_boxes), source_rows.count(1))
+        self.assertTrue(all(box.background is not None for box in styled_fragment_boxes))
+
+    def test_unrelated_span_does_not_disable_rich_table_cell_splitting(self) -> None:
+        rich_cell = Frame().padding(0)
+        for _ in range(5):
+            rich_cell.add(Spacer(20))
+        table = Table([["Metric", "Details"], ["Merged", ""], ["Revenue", rich_cell]]).column_widths([100, 160]).cell_padding(vertical=6, horizontal=6).span(1, 0, colspan=2)
+        table.node.resolved_width = 260
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 70, 70)
+        source_rows = [source for table_slice in slices for source in cast(list[int], table_slice.content["source_row_indices"])]
+
+        self.assertEqual(source_rows.count(1), 1)
+        self.assertGreater(source_rows.count(2), 1)
+
+    def test_rich_table_cell_with_span_remains_atomic(self) -> None:
+        rich_cell = Frame().padding(0)
+        for _ in range(5):
+            rich_cell.add(Spacer(20))
+        table = Table([["Metric", "Details"], [rich_cell, ""], ["Tail", "Done"]]).column_widths([130, 130]).cell_padding(vertical=6, horizontal=6).span(1, 0, colspan=2)
+        table.node.resolved_width = 260
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 70, 70)
+        source_rows = [source for table_slice in slices for source in cast(list[int], table_slice.content["source_row_indices"])]
+
+        self.assertEqual(source_rows.count(1), 1)
+
+    def test_row_with_multiple_rich_table_cells_remains_atomic(self) -> None:
+        first_cell = Frame().padding(0)
+        second_cell = Frame().padding(0)
+        for _ in range(5):
+            first_cell.add(Spacer(20))
+            second_cell.add(Spacer(20))
+        table = Table([["Left", "Right"], [first_cell, second_cell]]).column_widths([130, 130]).cell_padding(vertical=6, horizontal=6)
+        table.node.resolved_width = 260
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 70, 70)
+        source_rows = [source for table_slice in slices for source in cast(list[int], table_slice.content["source_row_indices"])]
+
+        self.assertEqual(source_rows.count(1), 1)
 
     def test_nested_frame_splits_across_pages(self) -> None:
         outer = Frame().padding(4)
@@ -669,6 +799,7 @@ class _SpyAdapter:
     def __init__(self) -> None:
         self.rounded_clips: list[tuple[float, float, float, float, float]] = []
         self.drawn_radii: list[float] = []
+        self.rect_fills: list[object] = []
         self.images: list[tuple[Rect, str]] = []
         self.line_widths: list[float] = []
         self.lines: list[tuple[float, float, float, float, float]] = []
@@ -685,6 +816,7 @@ class _SpyAdapter:
 
     def draw_rect(self, rect: Rect, fill: object = None, stroke: object = None, stroke_width: float = 0.0, radius: float = 0.0) -> None:
         _ = (rect, fill, stroke, stroke_width)
+        self.rect_fills.append(fill)
         self.drawn_radii.append(radius)
 
     def draw_text(self, **_kwargs: object) -> None:
@@ -706,6 +838,109 @@ def _png_bytes(width: int, height: int) -> bytes:
     image = PillowImage.new("RGB", (width, height), "white")
     image.save(buffer, format="PNG")
     return buffer.getvalue()
+
+
+class _FakeTextObject:
+    def __init__(self) -> None:
+        self.fill_colors: list[tuple[float, float, float]] = []
+
+    def setFont(self, _font_name: str, _font_size: float, _leading: float | None = None) -> None:
+        return
+
+    def setFillColorRGB(self, red: float, green: float, blue: float) -> None:
+        self.fill_colors.append((red, green, blue))
+
+    def setTextOrigin(self, _x: float, _y: float) -> None:
+        return
+
+    def setLeading(self, _leading: float) -> None:
+        return
+
+    def textOut(self, _text: str) -> None:
+        return
+
+    def textLine(self, _text: str = "") -> None:
+        return
+
+
+class _FakeCanvas:
+    def __init__(self) -> None:
+        self.text_object = _FakeTextObject()
+        self.fill_alphas: list[float] = []
+
+    def beginText(self, x: float, y: float) -> _FakeTextObject:
+        _ = (x, y)
+        return self.text_object
+
+    def drawText(self, text_object: object) -> None:
+        _ = text_object
+        return
+
+    def saveState(self) -> None:
+        return
+
+    def restoreState(self) -> None:
+        return
+
+    def setFillColorRGB(self, r: float, g: float, b: float) -> None:
+        _ = (r, g, b)
+        return
+
+    def setStrokeColorRGB(self, r: float, g: float, b: float) -> None:
+        _ = (r, g, b)
+        return
+
+    def setFillAlpha(self, alpha: float) -> None:
+        self.fill_alphas.append(alpha)
+
+    def setStrokeAlpha(self, alpha: float) -> None:
+        _ = alpha
+        return
+
+    def setLineWidth(self, width: float) -> None:
+        _ = width
+        return
+
+    def rect(self, x: float, y: float, width: float, height: float, stroke: int = 1, fill: int = 0) -> None:
+        _ = (x, y, width, height, stroke, fill)
+
+    def roundRect(self, x: float, y: float, width: float, height: float, radius: float, stroke: int = 1, fill: int = 0) -> None:
+        _ = (x, y, width, height, radius, stroke, fill)
+
+    def line(self, x1: float, y1: float, x2: float, y2: float) -> None:
+        _ = (x1, y1, x2, y2)
+        return
+
+    def beginPath(self) -> object:
+        return object()
+
+    def clipPath(self, path: object, stroke: int = 0, fill: int = 0) -> None:
+        _ = (path, stroke, fill)
+
+    def setFont(self, font_name: str, font_size: float, leading: float | None = None) -> None:
+        _ = (font_name, font_size, leading)
+        return
+
+    def drawImage(self, image: object, x: float, y: float, width: float, height: float, mask: object | None = None) -> None:
+        _ = (image, x, y, width, height, mask)
+
+    def translate(self, dx: float, dy: float) -> None:
+        _ = (dx, dy)
+        return
+
+    def scale(self, x: float, y: float) -> None:
+        _ = (x, y)
+        return
+
+    def setPageSize(self, size: tuple[float, float]) -> None:
+        _ = size
+        return
+
+    def showPage(self) -> None:
+        return
+
+    def save(self) -> None:
+        return
 
 
 if __name__ == "__main__":

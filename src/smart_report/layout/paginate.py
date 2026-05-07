@@ -7,6 +7,9 @@ from math import isfinite
 from .node import LayoutNode, clone_layout_node
 from ..style.units import Fixed
 from .table_model import (
+    layout_rich_cell_content,
+    table_cell_padding,
+    table_cell_spans,
     table_column_count,
     table_column_widths,
     table_header_rows,
@@ -209,6 +212,17 @@ def _split_table_node(child: LayoutNode, first_content_height: float, following_
     header_count = min(table_header_rows(child), len(rows) - footer_count)
     repeat_header = table_repeat_header(child) and header_count > 0
     repeat_footer = table_repeat_footer(child) and footer_count > 0
+    initial_header_height = sum(row_heights[:header_count]) if repeat_header else 0.0
+    initial_footer_height = sum(row_heights[len(rows) - footer_count:]) if repeat_footer else 0.0
+    rich_row_capacity = max(1.0, min(first_content_height, following_content_height) - initial_header_height - initial_footer_height)
+    rows, source_indices = _expand_rich_rows_for_pagination(child, rows, source_indices, column_widths, rich_row_capacity)
+    column_widths = table_column_widths(child, child.resolved_width, table_column_count(rows))
+    row_heights = table_row_heights(child, rows, column_widths)
+    span_ranges = table_span_ranges(child, len(rows), table_column_count(rows))
+    footer_count = min(table_footer_rows(child), len(rows))
+    header_count = min(table_header_rows(child), len(rows) - footer_count)
+    repeat_header = table_repeat_header(child) and header_count > 0
+    repeat_footer = table_repeat_footer(child) and footer_count > 0
     header_rows = rows[:header_count]
     header_source_indices = source_indices[:header_count]
     footer_rows = rows[len(rows) - footer_count:] if footer_count else []
@@ -255,6 +269,70 @@ def _split_table_node(child: LayoutNode, first_content_height: float, following_
         slices.append(_clone_table_slice(child, _with_footer_rows(current_rows, footer_rows, append_footer), current_source_indices + list(footer_source_indices) if append_footer else current_source_indices, current_header_rows, footer_count if append_footer else 0))
 
     return slices or [clone_layout_node(child)]
+
+
+def _expand_rich_rows_for_pagination(
+    table: LayoutNode,
+    rows: list[list[object]],
+    source_indices: list[int],
+    column_widths: list[float],
+    rich_row_capacity: float,
+) -> tuple[list[list[object]], list[int]]:
+    column_count = table_column_count(rows)
+    spanned_rows = _spanned_row_indices(table, len(rows), column_count)
+    footer_count = min(table_footer_rows(table), len(rows))
+    header_count = min(table_header_rows(table), len(rows) - footer_count)
+    expanded_rows: list[list[object]] = []
+    expanded_sources: list[int] = []
+    changed = False
+    for row_index, row in enumerate(rows):
+        is_header = row_index < header_count
+        is_footer = footer_count > 0 and row_index >= len(rows) - footer_count
+        fragments = [row] if is_header or is_footer or row_index in spanned_rows else _rich_row_fragments(table, row, column_widths, rich_row_capacity)
+        if len(fragments) > 1:
+            changed = True
+        for fragment in fragments:
+            expanded_rows.append(fragment)
+            expanded_sources.append(source_indices[row_index])
+    if not changed:
+        return rows, source_indices
+    return expanded_rows, expanded_sources
+
+
+def _spanned_row_indices(table: LayoutNode, row_count: int, column_count: int) -> set[int]:
+    rows: set[int] = set()
+    for span in table_cell_spans(table, row_count, column_count).values():
+        for row_index in range(span.row_index, span.row_index + span.rowspan):
+            rows.add(row_index)
+    return rows
+
+
+def _rich_row_fragments(table: LayoutNode, row: list[object], column_widths: list[float], rich_row_capacity: float) -> list[list[object]]:
+    rich_cells = [(column_index, cell) for column_index, cell in enumerate(row) if isinstance(cell, LayoutNode)]
+    if len(rich_cells) != 1:
+        return [row]
+    column_index, rich_cell = rich_cells[0]
+    if rich_cell.node_type != "frame" or column_index >= len(column_widths):
+        return [row]
+    padding = table_cell_padding(table)
+    content_width = max(1.0, column_widths[column_index] - padding.horizontal)
+    laid_out = layout_rich_cell_content(rich_cell, content_width, 0.0, 0.0)
+    content_capacity = max(1.0, rich_row_capacity - padding.vertical)
+    if laid_out.resolved_height <= content_capacity:
+        return [row]
+    rich_fragments = split_frame_node(laid_out, content_capacity, content_capacity)
+    if len(rich_fragments) <= 1:
+        return [row]
+    rows: list[list[object]] = []
+    for fragment_index, rich_fragment in enumerate(rich_fragments):
+        fragment_row = list(row)
+        fragment_row[column_index] = rich_fragment
+        if fragment_index > 0:
+            for cell_index, cell in enumerate(fragment_row):
+                if cell_index != column_index and not isinstance(cell, LayoutNode):
+                    fragment_row[cell_index] = ""
+        rows.append(fragment_row)
+    return rows
 
 
 def _max_text_lines(content_height: float, line_height: float) -> int:
