@@ -30,6 +30,7 @@ def build_report() -> None:
         .borders("#94a3b8", width=0.5, inner_width=0.25, outer_width=1.5)
         .cell_border(1, 0, color="#2563eb", width=2)
         .cell_padding(vertical=8, horizontal=10)
+        .cell_style(1, 1, background="green")
         .margin(bottom=18)
     )
     frame.add(table)
@@ -41,6 +42,10 @@ def build_report() -> None:
 
     frame.add_text("This paragraph starts after the image row.").page_break_after()
     page.add(frame)
+
+    frame2 = Frame().padding(36).page_break_before()
+    frame2.add_text("This should be on the next page.")
+    page.add(frame2)
     doc.save("examples/v1_1_features.pdf")
 
 
