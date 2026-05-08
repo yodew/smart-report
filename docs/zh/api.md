@@ -199,7 +199,7 @@ frame.add_text(text).typography("auto").text_direction("rtl")
 display_text = shape_text(text, "auto", "rtl")
 ```
 
-正式输出请注册支持阿拉伯文/希伯来文的 TTF 字体。当前功能是实用预处理层，不承诺完整 HarfBuzz/OpenType glyph positioning、Indic 文字 shaping 或高级字距调整。
+正式输出请注册支持阿拉伯文/希伯来文的 TTF 字体。`examples/v2_2_typography.py` 会注册内置的 `NotoNaskhArabic-Medium.ttf` / `NotoNaskhArabic-Bold.ttf` 并用于阿拉伯文本渲染，避免回退到 `Helvetica` 后乱码。当前功能是实用预处理层，不承诺完整 HarfBuzz/OpenType glyph positioning、Indic 文字 shaping 或高级字距调整。
 
 ## 字体注册
 

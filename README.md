@@ -45,6 +45,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - v2.0 resolves percentage absolute `top` inside auto-height containers and locks practical `flex`, `grid`, and `columns` semantics with regression coverage
 - v2.1 supports mixed unspanned rich `Text` + `Frame` table rows, keeps rich `Image` cells atomic, and makes `flex("column", gap=...)` honor gaps
 - v2.2 adds `typography("auto")`, `text_direction("rtl")`, and `shape_text(...)` for Arabic-script reshaping and bidi display ordering across text, tables, measurement, pagination, and rendering
+- v2.2.1 updates the typography example to register and use bundled Noto Naskh Arabic fonts so Arabic output does not fall back to Helvetica
 
 ## v2.2 typography
 
@@ -57,7 +58,7 @@ Frame().add_text(text).typography("auto").text_direction("rtl")
 shape_text(text, "auto", "rtl")
 ```
 
-`typography("auto")` applies Arabic-script reshaping and bidi display ordering before width measurement, wrapping, pagination, and final painting. Register an Arabic/Hebrew-capable TTF for production output; the default `Helvetica` font is not suitable for these scripts.
+`typography("auto")` applies Arabic-script reshaping and bidi display ordering before width measurement, wrapping, pagination, and final painting. Register an Arabic/Hebrew-capable TTF for production output; the default `Helvetica` font is not suitable for these scripts. The v2.2 typography example registers bundled Noto Naskh Arabic fonts before rendering Arabic text.
 
 ## Table spans
 

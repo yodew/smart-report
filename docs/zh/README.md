@@ -23,5 +23,6 @@ v2.2 已覆盖：
 - v2.0 修复 auto-height 容器中的百分比 absolute `top`，并明确图片/SVG 仍由用户自行控制尺寸或分页位置
 - v2.1 支持未跨行/跨列的混合 `Text` + `Frame` 富单元格行分页，并让 `flex("column", gap=...)` 生效
 - v2.2 增加 `typography("auto")`、`text_direction("rtl")` 和 `shape_text(...)`，用于阿拉伯文字形变与 bidi 显示顺序预处理，并贯穿测量、换行、分页、表格和绘制路径
+- v2.2.1 更新 typography 示例，注册并使用内置 Noto Naskh Arabic 字体，避免阿拉伯文字回退到 Helvetica 后乱码
 
 后续改动应保持向后兼容；破坏性 API 调整应留到下一个主版本。
