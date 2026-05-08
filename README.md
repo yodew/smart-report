@@ -29,7 +29,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Paint ordering through `z-index`
 - `Text`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
 
-## v2.2 status
+## v2.3 status
 
 - Chinese API documentation is available in `docs/zh/api.md`
 - Table v2 supports column widths, alignment, padding, `rowspan`, `colspan`, header styling, zebra rows, rounded borders, repeated headers, and row/column/cell style overrides
@@ -46,6 +46,27 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - v2.1 supports mixed unspanned rich `Text` + `Frame` table rows, keeps rich `Image` cells atomic, and makes `flex("column", gap=...)` honor gaps
 - v2.2 adds `typography("auto")`, `text_direction("rtl")`, and `shape_text(...)` for Arabic-script reshaping and bidi display ordering across text, tables, measurement, pagination, and rendering
 - v2.2.1 updates the typography example to register and use bundled Noto Naskh Arabic fonts so Arabic output does not fall back to Helvetica
+- v2.3 adds font-family registration, fallback-aware HarfBuzz-backed advanced width measurement, and mixed-script typography examples while keeping ReportLab canvas text rendering
+
+## v2.3 advanced typography
+
+```python
+from smart_report import register_font_family
+
+register_font_family(
+    "NotoNaskhArabic",
+    regular="examples/fonts/NotoNaskhArabic-Medium.ttf",
+    bold="examples/fonts/NotoNaskhArabic-Bold.ttf",
+    fallback=True,
+)
+
+frame.add_text("مرحبا smart-report") \
+    .font_family("NotoNaskhArabic") \
+    .typography("advanced") \
+    .text_direction("rtl")
+```
+
+`typography("advanced")` uses HarfBuzz metrics for fallback-aware, shaping-aware width measurement and line wrapping when registered TTF fonts are available. Rendering remains on ReportLab canvas text APIs, so exact glyph positioning, arbitrary glyph-ID rendering, vertical writing, color fonts, and full text-engine behavior remain out of scope.
 
 ## v2.2 typography
 
@@ -237,6 +258,7 @@ margin((24, 24, 20, 24))    # top, right, bottom, left
 - `examples/v2_0_features.py`
 - `examples/v2_1_features.py`
 - `examples/v2_2_typography.py`
+- `examples/v2_3_advanced_typography.py`
 - `examples/zh_table_demo.py`
 
 Run one with:
@@ -251,7 +273,7 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v2.2 release expands practical typography preprocessing while preserving the existing builder API where possible. Future work should remain backward-compatible unless another major version bump is planned.
+The v2.3 release expands font families and advanced typography measurement while preserving the existing builder API where possible. Future work should remain backward-compatible unless another major version bump is planned.
 
 ## Current limitations
 
@@ -259,4 +281,4 @@ The v2.2 release expands practical typography preprocessing while preserving the
 - Pagination keeps images and SVG content atomic: if the current page lacks space, the whole image moves to the next page; oversized images are not sliced
 - Rich table-cell pagination is conservative: single unspanned rich `Frame`/`Text` cells, rows whose rich cells are all unspanned `Text` cells, and mixed unspanned `Text` + `Frame` rows can split; spanned rows, rich images, and multi-Frame rows remain atomic
 - Flex/grid/columns are practical layout primitives, not a complete CSS constraint solver
-- v2.2 provides practical Arabic-script reshaping and bidi display ordering; full HarfBuzz/OpenType shaping, Indic-script shaping, kerning, and glyph positioning are not yet guaranteed by the default text path
+- v2.3 uses HarfBuzz for advanced measurement, but rendering still uses ReportLab text APIs; exact glyph positioning, arbitrary glyph-ID drawing, vertical writing, and color-font support are not guaranteed
