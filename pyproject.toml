@@ -1,6 +1,6 @@
 [project]
 name = "smart-report"
-version = "2.2.1"
+version = "2.3.0"
 requires-python = ">=3.10"
 description = "Modern PDF creation library with flow layout and layered canvas composition"
 readme = "README.md"
@@ -10,6 +10,8 @@ dependencies = [
     "svglib>=1.5.1",
     "arabic-reshaper>=3.0.1",
     "python-bidi>=0.6.9",
+    "fonttools>=4.62.1",
+    "uharfbuzz>=0.54.1",
 ]
 
 [build-system]
