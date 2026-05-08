@@ -7,6 +7,7 @@ from enum import Enum
 
 from ..style.color import RGBA
 from ..style.font import get_default_font_name
+from ..style.typography import TextDirection, TypographyMode
 from ..style.units import AUTO, SizeSpec
 
 
@@ -79,6 +80,8 @@ class Style:
     font_name: str = field(default_factory=get_default_font_name)
     font_size: float = 12.0
     line_height: float = 14.0
+    typography: TypographyMode = "plain"
+    text_direction: TextDirection = "auto"
     border_radius: float = 0.0
     stroke_color: RGBA | None = None
     stroke_width: float = 0.0
@@ -170,6 +173,8 @@ def clone_layout_node(node: LayoutNode, include_children: bool = True) -> Layout
         font_name=node.style.font_name,
         font_size=node.style.font_size,
         line_height=node.style.line_height,
+        typography=node.style.typography,
+        text_direction=node.style.text_direction,
         border_radius=node.style.border_radius,
         stroke_color=node.style.stroke_color,
         stroke_width=node.style.stroke_width,

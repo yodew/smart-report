@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
 from .layout.node import Edges, LayoutNode, OverflowMode, PositionMode, Style
 from .style.color import parse_color
+from .style.typography import normalize_text_direction, normalize_typography_mode
 from .style.units import Fixed, SizeInput, parse_size
 
 if TYPE_CHECKING:
@@ -260,6 +261,14 @@ class NodeBuilder:
 
     def line_height(self: BuilderT, value: float) -> BuilderT:
         self.node.style.line_height = value
+        return self
+
+    def typography(self: BuilderT, value: str) -> BuilderT:
+        self.node.style.typography = normalize_typography_mode(value)
+        return self
+
+    def text_direction(self: BuilderT, value: str) -> BuilderT:
+        self.node.style.text_direction = normalize_text_direction(value)
         return self
 
     def stroke(self: BuilderT, color: str | None, width: float) -> BuilderT:

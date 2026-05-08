@@ -9,8 +9,9 @@ from .elements.shape import Line, Rect
 from .elements.spacer import Spacer
 from .elements.text import Text
 from .style.font import DEFAULT_FONT_NAME, FontFace, FontRegistry, TextRun, add_fallback_font, get_default_font_name, get_fallback_fonts, get_font, register_font, resolve_text_runs, set_default_font, set_fallback_fonts, string_width
+from .style.typography import shape_text
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 __all__ = [
     "Canvas",
@@ -36,5 +37,6 @@ __all__ = [
     "resolve_text_runs",
     "set_default_font",
     "set_fallback_fonts",
+    "shape_text",
     "string_width",
 ]
