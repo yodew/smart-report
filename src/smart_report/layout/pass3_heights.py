@@ -213,6 +213,13 @@ def _measure_text_height(node: LayoutNode) -> float:
     font_size = node.style.font_size
     line_height = node.style.line_height
 
-    wrapped_lines = wrap_text(text, available_width, font_name, font_size)
+    wrapped_lines = wrap_text(
+        text,
+        available_width,
+        font_name,
+        font_size,
+        typography=node.style.typography,
+        text_direction=node.style.text_direction,
+    )
     return max(line_height, len(wrapped_lines) * line_height) + node.style.padding.vertical
 MAX_LAYOUT_TRACKS = 64

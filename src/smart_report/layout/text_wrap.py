@@ -5,13 +5,22 @@ from __future__ import annotations
 from typing import Protocol
 
 from ..style.font import string_width as fallback_string_width
+from ..style.typography import TextDirection, TypographyMode, shape_text_for_width
 
 
 class StringWidthFn(Protocol):
     def __call__(self, text: str, font_name: str, font_size: float) -> float: ...
 
 
-def wrap_text(text: str, width: float, font_name: str, font_size: float, string_width: StringWidthFn | None = None) -> list[str]:
+def wrap_text(
+    text: str,
+    width: float,
+    font_name: str,
+    font_size: float,
+    string_width: StringWidthFn | None = None,
+    typography: TypographyMode = "plain",
+    text_direction: TextDirection = "auto",
+) -> list[str]:
     if not text:
         return [""]
 
@@ -23,12 +32,20 @@ def wrap_text(text: str, width: float, font_name: str, font_size: float, string_
         if not paragraph.strip():
             lines.append("")
             continue
-        lines.extend(_wrap_paragraph(paragraph, safe_width, font_name, font_size, measure))
+        lines.extend(_wrap_paragraph(paragraph, safe_width, font_name, font_size, measure, typography, text_direction))
 
     return lines or [""]
 
 
-def _wrap_paragraph(paragraph: str, width: float, font_name: str, font_size: float, string_width: StringWidthFn) -> list[str]:
+def _wrap_paragraph(
+    paragraph: str,
+    width: float,
+    font_name: str,
+    font_size: float,
+    string_width: StringWidthFn,
+    typography: TypographyMode,
+    text_direction: TextDirection,
+) -> list[str]:
     tokens = _tokens(paragraph)
     lines: list[str] = []
     current = ""
@@ -37,7 +54,7 @@ def _wrap_paragraph(paragraph: str, width: float, font_name: str, font_size: flo
         if token.isspace() and not current:
             continue
         candidate = f"{current}{token}"
-        if string_width(candidate.rstrip(), font_name, font_size) <= width:
+        if _string_width(candidate.rstrip(), font_name, font_size, string_width, typography, text_direction) <= width:
             current = candidate
             continue
         if current.strip():
@@ -46,12 +63,12 @@ def _wrap_paragraph(paragraph: str, width: float, font_name: str, font_size: flo
             current = token.lstrip()
             if not current:
                 continue
-            if string_width(current, font_name, font_size) <= width:
+            if _string_width(current, font_name, font_size, string_width, typography, text_direction) <= width:
                 continue
         else:
             current = token.lstrip()
-        if string_width(current, font_name, font_size) > width:
-            split_parts = _split_long_token(current, width, font_name, font_size, string_width)
+        if _string_width(current, font_name, font_size, string_width, typography, text_direction) > width:
+            split_parts = _split_long_token(current, width, font_name, font_size, string_width, typography, text_direction)
             lines.extend(split_parts[:-1])
             current = split_parts[-1] if split_parts else ""
 
@@ -110,12 +127,20 @@ def _cannot_end_line(character: str) -> bool:
     return character in "（【《〈「『“‘([{"
 
 
-def _split_long_token(token: str, width: float, font_name: str, font_size: float, string_width: StringWidthFn) -> list[str]:
+def _split_long_token(
+    token: str,
+    width: float,
+    font_name: str,
+    font_size: float,
+    string_width: StringWidthFn,
+    typography: TypographyMode,
+    text_direction: TextDirection,
+) -> list[str]:
     parts: list[str] = []
     current = ""
     for character in token:
         candidate = f"{current}{character}"
-        if current and string_width(candidate, font_name, font_size) > width:
+        if current and _string_width(candidate, font_name, font_size, string_width, typography, text_direction) > width:
             parts.append(current)
             current = character
             continue
@@ -127,3 +152,14 @@ def _split_long_token(token: str, width: float, font_name: str, font_size: float
 
 def _string_width_fn() -> StringWidthFn:
     return fallback_string_width
+
+
+def _string_width(
+    text: str,
+    font_name: str,
+    font_size: float,
+    string_width: StringWidthFn,
+    typography: TypographyMode,
+    text_direction: TextDirection,
+) -> float:
+    return string_width(shape_text_for_width(text, typography, text_direction), font_name, font_size)

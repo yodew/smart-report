@@ -10,6 +10,7 @@ from typing import Protocol, cast
 from .node import Edges, LayoutNode, clone_layout_node
 from .text_wrap import wrap_text
 from ..style.color import RGBA, parse_color
+from ..style.typography import TextDirection, TypographyMode
 from ..style.units import Auto, Fixed, SizeInput, SizeSpec, parse_size, resolve_size
 
 
@@ -34,6 +35,8 @@ class TableCellBox:
     font_name: str
     font_size: float
     line_height: float
+    typography: TypographyMode
+    text_direction: TextDirection
     padding: Edges
     border_color: RGBA | None = None
     border_width: float | None = None
@@ -301,7 +304,17 @@ def table_row_heights(node: LayoutNode, rows: Sequence[Sequence[object]], column
             span = spans.get((row_index, column_index), TableCellSpan(row_index=row_index, column_index=column_index))
             column_width = sum(column_widths[column_index:column_index + span.colspan])
             text_width = max(1.0, column_width - padding.horizontal)
-            required_height = _measure_cell_height(cell, text_width, padding, font_name, font_size, line_height, string_width)
+            required_height = _measure_cell_height(
+                cell,
+                text_width,
+                padding,
+                font_name,
+                font_size,
+                line_height,
+                string_width,
+                node.style.typography,
+                node.style.text_direction,
+            )
             if footer_rows and row_index >= len(rows) - footer_rows:
                 required_height = max(required_height, line_height + padding.vertical)
             if span.rowspan == 1:
@@ -376,6 +389,8 @@ def table_cell_boxes(node: LayoutNode, x: float, y: float, width: float, height:
             font_name = header_font_name if is_header else node.style.font_name
             font_size = header_font_size if is_header else node.style.font_size
             line_height = header_line_height if is_header else node.style.line_height
+            typography = node.style.typography
+            text_direction = node.style.text_direction
             padding = header_padding if is_header else body_padding
             column_override = _style_override(table_style_map(node, "column_styles"), column_index)
             row_override = _style_override(table_style_map(node, "row_styles"), source_row_index)
@@ -409,6 +424,8 @@ def table_cell_boxes(node: LayoutNode, x: float, y: float, width: float, height:
                     font_name=font_name,
                     font_size=font_size,
                     line_height=line_height,
+                    typography=typography,
+                    text_direction=text_direction,
                     padding=padding,
                     border_color=_style_border_color(node, column_override, row_override, cell_override),
                     border_width=_style_border_width(node, column_override, row_override, cell_override),
@@ -562,12 +579,14 @@ def _measure_cell_height(
     font_size: float,
     line_height: float,
     string_width: StringWidthFn,
+    typography: TypographyMode = "plain",
+    text_direction: TextDirection = "auto",
 ) -> float:
     rich_content = _cell_rich_content(cell)
     if rich_content is not None:
         rich_node = layout_rich_cell_content(rich_content, text_width, 0.0, 0.0)
         return max(24.0, rich_node.resolved_height + padding.vertical)
-    lines = wrap_text(_cell_text(cell), text_width, font_name, font_size, string_width)
+    lines = wrap_text(_cell_text(cell), text_width, font_name, font_size, string_width, typography, text_direction)
     return max(24.0, (len(lines) * line_height) + padding.vertical)
 
 

@@ -13,6 +13,7 @@ from ..layout.node import Rect
 from ..layout.text_wrap import wrap_text
 from ..style.color import RGBA
 from ..style.font import resolve_text_runs, string_width
+from ..style.typography import TextDirection, TypographyMode, shape_text
 
 DEFAULT_TEXT_COLOR = RGBA(0.0, 0.0, 0.0, 1.0)
 
@@ -148,9 +149,11 @@ class ReportLabCanvasAdapter:
         font_size: float,
         line_height: float,
         color: RGBA | None,
+        typography: TypographyMode = "plain",
+        text_direction: TextDirection = "auto",
         align: str = "left",
     ) -> None:
-        wrapped_lines = wrap_text(text, width, font_name, font_size)
+        wrapped_lines = wrap_text(text, width, font_name, font_size, typography=typography, text_direction=text_direction)
         baseline_y = self.page_height - y - font_size
         text_object = cast(TextObjectLike, self._canvas.beginText(x, baseline_y))
         text_object.setFont(font_name, font_size, line_height)
@@ -160,14 +163,15 @@ class ReportLabCanvasAdapter:
         self._canvas.setFillAlpha(text_color.alpha)
         current_baseline_y = baseline_y
         for line in wrapped_lines:
-            line_width = string_width(line, font_name, font_size)
+            display_line = shape_text(line, typography, text_direction)
+            line_width = string_width(display_line, font_name, font_size)
             offset = max(0.0, width - line_width)
             if align == "center":
                 offset /= 2
-            elif align == "left":
+            elif align == "left" and text_direction != "rtl":
                 offset = 0.0
             text_object.setTextOrigin(x + offset, current_baseline_y)
-            for run in resolve_text_runs(line, font_name):
+            for run in resolve_text_runs(display_line, font_name):
                 text_object.setFont(run.font_name, font_size, line_height)
                 text_object.textOut(run.text)
             text_object.textLine()

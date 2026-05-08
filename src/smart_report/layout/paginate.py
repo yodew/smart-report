@@ -184,7 +184,14 @@ def _split_text_node(child: LayoutNode, first_content_height: float, following_c
         return [clone_layout_node(child)]
 
     text_width = max(1.0, child.resolved_width - child.style.padding.horizontal)
-    lines = wrap_text(text_value, text_width, child.style.font_name, child.style.font_size)
+    lines = wrap_text(
+        text_value,
+        text_width,
+        child.style.font_name,
+        child.style.font_size,
+        typography=child.style.typography,
+        text_direction=child.style.text_direction,
+    )
     result: list[LayoutNode] = []
     start = 0
     max_lines = _max_text_lines(first_content_height - child.style.padding.vertical, child.style.line_height)

@@ -20,6 +20,7 @@ from smart_report.layout.table_model import table_cell_boxes, table_cell_padding
 from smart_report.layout.text_wrap import wrap_text
 from smart_report.render.painters import paint_image, paint_render_item, paint_table
 from smart_report.render.rl_adapter import DEFAULT_TEXT_COLOR, ReportLabCanvasAdapter
+from smart_report.style.typography import shape_text
 
 try:
     from pypdf import PdfReader
@@ -71,6 +72,62 @@ class TableV2ModelTests(unittest.TestCase):
         slices = _split_text_node(text.node, 24, 24)
         self.assertGreater(len(slices), 1)
         self.assertTrue(all(" " not in str(node.content["text"]) for node in slices))
+
+    def test_typography_auto_shapes_arabic_text_for_measurement(self) -> None:
+        shaped = shape_text("مرحبا", "auto", "rtl")
+
+        self.assertNotEqual(shaped, "مرحبا")
+        self.assertTrue(any("\ufe70" <= character <= "\ufeff" for character in shaped))
+
+    def test_text_wrap_uses_typography_width_for_auto_mode(self) -> None:
+        measured: list[str] = []
+
+        def shaped_width(text: str, font_name: str, font_size: float) -> float:
+            _ = (font_name, font_size)
+            measured.append(text)
+            return float(len(text))
+
+        _ = wrap_text("مرحبا", 3, "Helvetica", 12, shaped_width, "auto", "rtl")
+
+        self.assertTrue(any(candidate != "مرحبا" for candidate in measured))
+
+    def test_text_builder_stores_typography_options(self) -> None:
+        text = Text("مرحبا").typography("auto").text_direction("rtl")
+
+        self.assertEqual(text.node.style.typography, "auto")
+        self.assertEqual(text.node.style.text_direction, "rtl")
+
+    def test_table_cell_boxes_carry_typography_options(self) -> None:
+        table = Table([["Label", "مرحبا"]]).typography("auto").text_direction("rtl")
+        table.node.resolved_width = 200
+
+        boxes = table_cell_boxes(table.node, 0, 0, 200, table_height(table.node))
+
+        self.assertTrue(all(box.typography == "auto" for box in boxes))
+        self.assertTrue(all(box.text_direction == "rtl" for box in boxes))
+
+    def test_adapter_draw_text_emits_shaped_text_for_auto_typography(self) -> None:
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        adapter._canvas = _FakeCanvas()
+        adapter.page_width = 200
+        adapter.page_height = 100
+
+        adapter.draw_text(
+            x=10,
+            y=10,
+            width=160,
+            text="مرحبا",
+            font_name="Helvetica",
+            font_size=12,
+            line_height=14,
+            color=None,
+            typography="auto",
+            text_direction="rtl",
+        )
+
+        output = "".join(adapter._canvas.text_object.output)
+        self.assertNotEqual(output, "مرحبا")
+        self.assertTrue(any("\ufe70" <= character <= "\ufeff" for character in output))
 
     def test_rounded_table_painter_clips_cells_and_strokes_outer_radius(self) -> None:
         table = Table([["H1", "H2"], ["A", "B"]]).radius(12).stroke("#94a3b8", 1).background("#ffffff")
@@ -1194,6 +1251,8 @@ def _png_bytes(width: int, height: int) -> bytes:
 class _FakeTextObject:
     def __init__(self) -> None:
         self.fill_colors: list[tuple[float, float, float]] = []
+        self.origins: list[tuple[float, float]] = []
+        self.output: list[str] = []
 
     def setFont(self, _font_name: str, _font_size: float, _leading: float | None = None) -> None:
         return
@@ -1202,13 +1261,13 @@ class _FakeTextObject:
         self.fill_colors.append((red, green, blue))
 
     def setTextOrigin(self, _x: float, _y: float) -> None:
-        return
+        self.origins.append((_x, _y))
 
     def setLeading(self, _leading: float) -> None:
         return
 
     def textOut(self, _text: str) -> None:
-        return
+        self.output.append(_text)
 
     def textLine(self, _text: str = "") -> None:
         return

@@ -41,6 +41,8 @@ def paint_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
         font_name=node.style.font_name,
         font_size=node.style.font_size,
         line_height=node.style.line_height,
+        typography=node.style.typography,
+        text_direction=node.style.text_direction,
         color=node.style.color,
     )
 
@@ -149,6 +151,8 @@ def _paint_table_cells(adapter: ReportLabCanvasAdapter, item: RenderItem, cell_b
                     font_name=cell_box.font_name,
                     font_size=cell_box.font_size,
                     line_height=cell_box.line_height,
+                    typography=cell_box.typography,
+                    text_direction=cell_box.text_direction,
                     color=cell_box.color,
                     align=cell_box.align,
                 )
