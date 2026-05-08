@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from ..style.font import string_width as fallback_string_width
+from ..style.font import shaped_string_width, string_width as fallback_string_width
 from ..style.typography import TextDirection, TypographyMode, shape_text_for_width
 
 
@@ -162,4 +162,6 @@ def _string_width(
     typography: TypographyMode,
     text_direction: TextDirection,
 ) -> float:
+    if typography == "advanced":
+        return shaped_string_width(text, font_name, font_size)
     return string_width(shape_text_for_width(text, typography, text_direction), font_name, font_size)

@@ -78,6 +78,7 @@ class Style:
     overflow: OverflowMode = OverflowMode.VISIBLE
     position: PositionMode = PositionMode.FLOW
     font_name: str = field(default_factory=get_default_font_name)
+    font_family: str | None = None
     font_size: float = 12.0
     line_height: float = 14.0
     typography: TypographyMode = "plain"
@@ -171,6 +172,7 @@ def clone_layout_node(node: LayoutNode, include_children: bool = True) -> Layout
         overflow=node.style.overflow,
         position=node.style.position,
         font_name=node.style.font_name,
+        font_family=node.style.font_family,
         font_size=node.style.font_size,
         line_height=node.style.line_height,
         typography=node.style.typography,

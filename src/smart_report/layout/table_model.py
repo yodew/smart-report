@@ -10,6 +10,7 @@ from typing import Protocol, cast
 from .node import Edges, LayoutNode, clone_layout_node
 from .text_wrap import wrap_text
 from ..style.color import RGBA, parse_color
+from ..style.font import string_width as registry_string_width
 from ..style.typography import TextDirection, TypographyMode
 from ..style.units import Auto, Fixed, SizeInput, SizeSpec, parse_size, resolve_size
 
@@ -513,8 +514,7 @@ def layout_rich_cell_content(content: LayoutNode, width: float, x: float, y: flo
 
 
 def _string_width_fn() -> StringWidthFn:
-    pdfmetrics = import_module("reportlab.pdfbase.pdfmetrics")
-    return cast(StringWidthFn, getattr(pdfmetrics, "stringWidth"))
+    return registry_string_width
 
 
 def table_style_map(node: LayoutNode, key: str) -> dict[object, object]:

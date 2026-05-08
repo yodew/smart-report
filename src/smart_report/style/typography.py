@@ -5,10 +5,10 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Callable, Literal, cast
 
-TypographyMode = Literal["plain", "auto"]
+TypographyMode = Literal["plain", "auto", "advanced"]
 TextDirection = Literal["auto", "ltr", "rtl"]
 
-VALID_TYPOGRAPHY_MODES = {"plain", "auto"}
+VALID_TYPOGRAPHY_MODES = {"plain", "auto", "advanced"}
 VALID_TEXT_DIRECTIONS = {"auto", "ltr", "rtl"}
 
 ArabicReshapeFn = Callable[[str], str]
@@ -32,6 +32,9 @@ def normalize_text_direction(value: str) -> TextDirection:
 def shape_text(text: str, mode: TypographyMode = "plain", direction: TextDirection = "auto") -> str:
     if not text or mode == "plain":
         return text
+
+    if mode == "advanced":
+        return _bidi_display(text, direction) if direction == "rtl" or _contains_rtl_text(text) else text
 
     reshaped = _reshape_arabic_text(text) if _contains_arabic(text) else text
     if direction == "rtl" or _contains_rtl_text(reshaped):

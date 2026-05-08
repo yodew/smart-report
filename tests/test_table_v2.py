@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Iterator
 from typing import cast
 
-from smart_report import DEFAULT_FONT_NAME, Frame, Image, Spacer, Table, Text, document, get_default_font_name, get_fallback_fonts, get_font, register_font, resolve_text_runs, set_default_font, set_fallback_fonts, string_width
+from smart_report import DEFAULT_FONT_NAME, Frame, Image, Spacer, Table, Text, document, get_default_font_name, get_fallback_font_families, get_fallback_fonts, get_font, get_font_family, register_font, register_font_family, resolve_text_runs, set_default_font, set_fallback_font_families, set_fallback_fonts, shaped_string_width, string_width
 from smart_report.builder import resolve_page_size
 from smart_report.layout.node import LayoutNode, Rect, RenderItem, Style
 from smart_report.layout.paginate import _split_flow_child, _split_table_node, _split_text_node, paginate_page, split_frame_node
@@ -21,6 +21,8 @@ from smart_report.layout.text_wrap import wrap_text
 from smart_report.render.painters import paint_image, paint_render_item, paint_table
 from smart_report.render.rl_adapter import DEFAULT_TEXT_COLOR, ReportLabCanvasAdapter
 from smart_report.style.typography import shape_text
+import smart_report.layout.table_model as table_model_module
+import smart_report.style.font as font_module
 
 try:
     from pypdf import PdfReader
@@ -29,6 +31,96 @@ except ImportError:  # pragma: no cover
 
 
 class TableV2ModelTests(unittest.TestCase):
+
+    def test_base14_fonts_are_available_without_registration(self) -> None:
+        self.assertGreater(string_width("Header", "Helvetica-Bold", 12), 0)
+        self.assertGreater(string_width("Body", "Times-Roman", 12), 0)
+        self.assertGreater(string_width("Code", "Courier", 12), 0)
+
+    def test_font_module_all_includes_family_helpers(self) -> None:
+        expected_exports = {
+            "add_fallback_font_family",
+            "get_fallback_font_families",
+            "get_font_family",
+            "set_default_font_family",
+            "set_fallback_font_families",
+            "shaped_string_width",
+        }
+
+        self.assertTrue(expected_exports.issubset(set(font_module.__all__)))
+
+    def test_advanced_typography_measures_fallback_runs(self) -> None:
+        font_dir = Path(__file__).resolve().parents[1] / "examples" / "fonts"
+        original_fallbacks = list(get_fallback_fonts())
+        register_font("TestAdvancedFallbackNaskh", font_dir / "NotoNaskhArabic-Medium.ttf")
+        register_font("TestAdvancedFallbackSourceHan", font_dir / "SourceHanSansSC-Normal.ttf")
+        set_fallback_fonts(["TestAdvancedFallbackSourceHan"])
+        try:
+            text = "مرحبا中文"
+            runs = resolve_text_runs(text, "TestAdvancedFallbackNaskh")
+            self.assertEqual([(run.text, run.font_name) for run in runs], [("مرحبا", "TestAdvancedFallbackNaskh"), ("中文", "TestAdvancedFallbackSourceHan")])
+            expected_width = shaped_string_width("مرحبا", "TestAdvancedFallbackNaskh", 14) + shaped_string_width("中文", "TestAdvancedFallbackSourceHan", 14)
+
+            self.assertAlmostEqual(shaped_string_width(text, "TestAdvancedFallbackNaskh", 14), expected_width, places=3)
+        finally:
+            _ = set_fallback_fonts(original_fallbacks)
+
+    def test_table_measurement_uses_registry_string_width(self) -> None:
+        self.assertIs(table_model_module._string_width_fn(), string_width)
+
+    def test_font_family_registration_sets_default_and_fallback(self) -> None:
+        font_dir = Path(__file__).resolve().parents[1] / "examples" / "fonts"
+        original_font = get_font().name
+        original_fallbacks = list(get_fallback_fonts())
+        original_family_fallbacks = list(get_fallback_font_families())
+        try:
+            family = register_font_family(
+                "TestNotoNaskhFamily",
+                regular=font_dir / "NotoNaskhArabic-Medium.ttf",
+                bold=font_dir / "NotoNaskhArabic-Bold.ttf",
+                set_default=True,
+                fallback=True,
+            )
+
+            self.assertEqual(family.regular, "TestNotoNaskhFamily")
+            self.assertEqual(family.bold, "TestNotoNaskhFamily-Bold")
+            self.assertEqual(get_font_family("TestNotoNaskhFamily").regular, "TestNotoNaskhFamily")
+            self.assertEqual(Style().font_name, "TestNotoNaskhFamily")
+            self.assertIn("TestNotoNaskhFamily", get_fallback_font_families())
+        finally:
+            _ = set_default_font(original_font)
+            _ = set_fallback_fonts(original_fallbacks)
+            _ = set_fallback_font_families(original_family_fallbacks)
+
+    def test_font_family_builder_selects_registered_regular_face(self) -> None:
+        font_dir = Path(__file__).resolve().parents[1] / "examples" / "fonts"
+        register_font_family("TestBuilderNaskh", regular=font_dir / "NotoNaskhArabic-Medium.ttf")
+
+        text = Text("مرحبا").font_family("TestBuilderNaskh").typography("advanced").text_direction("rtl")
+
+        self.assertEqual(text.node.style.font_family, "TestBuilderNaskh")
+        self.assertEqual(text.node.style.font_name, "TestBuilderNaskh")
+        self.assertEqual(text.node.style.typography, "advanced")
+
+    def test_advanced_typography_uses_harfbuzz_widths(self) -> None:
+        font_dir = Path(__file__).resolve().parents[1] / "examples" / "fonts"
+        register_font("TestAdvancedNaskh", font_dir / "NotoNaskhArabic-Medium.ttf")
+
+        raw_width = string_width("مرحبا", "TestAdvancedNaskh", 14)
+        shaped_width = shaped_string_width("مرحبا", "TestAdvancedNaskh", 14)
+
+        self.assertGreater(shaped_width, 0)
+        self.assertNotEqual(round(raw_width, 3), round(shaped_width, 3))
+
+    def test_wrap_text_advanced_uses_harfbuzz_measurement(self) -> None:
+        font_dir = Path(__file__).resolve().parents[1] / "examples" / "fonts"
+        register_font("TestWrapAdvancedNaskh", font_dir / "NotoNaskhArabic-Medium.ttf")
+        shaped_width = shaped_string_width("مرحبا", "TestWrapAdvancedNaskh", 14)
+
+        lines = wrap_text("مرحبا", shaped_width - 0.01, "TestWrapAdvancedNaskh", 14, typography="advanced", text_direction="rtl")
+
+        self.assertGreater(len(lines), 1)
+
     def test_font_fallback_splits_mixed_text_runs(self) -> None:
         font_dir = Path(__file__).resolve().parents[1] / "examples" / "fonts"
         register_font("TestSourceHanSansSC", font_dir / "SourceHanSansSC-Normal.ttf")

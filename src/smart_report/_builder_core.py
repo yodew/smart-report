@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
 from .layout.node import Edges, LayoutNode, OverflowMode, PositionMode, Style
 from .style.color import parse_color
+from .style.font import DEFAULT_FONT_REGISTRY
 from .style.typography import normalize_text_direction, normalize_typography_mode
 from .style.units import Fixed, SizeInput, parse_size
 
@@ -251,6 +252,12 @@ class NodeBuilder:
 
     def font(self: BuilderT, name: str) -> BuilderT:
         self.node.style.font_name = name
+        self.node.style.font_family = None
+        return self
+
+    def font_family(self: BuilderT, name: str) -> BuilderT:
+        self.node.style.font_family = name
+        self.node.style.font_name = DEFAULT_FONT_REGISTRY.font_name_for_family(name)
         return self
 
     def font_size(self: BuilderT, size: float) -> BuilderT:
@@ -270,6 +277,7 @@ class NodeBuilder:
     def text_direction(self: BuilderT, value: str) -> BuilderT:
         self.node.style.text_direction = normalize_text_direction(value)
         return self
+
 
     def stroke(self: BuilderT, color: str | None, width: float) -> BuilderT:
         self.node.style.stroke_color = parse_color(color)

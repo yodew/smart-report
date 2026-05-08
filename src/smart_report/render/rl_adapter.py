@@ -12,7 +12,7 @@ from typing import Protocol, cast
 from ..layout.node import Rect
 from ..layout.text_wrap import wrap_text
 from ..style.color import RGBA
-from ..style.font import resolve_text_runs, string_width
+from ..style.font import resolve_text_runs, shaped_string_width, string_width
 from ..style.typography import TextDirection, TypographyMode, shape_text
 
 DEFAULT_TEXT_COLOR = RGBA(0.0, 0.0, 0.0, 1.0)
@@ -164,7 +164,7 @@ class ReportLabCanvasAdapter:
         current_baseline_y = baseline_y
         for line in wrapped_lines:
             display_line = shape_text(line, typography, text_direction)
-            line_width = string_width(display_line, font_name, font_size)
+            line_width = shaped_string_width(display_line, font_name, font_size) if typography == "advanced" else string_width(display_line, font_name, font_size)
             offset = max(0.0, width - line_width)
             if align == "center":
                 offset /= 2
