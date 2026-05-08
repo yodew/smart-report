@@ -182,7 +182,7 @@ frame.add_text("مرحبا smart-report").typography("auto").text_direction("rtl
 | `.font(name)` | 设置字体名 |
 | `.font_size(size)` | 设置字号 |
 | `.line_height(value)` | 设置行高 |
-| `.typography(value)` | 设置文字预处理模式，支持 `"plain"`、`"auto"` |
+| `.typography(value)` | 设置文字预处理模式，支持 `"plain"`、`"auto"`、`"advanced"` |
 | `.text_direction(value)` | 设置文字方向，支持 `"auto"`、`"ltr"`、`"rtl"` |
 | `.color(value)` | 设置文字颜色 |
 | `.margin(...)` | 设置外边距 |
@@ -215,8 +215,30 @@ set_fallback_fonts(["SourceHanSansSC-Normal"])
 ```
 
 `set_default=True` 只影响后续创建的节点；已经创建的 `Text` / `Table` 仍保留自己的字体设置。
-`fallback=True` 或 `set_fallback_fonts(...)` 用于混合文本：当主字体不支持某个字符时，渲染器会切换到第一个覆盖该字符的 fallback 字体，同时测量、分页和绘制保持一致。
+`fallback=True` 或 `set_fallback_fonts(...)` 用于混合文本：当主字体不支持某个字符时，渲染器会切换到第一个覆盖该字符的 fallback 字体；普通测量和 advanced HarfBuzz 测量都会按 fallback 字体 run 计算，从而让分页和绘制使用一致的换行结果。
 顶层还导出 `get_font()`、`get_fallback_fonts()`、`add_fallback_font()`、`get_default_font_name()`、`resolve_text_runs()` 和 `string_width()`，方便调试字体注册和测量行为。
+
+v2.3 起，可以注册字体族并使用 advanced typography 宽度测量：
+
+```python
+from smart_report import register_font_family, shaped_string_width
+
+register_font_family(
+    "NotoNaskhArabic",
+    regular="examples/fonts/NotoNaskhArabic-Medium.ttf",
+    bold="examples/fonts/NotoNaskhArabic-Bold.ttf",
+    fallback=True,
+)
+
+frame.add_text("مرحبا smart-report") \
+    .font_family("NotoNaskhArabic") \
+    .typography("advanced") \
+    .text_direction("rtl")
+
+width = shaped_string_width("مرحبا", "NotoNaskhArabic", 14)
+```
+
+`typography("advanced")` 在注册 TTF 可用时按 fallback 字体 run 使用 HarfBuzz metrics 做 shaping-aware 测量和换行，但最终仍通过 ReportLab canvas 文本 API 绘制；精确 glyph positioning、任意 glyph-id 绘制、竖排和彩色字体仍不保证。
 
 ### `Image`
 
@@ -263,7 +285,7 @@ frame.add_spacer(12)
 | `.radius(value)` | 设置圆角半径 |
 | `.margin(...)` | 设置外边距 |
 | `.padding(...)` | 设置内边距 |
-| `.typography(value)` | 设置文字预处理模式，支持 `"plain"`、`"auto"` |
+| `.typography(value)` | 设置文字预处理模式，支持 `"plain"`、`"auto"`、`"advanced"` |
 | `.text_direction(value)` | 设置文字方向，支持 `"auto"`、`"ltr"`、`"rtl"` |
 | `.flex(direction="row", gap=None)` | 使用 flex 行/列布局 |
 | `.grid(columns, gap=None)` | 使用固定列数网格布局 |
