@@ -23,13 +23,13 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Deeper pagination for nested frames and fixed-height blocks
 - Practical `flex`, `grid`, and `columns` container layout modes
 - Table column widths, alignment, cell padding, `rowspan` / `colspan`, header styling, zebra rows, rounded borders, and repeated headers on pagination
-- Public font registration helpers and width-based CJK text wrapping
+- Public font registration helpers, width-based CJK text wrapping, and optional Arabic/bidi typography preprocessing
 - PNG and SVG image rendering
 - Top-down width resolution and bottom-up height measurement
 - Paint ordering through `z-index`
 - `Text`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
 
-## v2.1 status
+## v2.2 status
 
 - Chinese API documentation is available in `docs/zh/api.md`
 - Table v2 supports column widths, alignment, padding, `rowspan`, `colspan`, header styling, zebra rows, rounded borders, repeated headers, and row/column/cell style overrides
@@ -44,6 +44,20 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - v1.5 extends conservative rich table-cell pagination to rows with multiple unspanned rich `Text` cells
 - v2.0 resolves percentage absolute `top` inside auto-height containers and locks practical `flex`, `grid`, and `columns` semantics with regression coverage
 - v2.1 supports mixed unspanned rich `Text` + `Frame` table rows, keeps rich `Image` cells atomic, and makes `flex("column", gap=...)` honor gaps
+- v2.2 adds `typography("auto")`, `text_direction("rtl")`, and `shape_text(...)` for Arabic-script reshaping and bidi display ordering across text, tables, measurement, pagination, and rendering
+
+## v2.2 typography
+
+```python
+from smart_report import Frame, shape_text
+
+text = "مرحبا smart-report"
+
+Frame().add_text(text).typography("auto").text_direction("rtl")
+shape_text(text, "auto", "rtl")
+```
+
+`typography("auto")` applies Arabic-script reshaping and bidi display ordering before width measurement, wrapping, pagination, and final painting. Register an Arabic/Hebrew-capable TTF for production output; the default `Helvetica` font is not suitable for these scripts.
 
 ## Table spans
 
@@ -221,6 +235,7 @@ margin((24, 24, 20, 24))    # top, right, bottom, left
 - `examples/v1_5_features.py`
 - `examples/v2_0_features.py`
 - `examples/v2_1_features.py`
+- `examples/v2_2_typography.py`
 - `examples/zh_table_demo.py`
 
 Run one with:
@@ -235,7 +250,7 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v2.1 release expands practical table pagination and layout primitives while preserving the existing builder API where possible. Future work should remain backward-compatible unless another major version bump is planned.
+The v2.2 release expands practical typography preprocessing while preserving the existing builder API where possible. Future work should remain backward-compatible unless another major version bump is planned.
 
 ## Current limitations
 
@@ -243,4 +258,4 @@ The v2.1 release expands practical table pagination and layout primitives while 
 - Pagination keeps images and SVG content atomic: if the current page lacks space, the whole image moves to the next page; oversized images are not sliced
 - Rich table-cell pagination is conservative: single unspanned rich `Frame`/`Text` cells, rows whose rich cells are all unspanned `Text` cells, and mixed unspanned `Text` + `Frame` rows can split; spanned rows, rich images, and multi-Frame rows remain atomic
 - Flex/grid/columns are practical layout primitives, not a complete CSS constraint solver
-- Complex text shaping, bidi, and advanced OpenType behavior require optional ReportLab support and are not guaranteed by the default text path
+- v2.2 provides practical Arabic-script reshaping and bidi display ordering; full HarfBuzz/OpenType shaping, Indic-script shaping, kerning, and glyph positioning are not yet guaranteed by the default text path
