@@ -107,6 +107,8 @@ class TableV2ModelTests(unittest.TestCase):
         self.assertTrue(all(box.text_direction == "rtl" for box in boxes))
 
     def test_adapter_draw_text_emits_shaped_text_for_auto_typography(self) -> None:
+        font_dir = Path(__file__).resolve().parents[1] / "examples" / "fonts"
+        register_font("TestNotoNaskhArabic-Medium", font_dir / "NotoNaskhArabic-Medium.ttf")
         adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
         adapter._canvas = _FakeCanvas()
         adapter.page_width = 200
@@ -117,7 +119,7 @@ class TableV2ModelTests(unittest.TestCase):
             y=10,
             width=160,
             text="مرحبا",
-            font_name="Helvetica",
+            font_name="TestNotoNaskhArabic-Medium",
             font_size=12,
             line_height=14,
             color=None,
@@ -128,6 +130,17 @@ class TableV2ModelTests(unittest.TestCase):
         output = "".join(adapter._canvas.text_object.output)
         self.assertNotEqual(output, "مرحبا")
         self.assertTrue(any("\ufe70" <= character <= "\ufeff" for character in output))
+        self.assertIn("TestNotoNaskhArabic-Medium", adapter._canvas.text_object.font_names)
+        self.assertNotIn("Helvetica", adapter._canvas.text_object.font_names)
+
+    def test_arabic_font_supports_shaped_presentation_forms(self) -> None:
+        font_dir = Path(__file__).resolve().parents[1] / "examples" / "fonts"
+        register_font("TestNotoNaskhArabic-Support", font_dir / "NotoNaskhArabic-Medium.ttf")
+
+        shaped = shape_text("مرحبا", "auto", "rtl")
+        runs = resolve_text_runs(shaped, "TestNotoNaskhArabic-Support")
+
+        self.assertEqual({run.font_name for run in runs}, {"TestNotoNaskhArabic-Support"})
 
     def test_rounded_table_painter_clips_cells_and_strokes_outer_radius(self) -> None:
         table = Table([["H1", "H2"], ["A", "B"]]).radius(12).stroke("#94a3b8", 1).background("#ffffff")
@@ -1253,9 +1266,11 @@ class _FakeTextObject:
         self.fill_colors: list[tuple[float, float, float]] = []
         self.origins: list[tuple[float, float]] = []
         self.output: list[str] = []
+        self.font_names: list[str] = []
 
     def setFont(self, _font_name: str, _font_size: float, _leading: float | None = None) -> None:
-        return
+        _ = (_font_size, _leading)
+        self.font_names.append(_font_name)
 
     def setFillColorRGB(self, red: float, green: float, blue: float) -> None:
         self.fill_colors.append((red, green, blue))
