@@ -33,6 +33,14 @@ def paint_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     total_pages = node.content.get("total_pages")
     if isinstance(total_pages, int):
         text_value = text_value.replace("{total_pages}", str(total_pages))
+    section_name = node.content.get("section_name")
+    text_value = text_value.replace("{section_name}", section_name if isinstance(section_name, str) else "")
+    section_page_number = node.content.get("section_page_number")
+    if isinstance(section_page_number, int):
+        text_value = text_value.replace("{section_page_number}", str(section_page_number))
+    section_total_pages = node.content.get("section_total_pages")
+    if isinstance(section_total_pages, int):
+        text_value = text_value.replace("{section_total_pages}", str(section_total_pages))
     adapter.draw_text(
         x=bounds.x + padding.left,
         y=bounds.y + padding.top,

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from collections.abc import Sequence
 from importlib import import_module
 from math import isfinite
-from typing import TYPE_CHECKING, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Literal, Protocol, TypeVar, cast
 
 from .layout.node import Edges, LayoutNode, OverflowMode, PositionMode, Style
 from .style.color import parse_color
@@ -59,6 +59,7 @@ class AdapterCtorProto(Protocol):
 BuilderT = TypeVar("BuilderT", bound="NodeBuilder")
 ContainerT = TypeVar("ContainerT", bound="ContainerBuilder")
 EdgeInput = SizeInput | tuple[SizeInput, ...]
+DocumentMetadata = dict[str, str]
 
 PAGE_SIZES: dict[str, tuple[float, float]] = {
     "A4": (595.2756, 841.8898),
@@ -362,7 +363,7 @@ class ContainerBuilder(NodeBuilder):
         from .elements.text import Text
 
         child = Text(text)
-        _ = self.add(child)
+        _ = self.add(cast(NodeBuilder, child))
         return child
 
     def add_image(self, src: str | bytes) -> "Image":
@@ -404,7 +405,7 @@ class ContainerBuilder(NodeBuilder):
         from .containers.frame import Frame
 
         child = Frame()
-        _ = self.add(child)
+        _ = self.add(cast(NodeBuilder, child))
         return child
 
     def add_table(self, rows: Sequence[Sequence[object]]) -> "Table":
@@ -422,25 +423,112 @@ class PageBuilder(ContainerBuilder):
         super().__init__(LayoutNode(node_type="page", style=style))
 
 
+@dataclass(slots=True)
+class DocumentSection:
+    section_id: str
+    name: str | None
+    page_numbering: Literal["continue", "restart"]
+    outline: bool
+    pages: list[LayoutNode]
+    overlay_templates: dict[str, list[LayoutNode]]
+    suppressed_overlays: set[str]
+
+
+class SectionBuilder:
+    def __init__(self, document: "DocumentBuilder", section: DocumentSection) -> None:
+        self._document = document
+        self.section = section
+
+    def page(self, size: str | tuple[float, float] = "A4") -> PageBuilder:
+        return self._document._add_page_to_section(self.section, size)
+
+    def header(self) -> "Canvas":
+        return self._overlay("header", "__doc_header__", 200)
+
+    def footer(self) -> "Canvas":
+        return self._overlay("footer", "__doc_footer__", 210)
+
+    def watermark(self) -> "Canvas":
+        return self._overlay("watermark", "__doc_watermark__", -100)
+
+    def suppress_header(self) -> "SectionBuilder":
+        self.section.suppressed_overlays.add("header")
+        return self
+
+    def suppress_footer(self) -> "SectionBuilder":
+        self.section.suppressed_overlays.add("footer")
+        return self
+
+    def suppress_watermark(self) -> "SectionBuilder":
+        self.section.suppressed_overlays.add("watermark")
+        return self
+
+    def _overlay(self, overlay_kind: str, name: str, z_index: int) -> "Canvas":
+        from .containers.canvas import Canvas
+
+        canvas = Canvas()
+        canvas.name(name)
+        canvas.absolute(0, 0)
+        canvas.width("100%")
+        canvas.z(z_index)
+        self.section.overlay_templates[overlay_kind].append(canvas.build())
+        return canvas
+
+
 class DocumentBuilder:
     _root: LayoutNode
 
     def __init__(self) -> None:
         self._root = LayoutNode(node_type="document", style=Style())
+        self._sections: list[DocumentSection] = []
+        self._default_section: DocumentSection | None = None
         self._overlay_templates: dict[str, list[LayoutNode]] = {
             "header": [],
             "footer": [],
             "watermark": [],
         }
+        self._metadata: DocumentMetadata = {}
 
     @property
     def pages(self) -> list[LayoutNode]:
         return self._root.children
 
     def page(self, size: str | tuple[float, float] = "A4") -> PageBuilder:
-        page = PageBuilder(size)
-        _ = self._root.add_child(page.build())
-        return page
+        return self._add_page_to_section(self._get_default_section(), size)
+
+    def section(
+        self,
+        name: str | None = None,
+        *,
+        page_numbering: str = "restart",
+        outline: bool = True,
+    ) -> SectionBuilder:
+        if page_numbering not in {"continue", "restart"}:
+            raise ValueError(f"Unsupported section page numbering: {page_numbering}")
+        section = self._create_section(
+            name=name,
+            page_numbering=cast(Literal["continue", "restart"], page_numbering),
+            outline=outline,
+        )
+        return SectionBuilder(self, section)
+
+    def metadata(
+        self,
+        title: str | None = None,
+        author: str | None = None,
+        subject: str | None = None,
+        keywords: str | None = None,
+    ) -> "DocumentBuilder":
+        values = {
+            "title": title,
+            "author": author,
+            "subject": subject,
+            "keywords": keywords,
+        }
+        for name, value in values.items():
+            if value is not None:
+                self._metadata[name] = value
+        return self
 
     def build(self) -> "Document":
         return Document(
@@ -449,6 +537,8 @@ class DocumentBuilder:
                 name: [node for node in nodes]
                 for name, nodes in self._overlay_templates.items()
             },
+            sections=[section for section in self._sections],
+            metadata={name: value for name, value in self._metadata.items()},
         )
 
     def save(self, file_path: str) -> None:
@@ -487,6 +577,45 @@ class DocumentBuilder:
         self._overlay_templates["watermark"].append(canvas.build())
         return canvas
 
+    def _get_default_section(self) -> DocumentSection:
+        if self._default_section is None:
+            self._default_section = self._create_section(
+                name=None,
+                page_numbering="continue",
+                outline=False,
+            )
+        return self._default_section
+
+    def _create_section(
+        self,
+        *,
+        name: str | None,
+        page_numbering: Literal["continue", "restart"],
+        outline: bool,
+    ) -> DocumentSection:
+        section = DocumentSection(
+            section_id=f"section-{len(self._sections) + 1}",
+            name=name,
+            page_numbering=page_numbering,
+            outline=outline,
+            pages=[],
+            overlay_templates={
+                "header": [],
+                "footer": [],
+                "watermark": [],
+            },
+            suppressed_overlays=set(),
+        )
+        self._sections.append(section)
+        return section
+
+    def _add_page_to_section(self, section: DocumentSection, size: str | tuple[float, float]) -> PageBuilder:
+        page = PageBuilder(size)
+        page.node.content["section_id"] = section.section_id
+        section.pages.append(page.build())
+        _ = self._root.add_child(page.build())
+        return page
+
 
 def resolve_page_size(size: str | tuple[float, float]) -> tuple[float, float]:
     if isinstance(size, tuple):
@@ -510,6 +639,8 @@ def document() -> DocumentBuilder:
 class Document:
     pages: list[LayoutNode]
     overlay_templates: dict[str, list[LayoutNode]] | None = None
+    sections: list[DocumentSection] | None = None
+    metadata: DocumentMetadata | None = None
 
     def save(self, file_path: str) -> None:
         if not self.pages:
@@ -535,11 +666,19 @@ class Document:
 
         first_page_size = self._page_size(self.pages[0], resolve_size_fn)
         adapter = reportlab_canvas_adapter(file_path=file_path, page_size=first_page_size)
+        if self.metadata is not None:
+            adapter.set_metadata(
+                title=self.metadata.get("title"),
+                author=self.metadata.get("author"),
+                subject=self.metadata.get("subject"),
+                keywords=self.metadata.get("keywords"),
+            )
 
         rendered_pages: list[LayoutNode] = []
         for page in self.pages:
             page_size = self._page_size(page, resolve_size_fn)
-            reserved_top, reserved_bottom = self._reserved_overlay_space(page_size[1], resolve_size_fn)
+            section = self._section_for_page(page)
+            reserved_top, reserved_bottom = self._reserved_overlay_space(section, page_size[1], resolve_size_fn)
             base_padding = self._base_page_padding(page)
             page.style.padding = Edges(
                 top=max(base_padding.top, reserved_top),
@@ -552,16 +691,31 @@ class Document:
             rendered_pages.extend(paginate_page_fn(page))
 
         total_pages = len(rendered_pages)
+        section_contexts = self._section_page_contexts(rendered_pages)
+        outlined_section_ids: set[str] = set()
 
         for index, page in enumerate(rendered_pages):
             page.page_index = index
             _propagate_page_context(page, page.page_index, total_pages)
-            self._apply_overlays(page, total_pages, clone_layout_node_fn, resolve_size_fn)
+            _propagate_section_page_context(page, section_contexts.get(id(page)))
+            self._apply_overlays(page, total_pages, section_contexts.get(id(page)), clone_layout_node_fn, resolve_size_fn)
             page_size = self._page_size(page, resolve_size_fn)
             adapter.set_page_size(page_size)
 
             resolve_widths_fn(page, page_size[0])
             resolve_heights_fn(page, page_size[1])
+
+            section = self._section_for_page(page)
+            if (
+                section is not None
+                and section.outline
+                and section.name
+                and section.section_id not in outlined_section_ids
+            ):
+                key = f"section-{section.section_id}"
+                adapter.bookmark_page(key)
+                adapter.add_outline_entry(section.name, key, level=0)
+                outlined_section_ids.add(section.section_id)
 
             for item in build_render_list_fn(page):
                 paint_render_item_fn(adapter, item)
@@ -591,36 +745,93 @@ class Document:
         page.content["base_padding"] = base_padding
         return base_padding
 
+    def _section_for_page(self, page: LayoutNode) -> DocumentSection | None:
+        section_id = page.content.get("section_id")
+        if not isinstance(section_id, str) or not self.sections:
+            return None
+        for section in self.sections:
+            if section.section_id == section_id:
+                return section
+        return None
+
+    def _resolved_overlay_templates(self, section: DocumentSection | None, overlay_kind: str) -> list[LayoutNode]:
+        if section is not None and overlay_kind in section.suppressed_overlays:
+            return []
+        if section is not None:
+            section_templates = section.overlay_templates.get(overlay_kind, [])
+            if section_templates:
+                return section_templates
+        if self.overlay_templates is None:
+            return []
+        return self.overlay_templates.get(overlay_kind, [])
+
     def _apply_overlays(
         self,
         page: LayoutNode,
         total_pages: int,
+        section_context: dict[str, object] | None,
         clone_node_fn: CloneNodeFnProto,
         resolve_size_fn: ResolveSizeFnProto,
     ) -> None:
-        if not self.overlay_templates:
-            return
-
         page.remove_children_by_name("__doc_header__")
         page.remove_children_by_name("__doc_footer__")
         page.remove_children_by_name("__doc_watermark__")
 
+        section = self._section_for_page(page)
         for overlay_kind in ("watermark", "header", "footer"):
-            for template in self.overlay_templates.get(overlay_kind, []):
+            for template in self._resolved_overlay_templates(section, overlay_kind):
                 overlay = clone_node_fn(template)
                 self._anchor_overlay(overlay_kind, overlay, page, resolve_size_fn)
                 _propagate_page_context(overlay, page.page_index, total_pages)
+                _propagate_section_page_context(overlay, section_context)
                 _ = page.add_child(overlay)
 
-    def _reserved_overlay_space(self, page_height: float, resolve_size_fn: ResolveSizeFnProto) -> tuple[float, float]:
-        templates = self.overlay_templates or {}
+    def _section_page_contexts(self, rendered_pages: list[LayoutNode]) -> dict[int, dict[str, object]]:
+        contexts: dict[int, dict[str, object]] = {}
+        groups: list[list[tuple[LayoutNode, DocumentSection | None]]] = []
+        current_group: list[tuple[LayoutNode, DocumentSection | None]] = []
+        has_group = False
+        previous_section_id: str | None = None
+
+        for page in rendered_pages:
+            section = self._section_for_page(page)
+            section_id = section.section_id if section is not None else None
+            begins_section = section_id != previous_section_id
+            starts_group = (
+                not has_group
+                or section is None
+                or (begins_section and section.page_numbering == "restart")
+            )
+            if starts_group:
+                current_group = []
+                groups.append(current_group)
+                has_group = True
+            current_group.append((page, section))
+            previous_section_id = section_id
+
+        for group in groups:
+            total = len(group)
+            for offset, (page, section) in enumerate(group, start=1):
+                contexts[id(page)] = {
+                    "section_name": "" if section is None or section.name is None else section.name,
+                    "section_page_number": offset,
+                    "section_total_pages": total,
+                }
+        return contexts
+
+    def _reserved_overlay_space(
+        self,
+        section: DocumentSection | None,
+        page_height: float,
+        resolve_size_fn: ResolveSizeFnProto,
+    ) -> tuple[float, float]:
         header_heights = [
             float(resolve_size_fn(template.style.height, page_height, 0.0))
-            for template in templates.get("header", [])
+            for template in self._resolved_overlay_templates(section, "header")
         ]
         footer_heights = [
             float(resolve_size_fn(template.style.height, page_height, 0.0))
-            for template in templates.get("footer", [])
+            for template in self._resolved_overlay_templates(section, "footer")
         ]
         return (sum(header_heights), sum(footer_heights))
 
@@ -649,3 +860,10 @@ def _propagate_page_context(node: LayoutNode, page_index: int, total_pages: int)
     node.content["total_pages"] = total_pages
     for child in node.children:
         _propagate_page_context(child, page_index, total_pages)
+
+
+def _propagate_section_page_context(node: LayoutNode, section_context: dict[str, object] | None) -> None:
+    if section_context is not None:
+        node.content.update(section_context)
+    for child in node.children:
+        _propagate_section_page_context(child, section_context)

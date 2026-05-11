@@ -40,6 +40,12 @@ class CanvasLike(Protocol):
     def setPageSize(self, size: tuple[float, float]) -> None: ...
     def showPage(self) -> None: ...
     def save(self) -> None: ...
+    def setTitle(self, value: str) -> None: ...
+    def setAuthor(self, value: str) -> None: ...
+    def setSubject(self, value: str) -> None: ...
+    def setKeywords(self, value: str) -> None: ...
+    def bookmarkPage(self, key: str) -> None: ...
+    def addOutlineEntry(self, title: str, key: str, level: int = 0, closed: bool = False) -> None: ...
 
 
 class TextObjectLike(Protocol):
@@ -252,6 +258,35 @@ class ReportLabCanvasAdapter:
 
     def show_page(self) -> None:
         self._canvas.showPage()
+
+    def set_metadata(
+        self,
+        title: str | None = None,
+        author: str | None = None,
+        subject: str | None = None,
+        keywords: str | None = None,
+    ) -> None:
+        setters = {
+            "setTitle": title,
+            "setAuthor": author,
+            "setSubject": subject,
+            "setKeywords": keywords,
+        }
+        for method_name, value in setters.items():
+            if value is not None:
+                setter = getattr(self._canvas, method_name, None)
+                if setter is not None:
+                    setter(value)
+
+    def bookmark_page(self, key: str) -> None:
+        method = getattr(self._canvas, "bookmarkPage", None)
+        if method is not None:
+            method(key)
+
+    def add_outline_entry(self, title: str, key: str, level: int = 0) -> None:
+        method = getattr(self._canvas, "addOutlineEntry", None)
+        if method is not None:
+            method(title, key, level=level, closed=False)
 
     def save(self) -> None:
         self._canvas.save()
