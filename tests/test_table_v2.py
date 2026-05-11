@@ -201,8 +201,9 @@ class TableV2ModelTests(unittest.TestCase):
     def test_adapter_draw_text_emits_shaped_text_for_auto_typography(self) -> None:
         font_dir = Path(__file__).resolve().parents[1] / "examples" / "fonts"
         register_font("TestNotoNaskhArabic-Medium", font_dir / "NotoNaskhArabic-Medium.ttf")
+        fake_canvas = _FakeCanvas()
         adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
-        adapter._canvas = _FakeCanvas()
+        adapter._canvas = fake_canvas
         adapter.page_width = 200
         adapter.page_height = 100
 
@@ -219,11 +220,11 @@ class TableV2ModelTests(unittest.TestCase):
             text_direction="rtl",
         )
 
-        output = "".join(adapter._canvas.text_object.output)
+        output = "".join(fake_canvas.text_object.output)
         self.assertNotEqual(output, "مرحبا")
         self.assertTrue(any("\ufe70" <= character <= "\ufeff" for character in output))
-        self.assertIn("TestNotoNaskhArabic-Medium", adapter._canvas.text_object.font_names)
-        self.assertNotIn("Helvetica", adapter._canvas.text_object.font_names)
+        self.assertIn("TestNotoNaskhArabic-Medium", fake_canvas.text_object.font_names)
+        self.assertNotIn("Helvetica", fake_canvas.text_object.font_names)
 
     def test_arabic_font_supports_shaped_presentation_forms(self) -> None:
         font_dir = Path(__file__).resolve().parents[1] / "examples" / "fonts"
@@ -1451,6 +1452,30 @@ class _FakeCanvas:
 
     def setPageSize(self, size: tuple[float, float]) -> None:
         _ = size
+        return
+
+    def setTitle(self, value: str) -> None:
+        _ = value
+        return
+
+    def setAuthor(self, value: str) -> None:
+        _ = value
+        return
+
+    def setSubject(self, value: str) -> None:
+        _ = value
+        return
+
+    def setKeywords(self, value: str) -> None:
+        _ = value
+        return
+
+    def bookmarkPage(self, key: str) -> None:
+        _ = key
+        return
+
+    def addOutlineEntry(self, title: str, key: str, level: int = 0, closed: bool = False) -> None:
+        _ = (title, key, level, closed)
         return
 
     def showPage(self) -> None:
