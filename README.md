@@ -29,7 +29,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Paint ordering through `z-index`
 - `Text`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
 
-## v2.3 status
+## v2.4 status
 
 - Chinese API documentation is available in `docs/zh/api.md`
 - Table v2 supports column widths, alignment, padding, `rowspan`, `colspan`, header styling, zebra rows, rounded borders, repeated headers, and row/column/cell style overrides
@@ -47,6 +47,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - v2.2 adds `typography("auto")`, `text_direction("rtl")`, and `shape_text(...)` for Arabic-script reshaping and bidi display ordering across text, tables, measurement, pagination, and rendering
 - v2.2.1 updates the typography example to register and use bundled Noto Naskh Arabic fonts so Arabic output does not fall back to Helvetica
 - v2.3 adds font-family registration, fallback-aware HarfBuzz-backed advanced width measurement, and mixed-script typography examples while keeping ReportLab canvas text rendering
+- v2.4 adds named sections with scoped overlays, section page placeholders, PDF metadata, and automatic section outlines
 
 ## v2.3 advanced typography
 
@@ -67,6 +68,35 @@ frame.add_text("مرحبا smart-report") \
 ```
 
 `typography("advanced")` uses HarfBuzz metrics for fallback-aware, shaping-aware width measurement and line wrapping when registered TTF fonts are available. Rendering remains on ReportLab canvas text APIs, so exact glyph positioning, arbitrary glyph-ID rendering, vertical writing, color fonts, and full text-engine behavior remain out of scope.
+
+## v2.4 section templates and document structure
+
+```python
+from smart_report import document
+
+doc = document()
+doc.metadata(title="Report", author="team", subject="Q4 summary")
+
+intro = doc.section("Introduction", page_numbering="restart")
+intro.header().height(28).add_text(
+    "Introduction  {section_page_number}/{section_total_pages}"
+).absolute(36, 8)
+intro.footer().height(24).add_text(
+    "Intro footer  {section_name} {section_page_number}/{section_total_pages}"
+).absolute(36, 6)
+
+page = intro.page("A4")
+frame = page.add_frame().padding(36)
+frame.add_text("Introduction").font_size(18)
+
+body = doc.section("Body", page_numbering="restart")
+body.suppress_watermark()
+body_page = body.page("A4")
+
+doc.save("report.pdf")
+```
+
+Sections control scoped overlays: a section's `header()` / `footer()` / `watermark()` override the corresponding global kind on that section's pages. `suppress_header()`, `suppress_footer()`, and `suppress_watermark()` remove inherited global overlays entirely. `{section_name}`, `{section_page_number}`, and `{section_total_pages}` are section-scoped placeholders, while `{page_number}` and `{total_pages}` remain absolute document-level values. Empty named sections produce no pages and no outline entries. Set `outline=False` to hide a section from the PDF outline.
 
 ## v2.2 typography
 
@@ -259,6 +289,7 @@ margin((24, 24, 20, 24))    # top, right, bottom, left
 - `examples/v2_1_features.py`
 - `examples/v2_2_typography.py`
 - `examples/v2_3_advanced_typography.py`
+- `examples/v2_4_document_structure.py`
 - `examples/zh_table_demo.py`
 
 Run one with:
@@ -273,7 +304,7 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v2.3 release expands font families and advanced typography measurement while preserving the existing builder API where possible. Future work should remain backward-compatible unless another major version bump is planned.
+The v2.4 release adds named sections with scoped overlays, section page placeholders, PDF metadata, and automatic section outlines while preserving backward compatibility with the v2.3 builder API.
 
 ## Current limitations
 

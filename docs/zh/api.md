@@ -49,6 +49,66 @@ doc = document()
 doc.header().height(40).add_text("第 {page_number} / {total_pages} 页").absolute("78%", 12)
 ```
 
+### `doc.metadata(...)` (v2.4)
+
+设置 PDF 文档元数据，支持链式调用：
+
+```python
+doc.metadata(title="季度报告", author="团队", subject="Q4 总结", keywords="报告, 数据")
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `title` | 文档标题 |
+| `author` | 作者 |
+| `subject` | 主题 |
+| `keywords` | 关键词，逗号分隔 |
+
+仅非 `None` 的参数会覆盖已有值；多次调用会合并字段。
+
+### `doc.section(...)` (v2.4)
+
+创建命名 section，返回 `SectionBuilder`：
+
+```python
+section = doc.section("Introduction", page_numbering="restart", outline=True)
+page = section.page("A4")
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `name` | section 名称，出现在 outline 和 `{section_name}` 占位符中 |
+| `page_numbering` | `"restart"`（默认）重新开始计数，`"continue"` 加入当前计数组 |
+| `outline` | `True`（默认）在 PDF outline 中显示，`False` 则隐藏 |
+
+`SectionBuilder` 方法：
+
+| 方法 | 说明 |
+| --- | --- |
+| `section.page(size="A4")` | 在该 section 中新建页面 |
+| `section.header()` | 创建 section 级别页眉，覆盖同类型全局页眉 |
+| `section.footer()` | 创建 section 级别页脚，覆盖同类型全局页脚 |
+| `section.watermark()` | 创建 section 级别水印，覆盖同类型全局水印 |
+| `section.suppress_header()` | 抑制该 section 的全局页眉回退 |
+| `section.suppress_footer()` | 抑制该 section 的全局页脚回退 |
+| `section.suppress_watermark()` | 抑制该 section 的全局水印回退 |
+
+### Section 占位符 (v2.4)
+
+| 占位符 | 说明 |
+| --- | --- |
+| `{section_name}` | 当前 section 名称 |
+| `{section_page_number}` | 当前 section 内的物理页码（从 1 开始） |
+| `{section_total_pages}` | 当前计数组的总物理页数 |
+| `{page_number}` | 文档绝对页码（不受 section 影响） |
+| `{total_pages}` | 文档绝对总页数 |
+
+`page_numbering="restart"` 开始新的计数组，`"continue"` 加入上一个计数组共享 `{section_total_pages}`。
+
+Overlay 覆盖优先级：section 抑制 > section 模板 > 全局模板。
+
+空 section 不产生页面也不产生 outline 条目。
+
 ## 容器 API
 
 ### `Frame`
