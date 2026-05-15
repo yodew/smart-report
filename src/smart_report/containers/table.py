@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 
 from .._builder_core import NodeBuilder
 from ..layout.node import Edges, LayoutNode, Style
 from ..style.color import RGBA, parse_color
-from ..style.units import Fixed, SizeInput, parse_size
+from ..style.units import Auto, Fixed, Percent, SizeInput, parse_size
 
 ColorInput = str | RGBA | None
 
@@ -49,9 +50,31 @@ class Table(NodeBuilder):
         self.node.content["column_widths"] = values
         return self
 
+    def column_min_widths(self, values: list[SizeInput]) -> "Table":
+        _validate_column_width_constraints("column_min_widths", values)
+        self.node.content["column_min_widths"] = values
+        return self
+
+    def column_max_widths(self, values: list[SizeInput]) -> "Table":
+        _validate_column_width_constraints("column_max_widths", values)
+        self.node.content["column_max_widths"] = values
+        return self
+
+    def auto_fit_columns(self, columns: Sequence[int] | None = None) -> "Table":
+        self.node.content["auto_fit_columns"] = _normalize_auto_fit_columns(columns)
+        return self
+
     def align(self, value: str | list[str]) -> "Table":
         _validate_align_value(value)
         self.node.content["align"] = value
+        return self
+
+    def text_overflow(self, value: str) -> "Table":
+        self.node.content["text_overflow"] = _normalize_text_overflow(value)
+        return self
+
+    def valign(self, value: str) -> "Table":
+        self.node.content["valign"] = _normalize_valign(value)
         return self
 
     def cell_padding(
@@ -160,19 +183,35 @@ class Table(NodeBuilder):
         *,
         background: ColorInput = None,
         color: ColorInput = None,
+        font: str | None = None,
+        font_size: float | None = None,
+        line_height: float | None = None,
         align: str | list[str] | None = None,
     ) -> "Table":
         if background is not None:
             self.node.content["footer_background"] = parse_color(background)
         if color is not None:
             self.node.content["footer_color"] = parse_color(color)
+        if font is not None:
+            self.node.content["footer_font_name"] = font
+        if font_size is not None:
+            self.node.content["footer_font_size"] = float(font_size)
+        if line_height is not None:
+            self.node.content["footer_line_height"] = float(line_height)
         if align is not None:
             _validate_align_value(align)
             self.node.content["footer_align"] = align
         return self
 
-    def subtotal(self, row: list[object], *, background: ColorInput = "#f1f5f9") -> "Table":
-        return self.footer([row], repeat=False, background=background)
+    def subtotal(
+        self,
+        row: list[object],
+        *,
+        repeat: bool = False,
+        background: ColorInput = "#f1f5f9",
+        color: ColorInput = None,
+    ) -> "Table":
+        return self.footer([row], repeat=repeat, background=background, color=color)
 
     def borders(
         self,
@@ -188,6 +227,10 @@ class Table(NodeBuilder):
             self.node.content["inner_border_width"] = float(inner_width)
         if outer_width is not None:
             self.node.content["outer_border_width"] = float(outer_width)
+        return self
+
+    def border_collapse(self, value: bool = True) -> "Table":
+        self.node.content["border_collapse"] = value
         return self
 
     def cell_border(self, row_index: int, column_index: int, *, color: ColorInput = None, width: float = 1.0) -> "Table":
@@ -216,9 +259,24 @@ class Table(NodeBuilder):
         background: ColorInput = None,
         color: ColorInput = None,
         align: str | None = None,
+        font: str | None = None,
+        font_size: float | None = None,
+        line_height: float | None = None,
+        text_overflow: str | None = None,
+        valign: str | None = None,
     ) -> "Table":
         styles = _style_map(self.node.content, "row_styles")
-        styles[index] = _merge_style_override(styles.get(index), background=background, color=color, align=align)
+        styles[index] = _merge_style_override(
+            styles.get(index),
+            background=background,
+            color=color,
+            align=align,
+            font=font,
+            font_size=font_size,
+            line_height=line_height,
+            text_overflow=text_overflow,
+            valign=valign,
+        )
         return self
 
     def column_style(
@@ -228,9 +286,24 @@ class Table(NodeBuilder):
         background: ColorInput = None,
         color: ColorInput = None,
         align: str | None = None,
+        font: str | None = None,
+        font_size: float | None = None,
+        line_height: float | None = None,
+        text_overflow: str | None = None,
+        valign: str | None = None,
     ) -> "Table":
         styles = _style_map(self.node.content, "column_styles")
-        styles[index] = _merge_style_override(styles.get(index), background=background, color=color, align=align)
+        styles[index] = _merge_style_override(
+            styles.get(index),
+            background=background,
+            color=color,
+            align=align,
+            font=font,
+            font_size=font_size,
+            line_height=line_height,
+            text_overflow=text_overflow,
+            valign=valign,
+        )
         return self
 
     def cell_style(
@@ -241,10 +314,25 @@ class Table(NodeBuilder):
         background: ColorInput = None,
         color: ColorInput = None,
         align: str | None = None,
+        font: str | None = None,
+        font_size: float | None = None,
+        line_height: float | None = None,
+        text_overflow: str | None = None,
+        valign: str | None = None,
     ) -> "Table":
         styles = _style_map(self.node.content, "cell_styles")
         key = f"{row_index}:{column_index}"
-        styles[key] = _merge_style_override(styles.get(key), background=background, color=color, align=align)
+        styles[key] = _merge_style_override(
+            styles.get(key),
+            background=background,
+            color=color,
+            align=align,
+            font=font,
+            font_size=font_size,
+            line_height=line_height,
+            text_overflow=text_overflow,
+            valign=valign,
+        )
         return self
 
     def span(self, row_index: int, column_index: int, *, rowspan: int = 1, colspan: int = 1) -> "Table":
@@ -260,6 +348,38 @@ def _edge_points(value: SizeInput) -> float:
     if not isinstance(parsed, Fixed):
         raise ValueError("Table cell padding requires fixed point-compatible values")
     return parsed.points
+
+
+def _validate_column_width_constraints(key: str, values: list[SizeInput]) -> None:
+    for value in values:
+        parsed = parse_size(value)
+        if isinstance(parsed, Auto):
+            raise ValueError(f"Table {key} constraints cannot be auto")
+        if isinstance(parsed, Fixed):
+            amount = parsed.points
+        elif isinstance(parsed, Percent):
+            amount = parsed.ratio
+        else:
+            amount = 0.0
+        if not math.isfinite(amount):
+            raise ValueError(f"Table {key} constraints must be finite")
+        if amount < 0:
+            raise ValueError(f"Table {key} constraints must be non-negative")
+
+
+def _normalize_auto_fit_columns(columns: object) -> bool | list[int]:
+    if columns is None:
+        return True
+    if not isinstance(columns, Sequence):
+        raise TypeError("Table auto_fit_columns columns must be a sequence of integer indexes")
+    normalized: list[int] = []
+    for column in columns:
+        if not isinstance(column, int) or isinstance(column, bool):
+            raise TypeError("Table auto_fit_columns columns must be integer indexes")
+        if column < 0:
+            raise ValueError("Table auto_fit_columns columns must be non-negative")
+        normalized.append(column)
+    return sorted(set(normalized))
 
 
 def _parse_table_edges(
@@ -305,6 +425,11 @@ def _merge_style_override(
     background: ColorInput = None,
     color: ColorInput = None,
     align: str | None = None,
+    font: str | None = None,
+    font_size: float | None = None,
+    line_height: float | None = None,
+    text_overflow: str | None = None,
+    valign: str | None = None,
 ) -> dict[str, object]:
     style: dict[str, object] = dict(existing) if isinstance(existing, dict) else {}
     if background is not None:
@@ -314,7 +439,31 @@ def _merge_style_override(
     if align is not None:
         _validate_align(align)
         style["align"] = align
+    if font is not None:
+        style["font_name"] = font
+    if font_size is not None:
+        style["font_size"] = float(font_size)
+    if line_height is not None:
+        style["line_height"] = float(line_height)
+    if text_overflow is not None:
+        style["text_overflow"] = _normalize_text_overflow(text_overflow)
+    if valign is not None:
+        style["valign"] = _normalize_valign(valign)
     return style
+
+
+def _normalize_text_overflow(value: str) -> str:
+    normalized = value.lower()
+    if normalized not in {"wrap", "clip", "ellipsis"}:
+        raise ValueError(f"Unsupported table text overflow: {value}")
+    return normalized
+
+
+def _normalize_valign(value: str) -> str:
+    normalized = value.lower()
+    if normalized not in {"top", "middle", "bottom"}:
+        raise ValueError(f"Unsupported table vertical alignment: {value}")
+    return normalized
 
 
 def _validate_align(value: str) -> None:

@@ -8,6 +8,7 @@ from .node import LayoutNode, clone_layout_node
 from ..style.units import Fixed
 from .table_model import (
     layout_rich_cell_content,
+    preserve_table_column_widths,
     table_cell_padding,
     table_cell_spans,
     table_column_count,
@@ -266,7 +267,7 @@ def _split_table_node(child: LayoutNode, first_content_height: float, following_
             and current_height + row_height > current_capacity
             and not _source_rows_have_open_rowspan(source_indices, span_ranges, current_source_indices)
         ):
-            slices.append(_clone_table_slice(child, _with_footer_rows(current_rows, footer_rows, repeat_footer), current_source_indices + list(footer_source_indices) if repeat_footer else current_source_indices, current_header_rows, footer_count if repeat_footer else 0))
+            slices.append(_clone_table_slice(child, _with_footer_rows(current_rows, footer_rows, repeat_footer), current_source_indices + list(footer_source_indices) if repeat_footer else current_source_indices, current_header_rows, footer_count if repeat_footer else 0, column_widths))
             current_rows = list(header_rows) if repeat_header else []
             current_source_indices = list(header_source_indices) if repeat_header else []
             current_height = header_height + footer_height
@@ -279,7 +280,7 @@ def _split_table_node(child: LayoutNode, first_content_height: float, following_
 
     if current_rows:
         append_footer = bool(footer_count)
-        slices.append(_clone_table_slice(child, _with_footer_rows(current_rows, footer_rows, append_footer), current_source_indices + list(footer_source_indices) if append_footer else current_source_indices, current_header_rows, footer_count if append_footer else 0))
+        slices.append(_clone_table_slice(child, _with_footer_rows(current_rows, footer_rows, append_footer), current_source_indices + list(footer_source_indices) if append_footer else current_source_indices, current_header_rows, footer_count if append_footer else 0, column_widths))
 
     return slices or [clone_layout_node(child)]
 
@@ -420,7 +421,14 @@ def _frame_slice_height(frame: LayoutNode) -> float:
     return max(flow_extent, absolute_extent) + frame.style.padding.bottom
 
 
-def _clone_table_slice(child: LayoutNode, rows: list[list[object]], source_row_indices: list[int], header_rows: int, footer_rows: int = 0) -> LayoutNode:
+def _clone_table_slice(
+    child: LayoutNode,
+    rows: list[list[object]],
+    source_row_indices: list[int],
+    header_rows: int,
+    footer_rows: int = 0,
+    column_widths: list[float] | None = None,
+) -> LayoutNode:
     node = clone_layout_node(child, include_children=False)
     node.content["rows"] = rows
     node.content["footer_rows"] = []
@@ -428,6 +436,8 @@ def _clone_table_slice(child: LayoutNode, rows: list[list[object]], source_row_i
     node.content["header_rows"] = header_rows
     node.content["slice_footer_rows"] = footer_rows
     node.content["cell_spans"] = table_slice_spans(child, source_row_indices)
+    if column_widths is not None and "auto_fit_columns" in child.content:
+        preserve_table_column_widths(node, child.resolved_width, column_widths)
     node.resolved_height = table_height(node)
     return node
 
