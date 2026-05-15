@@ -14,3 +14,11 @@ class Text(NodeBuilder):
     def text(self, value: str) -> "Text":
         self.node.content["text"] = value
         return self
+
+    def link(self, url: object) -> "Text":
+        if not isinstance(url, str):
+            raise TypeError("Text.link url must be a string")
+        if not url.strip():
+            raise ValueError("Text.link url must not be empty")
+        self.node.content["link_url"] = url
+        return self

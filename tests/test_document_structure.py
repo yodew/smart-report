@@ -7,7 +7,9 @@ import unittest
 from pathlib import Path
 from typing import Any, cast
 
-from smart_report import Frame, document
+from smart_report import Frame, Text, document
+from smart_report.layout.node import Rect
+from smart_report.layout.text_wrap import wrap_text
 from smart_report.render.rl_adapter import ReportLabCanvasAdapter
 
 try:
@@ -30,6 +32,25 @@ def _page_texts(reader: Any) -> list[str]:
 
 def _document_text(reader: Any) -> str:
     return "\n".join(_page_texts(reader))
+
+
+def _page_link_annotation_uris(reader: Any) -> list[list[str]]:
+    pages: list[list[str]] = []
+    for page in reader.pages:
+        page_uris: list[str] = []
+        annotations = page.get("/Annots") or []
+        for annotation in annotations:
+            annotation_object = annotation.get_object()
+            if annotation_object.get("/Subtype") != "/Link":
+                continue
+            action = annotation_object.get("/A")
+            if action is None:
+                continue
+            uri = action.get("/URI")
+            if isinstance(uri, str):
+                page_uris.append(uri)
+        pages.append(page_uris)
+    return pages
 
 
 def _outline_titles(reader: Any) -> list[str]:
@@ -62,6 +83,32 @@ def _fill_section_page(page: object, prefix: str, count: int = 4) -> None:
         frame.add_text(f"{prefix} body line {index + 1}").font_size(12).line_height(16)
     add = getattr(page, "add")
     add(frame)
+
+
+class TextLinkApiTests(unittest.TestCase):
+    def test_text_link_stores_url_and_returns_self(self) -> None:
+        text = Text("Example")
+
+        result = text.link("https://example.com")
+
+        self.assertIs(result, text)
+        self.assertEqual(text.node.content["text"], "Example")
+        self.assertEqual(text.node.content["link_url"], "https://example.com")
+
+    def test_text_without_link_keeps_existing_content_shape(self) -> None:
+        text = Text("Plain")
+
+        self.assertEqual(text.node.content, {"text": "Plain"})
+
+    def test_text_link_rejects_non_string_url(self) -> None:
+        with self.assertRaisesRegex(TypeError, "link|url"):
+            Text("Example").link(cast(Any, 123))
+
+    def test_text_link_rejects_empty_or_whitespace_url(self) -> None:
+        for value in ("", "   "):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "link|url"):
+                    Text("Example").link(value)
 
 
 class DocumentStructureSectionApiTests(unittest.TestCase):
@@ -369,10 +416,65 @@ class DocumentStructurePdfTests(unittest.TestCase):
 
         self.assertEqual(outlines, ["Visible"])
 
+    def test_single_line_linked_text_emits_one_url_annotation(self) -> None:
+        assert PdfReader is not None
+        doc: Any = document()
+        doc.page("A4").add_text("Example linked text").absolute(36, 36).width(240).link("https://example.com")
+
+        temp_dir, output = _save_temp_pdf(doc, "single_text_link.pdf")
+        with temp_dir:
+            page_uris = _page_link_annotation_uris(PdfReader(str(output)))
+
+        self.assertEqual(page_uris, [["https://example.com"]])
+
+    def test_wrapped_linked_text_emits_one_url_annotation_per_line(self) -> None:
+        assert PdfReader is not None
+        text = "Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron"
+        width = 90.0
+        font_size = 12.0
+        expected_lines = wrap_text(text, width, "Helvetica", font_size)
+        self.assertGreater(len(expected_lines), 1)
+        doc: Any = document()
+        doc.page("A4").add_text(text).absolute(36, 36).width(width).font_size(font_size).line_height(14).link("https://example.com/wrapped")
+
+        temp_dir, output = _save_temp_pdf(doc, "wrapped_text_link.pdf")
+        with temp_dir:
+            page_uris = _page_link_annotation_uris(PdfReader(str(output)))
+
+        self.assertEqual(page_uris, [["https://example.com/wrapped"] * len(expected_lines)])
+
+    def test_unlinked_text_emits_no_url_annotations(self) -> None:
+        assert PdfReader is not None
+        doc: Any = document()
+        doc.page("A4").add_text("Plain text only").absolute(36, 36).width(240)
+
+        temp_dir, output = _save_temp_pdf(doc, "plain_text_no_link.pdf")
+        with temp_dir:
+            page_uris = _page_link_annotation_uris(PdfReader(str(output)))
+
+        self.assertEqual(page_uris, [[]])
+
+    def test_paginated_linked_text_keeps_url_annotations_on_split_pages(self) -> None:
+        assert PdfReader is not None
+        linked_lines = "\n".join(f"Linked line {index}" for index in range(1, 90))
+        doc: Any = document()
+        frame = Frame().padding(36)
+        frame.add_text(linked_lines).font_size(12).line_height(16).link("https://example.com/paginated")
+        doc.page("A4").add(frame)
+
+        temp_dir, output = _save_temp_pdf(doc, "paginated_text_link.pdf")
+        with temp_dir:
+            reader = PdfReader(str(output))
+            page_uris = _page_link_annotation_uris(reader)
+
+        self.assertGreater(len(page_uris), 1)
+        self.assertTrue(all(uris for uris in page_uris))
+        self.assertTrue(all(uri == "https://example.com/paginated" for uris in page_uris for uri in uris))
+
 
 class _FakeCanvas:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, tuple[object, ...]]] = []
+        self.calls: list[object] = []
 
     def setTitle(self, value: str) -> None:
         self.calls.append(("setTitle", (value,)))
@@ -391,6 +493,9 @@ class _FakeCanvas:
 
     def addOutlineEntry(self, title: str, key: str, level: int = 0, closed: bool = False) -> None:
         self.calls.append(("addOutlineEntry", (title, key, level, closed)))
+
+    def linkURL(self, url: str, rect: tuple[float, float, float, float], relative: int = 0) -> None:
+        self.calls.append(("linkURL", (url, rect), {"relative": relative}))
 
 
 class DocumentStructureAdapterTests(unittest.TestCase):
@@ -434,6 +539,20 @@ class DocumentStructureAdapterTests(unittest.TestCase):
         adapter.add_outline_entry("Executive Summary", "section-1", level=0)
 
         self.assertEqual(fake_canvas.calls, [("addOutlineEntry", ("Executive Summary", "section-1", 0, False))])
+
+    def test_adapter_link_url_wrapper_converts_top_left_rect_to_reportlab_rect(self) -> None:
+        adapter = cast(Any, ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter))
+        fake_canvas = _FakeCanvas()
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 100
+
+        adapter.link_url("https://example.com", Rect(x=10, y=20, width=30, height=40))
+
+        self.assertEqual(
+            fake_canvas.calls,
+            [("linkURL", ("https://example.com", (10, 40, 40, 80)), {"relative": 0})],
+        )
 
 
 if __name__ == "__main__":

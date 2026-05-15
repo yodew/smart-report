@@ -46,6 +46,7 @@ class CanvasLike(Protocol):
     def setKeywords(self, value: str) -> None: ...
     def bookmarkPage(self, key: str) -> None: ...
     def addOutlineEntry(self, title: str, key: str, level: int = 0, closed: bool = False) -> None: ...
+    def linkURL(self, url: str, rect: tuple[float, float, float, float], relative: int = 0) -> None: ...
 
 
 class TextObjectLike(Protocol):
@@ -287,6 +288,10 @@ class ReportLabCanvasAdapter:
         method = getattr(self._canvas, "addOutlineEntry", None)
         if method is not None:
             method(title, key, level=level, closed=False)
+
+    def link_url(self, url: str, rect: Rect) -> None:
+        bottom = self.to_rl_y(rect.y, rect.height)
+        self._canvas.linkURL(url, (rect.x, bottom, rect.x + rect.width, bottom + rect.height), relative=0)
 
     def save(self) -> None:
         self._canvas.save()

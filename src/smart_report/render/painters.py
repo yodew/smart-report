@@ -2,15 +2,28 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from dataclasses import dataclass
+from typing import Callable, Literal
 
 from ..layout.node import Rect, RenderItem
 from ..layout.pass4_render import build_render_list
-from ..layout.table_model import TableCellBox, layout_rich_cell_content, table_cell_boxes
+from ..layout.table_model import TableCellBox, fit_plain_overflow_text, layout_rich_cell_content, normalize_plain_overflow_text, table_cell_boxes
+from ..layout.text_wrap import wrap_text
 from ..style.color import RGBA
+from ..style.font import shaped_string_width, string_width
+from ..style.typography import shape_text
 from .rl_adapter import ReportLabCanvasAdapter
 
 Painter = Callable[[ReportLabCanvasAdapter, RenderItem], None]
+Orientation = Literal["horizontal", "vertical"]
+
+
+@dataclass(frozen=True, slots=True)
+class _BorderCandidate:
+    color: RGBA | None
+    width: float
+    row_index: int
+    column_index: int
 
 
 def paint_render_item(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
@@ -53,6 +66,51 @@ def paint_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
         text_direction=node.style.text_direction,
         color=node.style.color,
     )
+    link_url = node.content.get("link_url")
+    if isinstance(link_url, str):
+        _paint_text_link_annotations(adapter, item, text_value, link_url)
+
+
+def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderItem, text_value: str, link_url: str) -> None:
+    node = item.node
+    bounds = item.absolute_bounds
+    padding = node.style.padding
+    content_x = bounds.x + padding.left
+    content_y = bounds.y + padding.top
+    content_width = max(1.0, bounds.width - padding.horizontal)
+    wrapped_lines = wrap_text(
+        text_value,
+        content_width,
+        node.style.font_name,
+        node.style.font_size,
+        typography=node.style.typography,
+        text_direction=node.style.text_direction,
+    )
+    for line_index, line in enumerate(wrapped_lines):
+        display_line = shape_text(line, node.style.typography, node.style.text_direction)
+        line_width = (
+            shaped_string_width(display_line, node.style.font_name, node.style.font_size)
+            if node.style.typography == "advanced"
+            else string_width(display_line, node.style.font_name, node.style.font_size)
+        )
+        if line_width <= 0:
+            continue
+        offset = max(0.0, content_width - line_width)
+        if node.content.get("align") == "center":
+            offset /= 2
+        elif node.content.get("align") == "left" and node.style.text_direction != "rtl":
+            offset = 0.0
+        elif node.content.get("align") is None and node.style.text_direction != "rtl":
+            offset = 0.0
+        adapter.link_url(
+            link_url,
+            Rect(
+                x=content_x + offset,
+                y=content_y + (line_index * node.style.line_height),
+                width=line_width,
+                height=node.style.line_height,
+            ),
+        )
 
 
 def paint_image(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
@@ -145,17 +203,20 @@ def _paint_table_cells(adapter: ReportLabCanvasAdapter, item: RenderItem, cell_b
             adapter.apply_clip_rect(cell_rect)
             content_width = max(1.0, cell_rect.width - cell_box.padding.horizontal)
             content_x = cell_rect.x + cell_box.padding.left
-            content_y = cell_rect.y + cell_box.padding.top
             if cell_box.rich_content is not None:
+                rich_node = layout_rich_cell_content(cell_box.rich_content, content_width, content_x, cell_rect.y + cell_box.padding.top)
+                content_y = _aligned_content_y(cell_box, rich_node.resolved_height)
                 rich_node = layout_rich_cell_content(cell_box.rich_content, content_width, content_x, content_y)
                 for rich_item in build_render_list(rich_node):
                     paint_render_item(adapter, rich_item)
             else:
+                rendered_text = _plain_cell_paint_text(cell_box, content_width)
+                content_y = _aligned_content_y(cell_box, _plain_cell_paint_height(cell_box, rendered_text, content_width))
                 adapter.draw_text(
                     x=content_x,
                     y=content_y,
                     width=content_width,
-                    text=cell_box.text,
+                    text=rendered_text,
                     font_name=cell_box.font_name,
                     font_size=cell_box.font_size,
                     line_height=cell_box.line_height,
@@ -165,12 +226,48 @@ def _paint_table_cells(adapter: ReportLabCanvasAdapter, item: RenderItem, cell_b
                     align=cell_box.align,
                 )
 
+    if node.content.get("border_collapse") is True:
+        _paint_collapsed_cell_borders(adapter, item, cell_rects, border_color, row_count, column_count)
+        return
+
     for cell_box, cell_rect in cell_rects:
         if cell_box.border_width is None:
             _paint_cell_border(adapter, item, cell_box, cell_rect, border_color, row_count, column_count)
     for cell_box, cell_rect in cell_rects:
         if cell_box.border_width is not None:
             _paint_cell_border(adapter, item, cell_box, cell_rect, border_color, row_count, column_count)
+
+
+def _plain_cell_paint_text(cell_box: TableCellBox, content_width: float) -> str:
+    if cell_box.text_overflow == "clip":
+        return normalize_plain_overflow_text(cell_box.text)
+    if cell_box.text_overflow == "ellipsis":
+        return fit_plain_overflow_text(
+            cell_box.text,
+            content_width,
+            cell_box.font_name,
+            cell_box.font_size,
+            cell_box.typography,
+            cell_box.text_direction,
+        )
+    return cell_box.text
+
+
+def _plain_cell_paint_height(cell_box: TableCellBox, text: str, content_width: float) -> float:
+    if cell_box.text_overflow in {"clip", "ellipsis"}:
+        return cell_box.line_height
+    lines = wrap_text(text, content_width, cell_box.font_name, cell_box.font_size, typography=cell_box.typography, text_direction=cell_box.text_direction)
+    return max(1, len(lines)) * cell_box.line_height
+
+
+def _aligned_content_y(cell_box: TableCellBox, content_height: float) -> float:
+    available_height = max(0.0, cell_box.height - cell_box.padding.vertical)
+    extra_height = max(0.0, available_height - content_height)
+    if cell_box.valign == "middle":
+        return cell_box.y + cell_box.padding.top + (extra_height / 2.0)
+    if cell_box.valign == "bottom":
+        return cell_box.y + cell_box.padding.top + extra_height
+    return cell_box.y + cell_box.padding.top
 
 
 def _paint_cell_border(
@@ -203,6 +300,82 @@ def _paint_cell_border(
     adapter.draw_line(cell_rect.x, cell_rect.bottom, cell_rect.right, cell_rect.bottom, border_color, bottom_width)
     adapter.draw_line(cell_rect.x, cell_rect.y, cell_rect.x, cell_rect.bottom, border_color, left_width)
     adapter.draw_line(cell_rect.right, cell_rect.y, cell_rect.right, cell_rect.bottom, border_color, right_width)
+
+
+def _paint_collapsed_cell_borders(
+    adapter: ReportLabCanvasAdapter,
+    item: RenderItem,
+    cell_rects: list[tuple[TableCellBox, Rect]],
+    fallback_color: RGBA | None,
+    row_count: int,
+    column_count: int,
+) -> None:
+    x_breaks = _unique_sorted([rect.x for _cell, rect in cell_rects] + [rect.right for _cell, rect in cell_rects])
+    y_breaks = _unique_sorted([rect.y for _cell, rect in cell_rects] + [rect.bottom for _cell, rect in cell_rects])
+    segments: dict[tuple[Orientation, float, float, float], _BorderCandidate] = {}
+    for cell_box, cell_rect in cell_rects:
+        top_width, right_width, bottom_width, left_width = _cell_border_widths(item, cell_box, row_count, column_count)
+        color = cell_box.border_color or fallback_color
+        _add_collapsed_edge(segments, "horizontal", cell_rect.y, cell_rect.x, cell_rect.right, x_breaks, _BorderCandidate(color, top_width, cell_box.row_index, cell_box.column_index))
+        _add_collapsed_edge(segments, "vertical", cell_rect.right, cell_rect.y, cell_rect.bottom, y_breaks, _BorderCandidate(color, right_width, cell_box.row_index, cell_box.column_index))
+        _add_collapsed_edge(segments, "horizontal", cell_rect.bottom, cell_rect.x, cell_rect.right, x_breaks, _BorderCandidate(color, bottom_width, cell_box.row_index, cell_box.column_index))
+        _add_collapsed_edge(segments, "vertical", cell_rect.x, cell_rect.y, cell_rect.bottom, y_breaks, _BorderCandidate(color, left_width, cell_box.row_index, cell_box.column_index))
+
+    for orientation, fixed, start, end in sorted(segments):
+        candidate = segments[(orientation, fixed, start, end)]
+        if candidate.color is None:
+            continue
+        if orientation == "horizontal":
+            adapter.draw_line(start, fixed, end, fixed, candidate.color, candidate.width)
+        else:
+            adapter.draw_line(fixed, start, fixed, end, candidate.color, candidate.width)
+
+
+def _add_collapsed_edge(
+    segments: dict[tuple[Orientation, float, float, float], _BorderCandidate],
+    orientation: Orientation,
+    fixed: float,
+    start: float,
+    end: float,
+    breaks: list[float],
+    candidate: _BorderCandidate,
+) -> None:
+    points = [start] + [point for point in breaks if start < point < end] + [end]
+    for index in range(len(points) - 1):
+        segment_start = points[index]
+        segment_end = points[index + 1]
+        if segment_end <= segment_start:
+            continue
+        key = (orientation, fixed, segment_start, segment_end)
+        current = segments.get(key)
+        if current is None or _border_candidate_key(candidate) >= _border_candidate_key(current):
+            segments[key] = candidate
+
+
+def _border_candidate_key(candidate: _BorderCandidate) -> tuple[float, int, int]:
+    return (candidate.width, candidate.row_index, candidate.column_index)
+
+
+def _cell_border_widths(item: RenderItem, cell_box: TableCellBox, row_count: int, column_count: int) -> tuple[float, float, float, float]:
+    node = item.node
+    base_width = _table_border_width(node)
+    default_inner = node.content.get("inner_border_width")
+    default_outer = node.content.get("outer_border_width")
+    if cell_box.border_width is not None:
+        inner_width = cell_box.border_width
+        outer_width = cell_box.border_width
+    else:
+        inner_width = float(default_inner) if isinstance(default_inner, (int, float)) else base_width
+        outer_width = float(default_outer) if isinstance(default_outer, (int, float)) else base_width
+    top_width = outer_width if cell_box.row_index == 0 else inner_width
+    right_width = outer_width if cell_box.column_index + cell_box.colspan >= column_count else inner_width
+    bottom_width = outer_width if cell_box.row_index + cell_box.rowspan >= row_count else inner_width
+    left_width = outer_width if cell_box.column_index == 0 else inner_width
+    return top_width, right_width, bottom_width, left_width
+
+
+def _unique_sorted(values: list[float]) -> list[float]:
+    return sorted(set(values))
 
 
 def _column_count_for_boxes(cell_boxes: list[TableCellBox]) -> int:
