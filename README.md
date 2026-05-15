@@ -28,6 +28,8 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Top-down width resolution and bottom-up height measurement
 - Paint ordering through `z-index`
 - `Text`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
+- Table auto-fit columns: content-based sizing for plain-text cells with min/max constraints
+- Whole-Text URL links via `Text.link(url)` for external PDF link annotations
 
 ## v2.4 status
 
@@ -48,6 +50,50 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - v2.2.1 updates the typography example to register and use bundled Noto Naskh Arabic fonts so Arabic output does not fall back to Helvetica
 - v2.3 adds font-family registration, fallback-aware HarfBuzz-backed advanced width measurement, and mixed-script typography examples while keeping ReportLab canvas text rendering
 - v2.4 adds named sections with scoped overlays, section page placeholders, PDF metadata, and automatic section outlines
+- v2.6 adds `Table.auto_fit_columns()` for automatic column sizing based on plain-text natural widths, with Fit Then Clamp behavior and optional min/max constraints
+- v2.7 adds `Text.link(url)` for whole-text PDF external URL link annotations, including linked rich `Text` table cells
+
+## v2.6 table auto-fit
+
+```python
+table = (
+    Table([
+        ["Region", "Revenue", "Growth"],
+        ["APAC", "$1.20M", "+18%"],
+        ["EMEA", "$0.98M", "+11%"],
+        ["North America", "$1.60M", "+23%"],
+    ])
+    .auto_fit_columns()
+    .cell_padding(vertical=7, horizontal=10)
+    .header(background="#1d4ed8", color="#ffffff")
+    .zebra("#f8fafc")
+)
+```
+
+`auto_fit_columns()` sizes each column to its natural plain-text width plus cell padding. Pass a list of column indexes to fit only those columns; the rest keep their explicit widths. Legacy `column_widths(["auto"])` without `.auto_fit_columns()` still uses equal-share distribution.
+
+Natural widths follow Fit Then Clamp behavior: text width is measured first, then `column_min_widths` and `column_max_widths` constraints are applied. Narrow fitted tables are not stretched to fill the available width. Only plain-string cells contribute natural widths; rich `Frame`/`Text`/`Image` cells are excluded.
+
+## v2.7 rich text links
+
+```python
+from smart_report import Text
+
+linked = Text("Visit docs").link("https://example.com/docs").color("#2563eb")
+```
+
+`Text.link(url)` attaches a PDF external URL annotation to the whole text node. Clicking anywhere on the text opens the linked URL in a browser. Links work in both standalone `Text` nodes inside a `Frame` and as rich `Text` table cells.
+
+No automatic link styling is applied. Users can opt into color or other visual cues using the existing Text style APIs. Whole-text links only; there are no inline substring links, no markdown/HTML parsing, and no arbitrary annotation API.
+
+```python
+from smart_report import Table, Text
+
+link_cell = Text("Documentation").link("https://example.com/docs")
+table = Table([["Section", "Link"], [link_cell, "Official docs"]])
+```
+
+Rich `Text` table cells support links through the same `Text.link(url)` API. The entire cell text becomes the clickable area. Plain string table cells do not support links.
 
 ## v2.3 advanced typography
 
@@ -290,6 +336,8 @@ margin((24, 24, 20, 24))    # top, right, bottom, left
 - `examples/v2_2_typography.py`
 - `examples/v2_3_advanced_typography.py`
 - `examples/v2_4_document_structure.py`
+- `examples/v2_6_table_auto_fit.py`
+- `examples/v2_7_rich_text_links.py`
 - `examples/zh_table_demo.py`
 
 Run one with:
@@ -304,7 +352,7 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v2.4 release adds named sections with scoped overlays, section page placeholders, PDF metadata, and automatic section outlines while preserving backward compatibility with the v2.3 builder API.
+The v2.7 release adds `Text.link(url)` for whole-text PDF external URL link annotations, including linked rich `Text` table cells, while preserving backward compatibility with the v2.3, v2.4, and v2.6 builder API.
 
 ## Current limitations
 
@@ -313,3 +361,5 @@ The v2.4 release adds named sections with scoped overlays, section page placehol
 - Rich table-cell pagination is conservative: single unspanned rich `Frame`/`Text` cells, rows whose rich cells are all unspanned `Text` cells, and mixed unspanned `Text` + `Frame` rows can split; spanned rows, rich images, and multi-Frame rows remain atomic
 - Flex/grid/columns are practical layout primitives, not a complete CSS constraint solver
 - v2.3 uses HarfBuzz for advanced measurement, but rendering still uses ReportLab text APIs; exact glyph positioning, arbitrary glyph-ID drawing, vertical writing, and color-font support are not guaranteed
+- Table auto-fit (`auto_fit_columns`) works on plain-string cells only; rich `Frame`/`Text`/`Image` cells do not contribute natural widths in v2.6
+- `Text.link(url)` is whole-text only; no inline substring links, no markdown/HTML parsing, no automatic link styling, no plain string table cell link API, and no arbitrary annotation API

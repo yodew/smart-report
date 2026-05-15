@@ -26,5 +26,7 @@ v2.4 已覆盖：
 - v2.2.1 更新 typography 示例，注册并使用内置 Noto Naskh Arabic 字体，避免阿拉伯文字回退到 Helvetica 后乱码
 - v2.3 增加字体族注册、fallback-aware HarfBuzz-backed advanced 宽度测量，以及 RTL/mixed-script 示例；渲染仍保持 ReportLab canvas 文本路径
 - v2.4 增加命名 section、section 级别的 header/footer/watermark 覆盖与抑制、section 页码占位符、PDF 元数据和自动 section outline
+- v2.6 增加 `Table.auto_fit_columns()`，根据纯文本自然宽度自动调整列宽，支持 Fit Then Clamp 行为和可选 min/max 约束
+- v2.7 增加 `Text.link(url)`，支持 whole-text PDF 外部 URL 链接注释，包括富 `Text` 表格单元格链接
 
 后续改动应保持向后兼容；破坏性 API 调整应留到下一个主版本。

@@ -161,6 +161,7 @@ frame.add(table)
 | 方法 | 说明 |
 | --- | --- |
 | `.column_widths(values)` | 设置列宽，支持点值、百分比、`"auto"`；未设置时平均分配 |
+| `.auto_fit_columns(columns=None)` | 启用列宽自动适配；不传参数时适配所有列，传入列索引列表时仅适配选中列。遗留 `column_widths(["auto"])` 不传 `.auto_fit_columns()` 仍保持等分行为 |
 | `.align(value)` | 设置文本水平对齐，可传单个值或按列传列表；支持 `"left"`、`"center"`、`"right"` |
 | `.cell_padding(...)` | 设置单元格内边距，推荐使用 `vertical` / `horizontal` 或方向命名参数 |
 | `.header_padding(...)` | 单独设置表头单元格内边距；未设置时沿用 `.cell_padding(...)` |
@@ -176,6 +177,25 @@ frame.add(table)
 | `.column_style(index, ...)` | 覆盖指定列的 `background` / `color` / `align` |
 | `.cell_style(row_index, column_index, ...)` | 覆盖指定单元格的 `background` / `color` / `align` |
 | `.radius(value)` | 设置表格外边框圆角；渲染时会裁剪外角单元格背景 |
+
+### 列宽自动适配 (v2.6)
+
+```python
+table = Table([
+    ["地区", "收入", "增长"],
+    ["APAC", "$1.20M", "+18%"],
+    ["EMEA", "$0.98M", "+11%"],
+    ["North America", "$1.60M", "+23%"],
+]).auto_fit_columns()
+```
+
+`.auto_fit_columns()` 根据每个单元格的纯文本自然宽度（含水平内边距）自动设置列宽。传入列索引列表（如 `.auto_fit_columns([1, 2])`）时仅适配选中列，其余列保持原有宽度。
+
+**Fit Then Clamp 行为**：先测量自然宽度，再应用 `column_min_widths` 和 `column_max_widths` 约束。较窄的适配表格不会被拉伸填满可用宽度。
+
+**兼容性**：遗留写法 `column_widths(["auto"])` 在不调用 `.auto_fit_columns()` 时仍保持等分分配，向后兼容。
+
+**限制**：v2.6 仅支持纯字符串单元格的自然宽度测量；富 `Frame` / `Text` / `Image` 单元格不参与自动适配计算。连字（hyphenation）、多行省略号、富单元格自然宽度和 Rich Text Links 在 v2.6 中不可用。
 
 样式覆盖优先级：
 
@@ -245,6 +265,7 @@ frame.add_text("مرحبا smart-report").typography("auto").text_direction("rtl
 | `.typography(value)` | 设置文字预处理模式，支持 `"plain"`、`"auto"`、`"advanced"` |
 | `.text_direction(value)` | 设置文字方向，支持 `"auto"`、`"ltr"`、`"rtl"` |
 | `.color(value)` | 设置文字颜色 |
+| `.link(url)` | 为整个文字节点添加 PDF 外部 URL 链接注释；`url` 必须为非空字符串 |
 | `.margin(...)` | 设置外边距 |
 
 > 注意：中文字体需要先注册可用字体；当前默认字体为 `Helvetica`，并不适合中文正式输出。中文连续文本会按实际字形宽度换行，表格测量、分页和最终绘制使用同一套换行逻辑。
@@ -260,6 +281,19 @@ display_text = shape_text(text, "auto", "rtl")
 ```
 
 正式输出请注册支持阿拉伯文/希伯来文的 TTF 字体。`examples/v2_2_typography.py` 会注册内置的 `NotoNaskhArabic-Medium.ttf` / `NotoNaskhArabic-Bold.ttf` 并用于阿拉伯文本渲染，避免回退到 `Helvetica` 后乱码。当前功能是实用预处理层，不承诺完整 HarfBuzz/OpenType glyph positioning、Indic 文字 shaping 或高级字距调整。
+
+### `Text.link(url)` (v2.7)
+
+```python
+linked = Text("Visit docs").link("https://example.com/docs").color("#2563eb")
+frame.add(linked)
+```
+
+`.link(url)` 为整个文字节点添加 PDF 外部 URL 链接注释。点击文字区域即可在浏览器中打开链接。链接在 `Frame` 内的独立 `Text` 节点和富 `Text` 表格单元格中均可使用。
+
+无自动链接样式。用户可通过现有的 Text 样式 API 手动设置颜色或其他视觉提示。
+
+**限制**：仅支持 whole-text 链接，不支持行内子字符串链接、markdown/HTML 解析或任意注解 API。纯字符串表格单元格不支持链接。
 
 ## 字体注册
 
@@ -409,3 +443,5 @@ height("auto")   # 内容自适应
 - 富表格单元格分页是保守实现：单个未跨行/跨列的 `Frame` / `Text` 富单元格可以拆分；一行多个未跨行/跨列且全为 `Text` 的富单元格也可以拆分；未跨行/跨列的混合 `Text` + `Frame` 行也可以拆分；跨行/跨列、图片、多 `Frame` 或其他混合富内容的行仍保持原子分页
 - `flex` / `grid` / `columns` 是实用布局模式，并非完整 CSS 约束求解器
 - 字体 fallback 已支持；复杂字体 shaping、bidi 和 OpenType 特性依赖可选 ReportLab 能力，默认路径不保证完整支持
+- 表格自动适配 (`auto_fit_columns`) 仅支持纯字符串单元格；富 `Frame` / `Text` / `Image` 单元格不参与 v2.6 自动宽度计算
+- `Text.link(url)` 仅支持 whole-text 链接；不支持行内子字符串链接、markdown/HTML 解析、自动链接样式、纯字符串表格单元格链接 API 或任意注解 API
