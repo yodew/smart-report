@@ -1915,8 +1915,25 @@ class LayoutPrimitiveTests(unittest.TestCase):
             _ = Frame().grid(65)
         with self.assertRaises(ValueError):
             _ = Frame().gap(float("inf"))
-        with self.assertRaises(ValueError):
-            _ = Frame().flex("row", wrap=True)
+
+    def test_flex_row_wrap_api_is_accepted_and_stored(self) -> None:
+        frame = Frame().flex("row", wrap=True)
+
+        self.assertEqual(frame.node.content["layout"], "flex")
+        self.assertEqual(frame.node.content["flex_direction"], "row")
+        self.assertIs(frame.node.content["flex_wrap"], True)
+
+    def test_flex_column_wrap_api_remains_rejected(self) -> None:
+        with self.assertRaises(ValueError) as error:
+            _ = Frame().flex("column", wrap=True)
+
+        self.assertEqual(str(error.exception), "flex wrap is only supported for row direction")
+
+    def test_flex_wrap_state_is_cleared_when_switching_to_column(self) -> None:
+        frame = Frame().flex("row", wrap=True).flex("column")
+
+        self.assertFalse(frame.node.content.get("flex_wrap", False))
+
 
     def test_flex_row_positions_children_horizontally(self) -> None:
         frame = Frame().flex("row", gap=10).width(300)

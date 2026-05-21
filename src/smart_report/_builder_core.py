@@ -304,10 +304,14 @@ class NodeBuilder:
         normalized = direction.lower()
         if normalized not in {"row", "column"}:
             raise ValueError(f"Unsupported flex direction: {direction}")
-        if wrap:
-            raise ValueError("Flex wrapping is not supported yet")
+        if wrap and normalized != "row":
+            raise ValueError("flex wrap is only supported for row direction")
         self.node.content["layout"] = "flex"
         self.node.content["flex_direction"] = normalized
+        if wrap:
+            self.node.content["flex_wrap"] = True
+        else:
+            _ = self.node.content.pop("flex_wrap", None)
         if gap is not None:
             self.node.content["gap"] = _edge_points(gap)
         return self
