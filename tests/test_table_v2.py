@@ -1782,6 +1782,15 @@ class TableV2PaginationTests(unittest.TestCase):
 
         self.assertEqual([slice_node.resolved_height for slice_node in slices], [50, 40, 30])
 
+    def test_fixed_height_split_rejects_non_finite_height(self) -> None:
+        spacer = Spacer(80)
+        spacer.node.resolved_height = float("inf")
+
+        with self.assertRaises(ValueError) as ctx:
+            _split_flow_child(spacer.node, 40, 40)
+
+        self.assertEqual(str(ctx.exception), "Fixed-height pagination requires finite heights")
+
     def test_image_moves_to_next_frame_slice_when_current_page_lacks_space(self) -> None:
         frame = Frame().padding(0)
         image = Image(_png_bytes(16, 40)).size(40, 80)
@@ -1853,13 +1862,29 @@ class TableV2PaginationTests(unittest.TestCase):
         self.assertEqual(slices[0].children[0].node_type, "image")
         self.assertEqual(slices[0].children[0].resolved_height, 140)
 
-    def test_fixed_height_split_rejects_non_finite_height(self) -> None:
-        rect = Frame().add_rect().height(120)
-        rect.node.resolved_width = 100
-        rect.node.resolved_height = float("inf")
+    def test_flex_row_wrap_pagination_preserves_labels_without_duplicates(self) -> None:
+        labels = [f"wrap-page-{index}" for index in range(18)]
+        page = document().page((160, 90))
+        frame = Frame().flex("row", gap=4, wrap=True).padding(4)
+        for label in labels:
+            frame.add_text(label).width(68).font_size(8).line_height(10)
+        page.add(frame)
 
-        with self.assertRaises(ValueError):
-            _ = _split_flow_child(rect.node, 50, 40)
+        resolve_widths(page.node, 160)
+        resolve_heights(page.node, None)
+        pages = paginate_page(page.node)
+
+        extracted_labels = [
+            str(text_node.content["text"])
+            for page_slice in pages
+            for frame_slice in page_slice.children
+            for text_node in frame_slice.children
+            if text_node.node_type == "text"
+        ]
+
+        self.assertGreater(len(pages), 1)
+        self.assertCountEqual(extracted_labels, labels)
+        self.assertEqual(len(extracted_labels), len(set(extracted_labels)))
 
 
 class SubtotalRepeatTests(unittest.TestCase):
@@ -2074,7 +2099,6 @@ class LayoutPrimitiveTests(unittest.TestCase):
         self.assertEqual(children[2].node.local_y, 50)
         self.assertEqual(frame.node.resolved_height, 60)
 
-
     def test_flex_row_positions_children_horizontally(self) -> None:
         frame = Frame().flex("row", gap=10).width(300)
         first = frame.add_text("A")
@@ -2254,6 +2278,25 @@ class LayoutPrimitiveTests(unittest.TestCase):
 
 @unittest.skipIf(PdfReader is None, "pypdf is not installed")
 class TableV2PdfTests(unittest.TestCase):
+    def test_flex_row_wrap_pdf_labels_are_extractable(self) -> None:
+        assert PdfReader is not None
+        labels = [f"pdf-wrap-{index}" for index in range(8)]
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = Path(tmp_dir) / "flex_wrap_labels.pdf"
+            doc = document()
+            page = doc.page((180, 180))
+            frame = Frame().flex("row", gap=4, wrap=True).padding(12)
+            for label in labels:
+                frame.add_text(label).width(70).font_size(8).line_height(10)
+            page.add(frame)
+            doc.save(str(output))
+
+            extracted_text = "\n".join(page.extract_text() or "" for page in PdfReader(str(output)).pages)
+
+        for label in labels:
+            self.assertIn(label, extracted_text)
+
     def test_repeat_header_pdf_output(self) -> None:
         assert PdfReader is not None
         rows = [["Region", "Revenue", "Growth"]] + [
