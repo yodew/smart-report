@@ -18,6 +18,7 @@ from smart_report.layout.node import Edges, LayoutNode, Rect, RenderItem, Style
 from smart_report.layout.paginate import _split_flow_child, _split_table_node, _split_text_node, paginate_page, split_frame_node
 from smart_report.layout.pass4_render import build_render_list
 from smart_report.layout.pass3_heights import resolve_heights
+from smart_report.layout.pass2_widths import resolve_widths
 from smart_report.layout.table_model import TableCellBox, fit_plain_overflow_text, plain_cell_natural_width, plain_overflow_text_width, table_cell_box_natural_width, table_cell_boxes, table_cell_padding, table_column_widths, table_height, table_row_heights, table_rows
 from smart_report.layout.text_wrap import wrap_text
 from smart_report.render.painters import paint_image, paint_render_item, paint_table
@@ -1933,6 +1934,56 @@ class LayoutPrimitiveTests(unittest.TestCase):
         frame = Frame().flex("row", wrap=True).flex("column")
 
         self.assertFalse(frame.node.content.get("flex_wrap", False))
+
+    def test_flex_row_without_wrap_keeps_equal_split_widths(self) -> None:
+        frame = Frame().flex("row", gap=10).width(210)
+        first = frame.add_spacer(10)
+        second = frame.add_spacer(10)
+
+        resolve_widths(frame.node, 210)
+
+        self.assertEqual(first.node.resolved_width, 100)
+        self.assertEqual(second.node.resolved_width, 100)
+
+    def test_flex_row_wrap_pass2_preserves_fixed_child_width(self) -> None:
+        frame = Frame().flex("row", wrap=True).width(200)
+        fixed = frame.add_spacer(10).width(80)
+        another = frame.add_spacer(10).width(50)
+
+        resolve_widths(frame.node, 200)
+
+        self.assertEqual(fixed.node.resolved_width, 80)
+        self.assertEqual(another.node.resolved_width, 50)
+
+    def test_flex_row_wrap_pass2_resolves_percent_child_width_against_content_box(self) -> None:
+        frame = Frame().flex("row", wrap=True).width(240).padding(horizontal=20)
+        percent = frame.add_spacer(10).width("50%")
+
+        resolve_widths(frame.node, 240)
+
+        self.assertEqual(percent.node.resolved_width, 100)
+
+    def test_flex_row_wrap_pass2_uses_text_natural_width_for_auto_text(self) -> None:
+        text_value = "natural width"
+        frame = Frame().flex("row", wrap=True).width(300)
+        text = frame.add_text(text_value).font("Helvetica").font_size(12).line_height(14)
+
+        resolve_widths(frame.node, 300)
+
+        expected_width = string_width(text_value, "Helvetica", 12)
+        self.assertGreater(text.node.resolved_width, 0)
+        self.assertLess(text.node.resolved_width, 300)
+        self.assertAlmostEqual(text.node.resolved_width, expected_width, places=3)
+
+    def test_flex_row_wrap_pass2_falls_back_to_parent_width_for_complex_auto_child(self) -> None:
+        frame = Frame().flex("row", wrap=True).width(180).padding(horizontal=15)
+        complex_child = Frame().padding(4)
+        complex_child.add_text("nested")
+        frame.add(complex_child)
+
+        resolve_widths(frame.node, 180)
+
+        self.assertEqual(complex_child.node.resolved_width, 150)
 
 
     def test_flex_row_positions_children_horizontally(self) -> None:

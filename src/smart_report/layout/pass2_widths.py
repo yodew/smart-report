@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from .node import LayoutNode
+from ..style.font import string_width
 from ..style.units import Percent
+from ..style.units import is_auto
 from ..style.units import resolve_size
 
 
@@ -50,11 +52,35 @@ def _child_available_widths(node: LayoutNode, content_width: float) -> list[floa
         column_width = max(0.0, (content_width - (gap * (columns - 1))) / columns)
         return [column_width] * len(children)
     if layout == "flex" and node.content.get("flex_direction", "row") == "row":
+        if node.content.get("flex_wrap") is True:
+            return [_wrapped_flex_child_available_width(child, content_width) for child in children]
         flow_children = [child for child in children if child.style.position.value == "flow"]
         item_count = max(1, len(flow_children))
         item_width = max(0.0, (content_width - (gap * (item_count - 1))) / item_count)
         return [item_width if child.style.position.value == "flow" else content_width for child in children]
     return [content_width] * len(children)
+
+
+def _wrapped_flex_child_available_width(child: LayoutNode, content_width: float) -> float:
+    if child.style.position.value != "flow":
+        return content_width
+
+    margin_adjusted_width = content_width + child.style.margin.horizontal
+    if not is_auto(child.style.width):
+        return margin_adjusted_width
+    if child.node_type == "text":
+        natural_width = _text_natural_width(child)
+        return min(content_width, natural_width) + child.style.margin.horizontal
+    return margin_adjusted_width
+
+
+def _text_natural_width(node: LayoutNode) -> float:
+    text = str(node.content.get("text", ""))
+    widest_line = max(
+        (string_width(line, node.style.font_name, node.style.font_size) for line in text.splitlines() if line.strip()),
+        default=0.0,
+    )
+    return widest_line + node.style.padding.horizontal
 
 
 def _layout_gap(node: LayoutNode) -> float:
