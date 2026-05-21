@@ -1985,6 +1985,95 @@ class LayoutPrimitiveTests(unittest.TestCase):
 
         self.assertEqual(complex_child.node.resolved_width, 150)
 
+    def test_flex_row_wrap_positions_fixed_children_across_rows(self) -> None:
+        frame = Frame().flex("row", gap=10, wrap=True).width(120)
+        children = [frame.add_spacer(20).width(width) for width in (70, 40, 50)]
+        frame.node.resolved_width = 120
+        for child, width in zip(children, (70, 40, 50)):
+            child.node.resolved_width = width
+            child.node.resolved_height = 20
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual((children[0].node.local_x, children[0].node.local_y), (0, 0))
+        self.assertEqual((children[1].node.local_x, children[1].node.local_y), (80, 0))
+        self.assertEqual((children[2].node.local_x, children[2].node.local_y), (0, 30))
+        self.assertEqual(frame.node.resolved_height, 50)
+
+    def test_flex_row_wrap_uses_gap_horizontally_and_between_rows(self) -> None:
+        frame = Frame().flex("row", gap=8, wrap=True).width(100)
+        children = [frame.add_spacer(12).width(width) for width in (40, 40, 40)]
+        frame.node.resolved_width = 100
+        for child in children:
+            child.node.resolved_width = 40
+            child.node.resolved_height = 12
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual(children[1].node.local_x, 48)
+        self.assertEqual(children[2].node.local_y, 20)
+        self.assertEqual(frame.node.resolved_height, 32)
+
+    def test_flex_row_wrap_respects_parent_padding_boundary(self) -> None:
+        frame = Frame().flex("row", gap=10, wrap=True).width(140).padding(top=5, right=10, bottom=7, left=10)
+        first = frame.add_spacer(20).width(70)
+        second = frame.add_spacer(20).width(60)
+        frame.node.resolved_width = 140
+        for child, width in ((first, 70), (second, 60)):
+            child.node.resolved_width = width
+            child.node.resolved_height = 20
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual((first.node.local_x, first.node.local_y), (10, 5))
+        self.assertEqual((second.node.local_x, second.node.local_y), (10, 35))
+        self.assertEqual(frame.node.resolved_height, 62)
+
+    def test_flex_row_wrap_accounts_for_margins_when_wrapping_and_positioning(self) -> None:
+        frame = Frame().flex("row", gap=10, wrap=True).width(120)
+        first = frame.add_spacer(20).width(50).margin(right=10)
+        second = frame.add_spacer(20).width(50).margin(top=3, left=5)
+        frame.node.resolved_width = 120
+        for child in (first, second):
+            child.node.resolved_width = 50
+            child.node.resolved_height = 20
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual((first.node.local_x, first.node.local_y), (0, 0))
+        self.assertEqual((second.node.local_x, second.node.local_y), (5, 33))
+        self.assertEqual(frame.node.resolved_height, 53)
+
+    def test_flex_row_wrap_places_oversized_child_alone(self) -> None:
+        frame = Frame().flex("row", gap=10, wrap=True).width(100)
+        oversized = frame.add_spacer(20).width(140)
+        following = frame.add_spacer(20).width(40)
+        frame.node.resolved_width = 100
+        oversized.node.resolved_width = 140
+        oversized.node.resolved_height = 20
+        following.node.resolved_width = 40
+        following.node.resolved_height = 20
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual((oversized.node.local_x, oversized.node.local_y), (0, 0))
+        self.assertEqual((following.node.local_x, following.node.local_y), (0, 30))
+        self.assertEqual(frame.node.resolved_height, 50)
+
+    def test_flex_row_wrap_uses_tallest_item_for_row_height(self) -> None:
+        frame = Frame().flex("row", gap=10, wrap=True).width(110)
+        children = [frame.add_spacer(height).width(width) for width, height in ((50, 20), (50, 40), (100, 10))]
+        frame.node.resolved_width = 110
+        for child, width, height in zip(children, (50, 50, 100), (20, 40, 10)):
+            child.node.resolved_width = width
+            child.node.resolved_height = height
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual((children[0].node.local_y, children[1].node.local_y), (0, 0))
+        self.assertEqual(children[2].node.local_y, 50)
+        self.assertEqual(frame.node.resolved_height, 60)
+
 
     def test_flex_row_positions_children_horizontally(self) -> None:
         frame = Frame().flex("row", gap=10).width(300)

@@ -49,7 +49,7 @@ def _layout_container(node: LayoutNode, explicit_height: float | None) -> None:
     elif layout == "columns":
         max_flow_extent = _layout_column_children(node, padding.left, padding.top, content_width)
     elif layout == "flex":
-        max_flow_extent = _layout_flex_children(node, padding.left, padding.top)
+        max_flow_extent = _layout_flex_children(node, padding.left, padding.top, content_width)
     else:
         max_flow_extent = _layout_flow_children(node, padding.left, padding.top)
 
@@ -95,10 +95,12 @@ def _layout_flow_children(node: LayoutNode, start_x: float, start_y: float) -> f
     return max_flow_extent
 
 
-def _layout_flex_children(node: LayoutNode, start_x: float, start_y: float) -> float:
+def _layout_flex_children(node: LayoutNode, start_x: float, start_y: float, content_width: float) -> float:
     direction = node.content.get("flex_direction", "row")
     if direction == "column":
         return _layout_flex_column_children(node, start_x, start_y)
+    if node.content.get("flex_wrap") is True:
+        return _layout_flex_row_wrap_children(node, start_x, start_y, content_width)
 
     flow_children = node.flow_children
     if not flow_children:
@@ -112,6 +114,50 @@ def _layout_flex_children(node: LayoutNode, start_x: float, start_y: float) -> f
         cursor_x += child.resolved_width + child.style.margin.horizontal + gap
         max_bottom = max(max_bottom, child.local_y + child.resolved_height + child.style.margin.bottom)
     return max_bottom
+
+
+def _layout_flex_row_wrap_children(node: LayoutNode, start_x: float, start_y: float, content_width: float) -> float:
+    flow_children = node.flow_children
+    if not flow_children:
+        return start_y
+
+    gap = _layout_gap(node)
+    row_y = start_y
+    row_width = 0.0
+    row_height = 0.0
+    row_has_children = False
+    max_flow_extent = start_y
+
+    for child in flow_children:
+        child_outer_width = child.resolved_width + child.style.margin.horizontal
+        child_outer_height = child.resolved_height + child.style.margin.vertical
+        next_row_width = child_outer_width
+        if row_has_children:
+            next_row_width = row_width + gap + child_outer_width
+
+        if row_has_children and next_row_width > content_width:
+            max_flow_extent = max(max_flow_extent, row_y + row_height)
+            row_y += row_height + gap
+            row_width = 0.0
+            row_height = 0.0
+            row_has_children = False
+
+        child_x = start_x + row_width
+        if row_has_children:
+            child_x += gap
+        child.local_x = child_x + child.style.margin.left
+        child.local_y = row_y + child.style.margin.top
+
+        if row_has_children:
+            row_width += gap + child_outer_width
+        else:
+            row_width = child_outer_width
+        row_height = max(row_height, child_outer_height)
+        row_has_children = True
+
+    if row_has_children:
+        max_flow_extent = max(max_flow_extent, row_y + row_height)
+    return max_flow_extent
 
 
 def _layout_flex_column_children(node: LayoutNode, start_x: float, start_y: float) -> float:
