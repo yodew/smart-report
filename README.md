@@ -52,6 +52,21 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - v2.4 adds named sections with scoped overlays, section page placeholders, PDF metadata, and automatic section outlines
 - v2.6 adds `Table.auto_fit_columns()` for automatic column sizing based on plain-text natural widths, with Fit Then Clamp behavior and optional min/max constraints
 - v2.7 adds `Text.link(url)` for whole-text PDF external URL link annotations, including linked rich `Text` table cells
+- v2.8 adds row-only flex wrapping via `.flex("row", wrap=True)` with uniform gap on both axes
+
+## v2.8 flex row wrap
+
+```python
+cards = Frame().flex("row", gap=10, wrap=True).width(480)
+cards.add_text("Card 1").width(140).padding(10).background("#dbeafe")
+cards.add_text("Card 2").width(140).padding(10).background("#dbeafe")
+cards.add_text("Card 3").width(140).padding(10).background("#dbeafe")
+cards.add_text("Card 4").width(140).padding(10).background("#dbeafe")
+```
+
+`flex("row", wrap=True)` lays out children left to right and wraps to the next row when the combined width (including gaps) exceeds the container width. The same `gap` value applies horizontally between items and vertically between wrapped rows. Children with explicit widths keep those widths; text children without widths measure to their natural text width. A single child wider than the container is placed alone on its row and may overflow.
+
+**Limitations**: row-only wrapping; no column wrap. No `justify-content`, `align-items`, `row_gap`, or `column_gap` APIs. Not a full CSS flexbox implementation. No row-aware pagination guarantee across page breaks.
 
 ## v2.6 table auto-fit
 
@@ -338,6 +353,7 @@ margin((24, 24, 20, 24))    # top, right, bottom, left
 - `examples/v2_4_document_structure.py`
 - `examples/v2_6_table_auto_fit.py`
 - `examples/v2_7_rich_text_links.py`
+- `examples/v2_8_flex_wrap.py`
 - `examples/zh_table_demo.py`
 
 Run one with:
@@ -352,7 +368,7 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v2.7 release adds `Text.link(url)` for whole-text PDF external URL link annotations, including linked rich `Text` table cells, while preserving backward compatibility with the v2.3, v2.4, and v2.6 builder API.
+The v2.8 release adds row-only flex wrapping via `.flex("row", wrap=True)` with uniform gap on both axes, while preserving backward compatibility with the v2.3, v2.4, v2.6, and v2.7 builder API.
 
 ## Current limitations
 
@@ -360,6 +376,7 @@ The v2.7 release adds `Text.link(url)` for whole-text PDF external URL link anno
 - Pagination keeps images and SVG content atomic: if the current page lacks space, the whole image moves to the next page; oversized images are not sliced
 - Rich table-cell pagination is conservative: single unspanned rich `Frame`/`Text` cells, rows whose rich cells are all unspanned `Text` cells, and mixed unspanned `Text` + `Frame` rows can split; spanned rows, rich images, and multi-Frame rows remain atomic
 - Flex/grid/columns are practical layout primitives, not a complete CSS constraint solver
+- Flex row wrap is row-only; no column wrap, no justify/align APIs, no row-aware pagination guarantee
 - v2.3 uses HarfBuzz for advanced measurement, but rendering still uses ReportLab text APIs; exact glyph positioning, arbitrary glyph-ID drawing, vertical writing, and color-font support are not guaranteed
 - Table auto-fit (`auto_fit_columns`) works on plain-string cells only; rich `Frame`/`Text`/`Image` cells do not contribute natural widths in v2.6
 - `Text.link(url)` is whole-text only; no inline substring links, no markdown/HTML parsing, no automatic link styling, no plain string table cell link API, and no arbitrary annotation API

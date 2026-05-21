@@ -28,5 +28,6 @@ v2.4 已覆盖：
 - v2.4 增加命名 section、section 级别的 header/footer/watermark 覆盖与抑制、section 页码占位符、PDF 元数据和自动 section outline
 - v2.6 增加 `Table.auto_fit_columns()`，根据纯文本自然宽度自动调整列宽，支持 Fit Then Clamp 行为和可选 min/max 约束
 - v2.7 增加 `Text.link(url)`，支持 whole-text PDF 外部 URL 链接注释，包括富 `Text` 表格单元格链接
+- v2.8 增加 `.flex("row", wrap=True)` 行换行布局，单一 gap 同时控制水平和垂直间距
 
 后续改动应保持向后兼容；破坏性 API 调整应留到下一个主版本。
