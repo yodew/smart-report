@@ -54,9 +54,10 @@ def _child_available_widths(node: LayoutNode, content_width: float) -> list[floa
     if layout == "flex" and node.content.get("flex_direction", "row") == "row":
         if node.content.get("flex_wrap") is True:
             return [_wrapped_flex_child_available_width(child, content_width) for child in children]
+        flex_gap = _flex_column_gap(node)
         flow_children = [child for child in children if child.style.position.value == "flow"]
         item_count = max(1, len(flow_children))
-        item_width = max(0.0, (content_width - (gap * (item_count - 1))) / item_count)
+        item_width = max(0.0, (content_width - (flex_gap * (item_count - 1))) / item_count)
         return [item_width if child.style.position.value == "flow" else content_width for child in children]
     return [content_width] * len(children)
 
@@ -85,6 +86,11 @@ def _text_natural_width(node: LayoutNode) -> float:
 
 def _layout_gap(node: LayoutNode) -> float:
     value = node.content.get("gap", 0.0)
+    return float(value) if isinstance(value, (int, float)) else 0.0
+
+
+def _flex_column_gap(node: LayoutNode) -> float:
+    value = node.content.get("column_gap", node.content.get("gap", 0.0))
     return float(value) if isinstance(value, (int, float)) else 0.0
 
 

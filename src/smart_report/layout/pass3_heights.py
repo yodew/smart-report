@@ -49,7 +49,7 @@ def _layout_container(node: LayoutNode, explicit_height: float | None) -> None:
     elif layout == "columns":
         max_flow_extent = _layout_column_children(node, padding.left, padding.top, content_width)
     elif layout == "flex":
-        max_flow_extent = _layout_flex_children(node, padding.left, padding.top, content_width)
+        max_flow_extent = _layout_flex_children(node, padding.left, padding.top, content_width, content_height)
     else:
         max_flow_extent = _layout_flow_children(node, padding.left, padding.top)
 
@@ -95,25 +95,51 @@ def _layout_flow_children(node: LayoutNode, start_x: float, start_y: float) -> f
     return max_flow_extent
 
 
-def _layout_flex_children(node: LayoutNode, start_x: float, start_y: float, content_width: float) -> float:
+def _layout_flex_children(
+    node: LayoutNode,
+    start_x: float,
+    start_y: float,
+    content_width: float,
+    content_height: float | None,
+) -> float:
     direction = node.content.get("flex_direction", "row")
     if direction == "column":
-        return _layout_flex_column_children(node, start_x, start_y)
+        return _layout_flex_column_children(node, start_x, start_y, content_width, content_height)
     if node.content.get("flex_wrap") is True:
         return _layout_flex_row_wrap_children(node, start_x, start_y, content_width)
 
     flow_children = node.flow_children
     if not flow_children:
         return start_y
-    gap = _layout_gap(node)
-    cursor_x = start_x
-    max_bottom = start_y
-    for child in flow_children:
-        child.local_x = cursor_x + child.style.margin.left
-        child.local_y = start_y + child.style.margin.top
-        cursor_x += child.resolved_width + child.style.margin.horizontal + gap
-        max_bottom = max(max_bottom, child.local_y + child.resolved_height + child.style.margin.bottom)
-    return max_bottom
+    item_count = len(flow_children)
+    column_gap = _flex_column_gap(node)
+    child_outer_widths = [child.resolved_width + child.style.margin.horizontal for child in flow_children]
+    child_outer_heights = [child.resolved_height + child.style.margin.vertical for child in flow_children]
+    used_width = sum(child_outer_widths) + column_gap * (item_count - 1)
+    remaining_width = max(0.0, content_width - used_width)
+    justify = node.content.get("flex_justify", "start")
+    justify_offset = 0.0
+    gap = column_gap
+    if justify == "center":
+        justify_offset = remaining_width / 2.0
+    elif justify == "end":
+        justify_offset = remaining_width
+    elif justify == "space-between" and item_count > 1:
+        gap += remaining_width / (item_count - 1)
+
+    align = node.content.get("flex_align", "start")
+    row_height = max(child_outer_heights)
+    cursor_x = 0.0
+    for child, child_outer_width, child_outer_height in zip(flow_children, child_outer_widths, child_outer_heights):
+        align_offset = 0.0
+        if align == "center":
+            align_offset = (row_height - child_outer_height) / 2.0
+        elif align == "end":
+            align_offset = row_height - child_outer_height
+        child.local_x = start_x + justify_offset + cursor_x + child.style.margin.left
+        child.local_y = start_y + align_offset + child.style.margin.top
+        cursor_x += child_outer_width + gap
+    return start_y + row_height
 
 
 def _layout_flex_row_wrap_children(node: LayoutNode, start_x: float, start_y: float, content_width: float) -> float:
@@ -121,59 +147,113 @@ def _layout_flex_row_wrap_children(node: LayoutNode, start_x: float, start_y: fl
     if not flow_children:
         return start_y
 
-    gap = _layout_gap(node)
-    row_y = start_y
-    row_width = 0.0
-    row_height = 0.0
-    row_has_children = False
-    max_flow_extent = start_y
+    column_gap = _flex_column_gap(node)
+    row_gap = _flex_row_gap(node)
+    rows: list[list[tuple[LayoutNode, float, float]]] = []
+    current_row: list[tuple[LayoutNode, float, float]] = []
+    current_row_width = 0.0
 
     for child in flow_children:
         child_outer_width = child.resolved_width + child.style.margin.horizontal
         child_outer_height = child.resolved_height + child.style.margin.vertical
         next_row_width = child_outer_width
-        if row_has_children:
-            next_row_width = row_width + gap + child_outer_width
+        if current_row:
+            next_row_width = current_row_width + column_gap + child_outer_width
 
-        if row_has_children and next_row_width > content_width:
-            max_flow_extent = max(max_flow_extent, row_y + row_height)
-            row_y += row_height + gap
-            row_width = 0.0
-            row_height = 0.0
-            row_has_children = False
+        if current_row and next_row_width > content_width:
+            rows.append(current_row)
+            current_row = []
+            current_row_width = 0.0
 
-        child_x = start_x + row_width
-        if row_has_children:
-            child_x += gap
-        child.local_x = child_x + child.style.margin.left
-        child.local_y = row_y + child.style.margin.top
-
-        if row_has_children:
-            row_width += gap + child_outer_width
+        current_row.append((child, child_outer_width, child_outer_height))
+        if len(current_row) == 1:
+            current_row_width = child_outer_width
         else:
-            row_width = child_outer_width
-        row_height = max(row_height, child_outer_height)
-        row_has_children = True
+            current_row_width += column_gap + child_outer_width
 
-    if row_has_children:
-        max_flow_extent = max(max_flow_extent, row_y + row_height)
+    if current_row:
+        rows.append(current_row)
+
+    justify = node.content.get("flex_justify", "start")
+    align = node.content.get("flex_align", "start")
+    row_y = start_y
+    max_flow_extent = start_y
+
+    for row_index, row in enumerate(rows):
+        item_count = len(row)
+        row_used_width = sum(child_outer_width for _, child_outer_width, _ in row) + column_gap * (item_count - 1)
+        remaining_width = max(0.0, content_width - row_used_width)
+        justify_offset = 0.0
+        gap = column_gap
+        if justify == "center":
+            justify_offset = remaining_width / 2.0
+        elif justify == "end":
+            justify_offset = remaining_width
+        elif justify == "space-between" and item_count > 1:
+            gap += remaining_width / (item_count - 1)
+
+        row_height = max(child_outer_height for _, _, child_outer_height in row)
+        cursor_x = 0.0
+        for child, child_outer_width, child_outer_height in row:
+            align_offset = 0.0
+            if align == "center":
+                align_offset = (row_height - child_outer_height) / 2.0
+            elif align == "end":
+                align_offset = row_height - child_outer_height
+            child.local_x = start_x + justify_offset + cursor_x + child.style.margin.left
+            child.local_y = row_y + align_offset + child.style.margin.top
+            cursor_x += child_outer_width + gap
+
+        max_flow_extent = row_y + row_height
+        if row_index < len(rows) - 1:
+            row_y += row_height + row_gap
+
     return max_flow_extent
 
 
-def _layout_flex_column_children(node: LayoutNode, start_x: float, start_y: float) -> float:
+def _layout_flex_column_children(
+    node: LayoutNode,
+    start_x: float,
+    start_y: float,
+    content_width: float,
+    content_height: float | None,
+) -> float:
     flow_children = node.flow_children
     if not flow_children:
         return start_y
-    gap = _layout_gap(node)
-    cursor_y = start_y
+
+    item_count = len(flow_children)
+    row_gap = _flex_row_gap(node)
+    child_outer_widths = [child.resolved_width + child.style.margin.horizontal for child in flow_children]
+    child_outer_heights = [child.resolved_height + child.style.margin.vertical for child in flow_children]
+    used_height = sum(child_outer_heights) + row_gap * (item_count - 1)
+
+    justify_offset = 0.0
+    gap = row_gap
+    if content_height is not None:
+        remaining_height = max(0.0, content_height - used_height)
+        justify = node.content.get("flex_justify", "start")
+        if justify == "center":
+            justify_offset = remaining_height / 2.0
+        elif justify == "end":
+            justify_offset = remaining_height
+        elif justify == "space-between" and item_count > 1:
+            gap += remaining_height / (item_count - 1)
+
+    align = node.content.get("flex_align", "start")
+    cursor_y = start_y + justify_offset
     max_flow_extent = start_y
-    for index, child in enumerate(flow_children):
-        if index > 0:
-            cursor_y += gap
-        child.local_x = start_x + child.style.margin.left
+    for child, child_outer_width, child_outer_height in zip(flow_children, child_outer_widths, child_outer_heights):
+        align_offset = 0.0
+        if align == "center":
+            align_offset = max(0.0, (content_width - child_outer_width) / 2.0)
+        elif align == "end":
+            align_offset = max(0.0, content_width - child_outer_width)
+
+        child.local_x = start_x + align_offset + child.style.margin.left
         child.local_y = cursor_y + child.style.margin.top
-        cursor_y = child.local_y + child.resolved_height + child.style.margin.bottom
-        max_flow_extent = max(max_flow_extent, cursor_y)
+        cursor_y += child_outer_height + gap
+        max_flow_extent = max(max_flow_extent, child.local_y + child.resolved_height + child.style.margin.bottom)
     return max_flow_extent
 
 
@@ -215,6 +295,16 @@ def _layout_column_children(node: LayoutNode, start_x: float, start_y: float, co
 
 def _layout_gap(node: LayoutNode) -> float:
     value = node.content.get("gap", 0.0)
+    return float(value) if isinstance(value, (int, float)) else 0.0
+
+
+def _flex_row_gap(node: LayoutNode) -> float:
+    value = node.content.get("row_gap", node.content.get("gap", 0.0))
+    return float(value) if isinstance(value, (int, float)) else 0.0
+
+
+def _flex_column_gap(node: LayoutNode) -> float:
+    value = node.content.get("column_gap", node.content.get("gap", 0.0))
     return float(value) if isinstance(value, (int, float)) else 0.0
 
 

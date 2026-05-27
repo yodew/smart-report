@@ -300,12 +300,30 @@ class NodeBuilder:
         self.node.content["gap"] = _edge_points(value)
         return self
 
-    def flex(self: BuilderT, direction: str = "row", *, gap: SizeInput | None = None, wrap: bool = False) -> BuilderT:
+    def flex(
+        self: BuilderT,
+        direction: str = "row",
+        *,
+        gap: SizeInput | None = None,
+        wrap: bool = False,
+        justify: str = "start",
+        align: str = "start",
+        row_gap: SizeInput | None = None,
+        column_gap: SizeInput | None = None,
+    ) -> BuilderT:
         normalized = direction.lower()
         if normalized not in {"row", "column"}:
             raise ValueError(f"Unsupported flex direction: {direction}")
         if wrap and normalized != "row":
             raise ValueError("flex wrap is only supported for row direction")
+
+        norm_justify = justify.lower()
+        if norm_justify not in {"start", "center", "end", "space-between"}:
+            raise ValueError(f"Unsupported flex justify: {justify}")
+        norm_align = align.lower()
+        if norm_align not in {"start", "center", "end"}:
+            raise ValueError(f"Unsupported flex align: {align}")
+
         self.node.content["layout"] = "flex"
         self.node.content["flex_direction"] = normalized
         if wrap:
@@ -314,6 +332,12 @@ class NodeBuilder:
             _ = self.node.content.pop("flex_wrap", None)
         if gap is not None:
             self.node.content["gap"] = _edge_points(gap)
+        self.node.content["flex_justify"] = norm_justify
+        self.node.content["flex_align"] = norm_align
+        if row_gap is not None:
+            self.node.content["row_gap"] = _edge_points(row_gap)
+        if column_gap is not None:
+            self.node.content["column_gap"] = _edge_points(column_gap)
         return self
 
     def grid(self: BuilderT, columns: int, *, gap: SizeInput | None = None) -> BuilderT:

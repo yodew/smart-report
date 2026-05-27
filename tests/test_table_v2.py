@@ -2275,6 +2275,441 @@ class LayoutPrimitiveTests(unittest.TestCase):
         self.assertEqual(marker.node.local_y, 20)
         self.assertEqual(frame.node.resolved_height, 40)
 
+    # --- v2.9 Flex Refinements TDD Tests ---
+
+    # -- API storage --
+
+    def test_flex_row_justify_align_row_gap_column_gap_api_is_accepted_and_stored(self) -> None:
+        frame = Frame().flex("row", justify="center", align="end", row_gap=6, column_gap=12)
+
+        self.assertEqual(frame.node.content["flex_justify"], "center")
+        self.assertEqual(frame.node.content["flex_align"], "end")
+        self.assertEqual(frame.node.content["row_gap"], 6.0)
+        self.assertEqual(frame.node.content["column_gap"], 12.0)
+
+    def test_flex_column_justify_align_row_gap_api_is_accepted_and_stored(self) -> None:
+        frame = Frame().flex("column", justify="end", align="center", row_gap=10)
+
+        self.assertEqual(frame.node.content["flex_justify"], "end")
+        self.assertEqual(frame.node.content["flex_align"], "center")
+        self.assertEqual(frame.node.content["row_gap"], 10.0)
+
+    # -- Invalid API values --
+
+    def test_flex_invalid_justify_raises_value_error(self) -> None:
+        with self.assertRaises(ValueError) as error:
+            _ = Frame().flex("row", justify="diagonal")
+
+        self.assertEqual(str(error.exception), "Unsupported flex justify: diagonal")
+
+    def test_flex_invalid_align_raises_value_error(self) -> None:
+        with self.assertRaises(ValueError) as error:
+            _ = Frame().flex("row", align="baseline")
+
+        self.assertEqual(str(error.exception), "Unsupported flex align: baseline")
+
+    # -- Default backward compatibility --
+
+    def test_flex_row_gap_only_backward_compatibility(self) -> None:
+        """Existing gap=10 row layout must produce identical positions to v2.8."""
+        frame = Frame().flex("row", gap=10).width(300)
+        first = frame.add_text("A")
+        second = frame.add_text("B")
+        frame.node.resolved_width = 300
+        for child in frame.node.children:
+            child.resolved_width = 145
+            child.resolved_height = 20
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        self.assertEqual(first.node.local_x, 0)
+        self.assertEqual(second.node.local_x, 155)
+        self.assertEqual(frame.node.resolved_height, 20)
+
+    def test_flex_column_gap_only_backward_compatibility(self) -> None:
+        """Existing gap=10 column layout must produce identical positions to v2.8."""
+        frame = Frame().flex("column", gap=10).width(120)
+        first = Spacer(20)
+        second = Spacer(30)
+        frame.add(first).add(second)
+        frame.node.resolved_width = 120
+        first.node.resolved_width = 120
+        first.node.resolved_height = 20
+        second.node.resolved_width = 120
+        second.node.resolved_height = 30
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual((first.node.local_x, first.node.local_y), (0, 0))
+        self.assertEqual((second.node.local_x, second.node.local_y), (0, 30))
+        self.assertEqual(frame.node.resolved_height, 60)
+
+    def test_flex_row_wrap_gap_only_backward_compatibility(self) -> None:
+        """Existing gap=10 wrap layout must produce identical positions to v2.8."""
+        frame = Frame().flex("row", gap=10, wrap=True).width(120)
+        children = [frame.add_spacer(20).width(width) for width in (70, 40, 50)]
+        frame.node.resolved_width = 120
+        for child, width in zip(children, (70, 40, 50)):
+            child.node.resolved_width = width
+            child.node.resolved_height = 20
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual((children[0].node.local_x, children[0].node.local_y), (0, 0))
+        self.assertEqual((children[1].node.local_x, children[1].node.local_y), (80, 0))
+        self.assertEqual((children[2].node.local_x, children[2].node.local_y), (0, 30))
+        self.assertEqual(frame.node.resolved_height, 50)
+
+    # -- Row justify positions --
+
+    def test_flex_row_justify_center_positions_children(self) -> None:
+        frame = Frame().flex("row", gap=10, justify="center").width(300)
+        first = frame.add_spacer(20).width(100)
+        second = frame.add_spacer(20).width(100)
+        frame.node.resolved_width = 300
+        for child in (first, second):
+            child.node.resolved_width = 100
+            child.node.resolved_height = 20
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        self.assertEqual(first.node.local_x, 45)
+        self.assertEqual(second.node.local_x, 155)
+
+    def test_flex_row_justify_end_positions_children(self) -> None:
+        frame = Frame().flex("row", gap=10, justify="end").width(300)
+        first = frame.add_spacer(20).width(100)
+        second = frame.add_spacer(20).width(100)
+        frame.node.resolved_width = 300
+        for child in (first, second):
+            child.node.resolved_width = 100
+            child.node.resolved_height = 20
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        self.assertEqual(first.node.local_x, 90)
+        self.assertEqual(second.node.local_x, 200)
+
+    def test_flex_row_justify_space_between_positions_children(self) -> None:
+        frame = Frame().flex("row", gap=10, justify="space-between").width(300)
+        first = frame.add_spacer(20).width(100)
+        second = frame.add_spacer(20).width(100)
+        third = frame.add_spacer(20).width(100)
+        frame.node.resolved_width = 300
+        for child in (first, second, third):
+            child.node.resolved_width = 100
+            child.node.resolved_height = 20
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        self.assertEqual(first.node.local_x, 0)
+        self.assertEqual(second.node.local_x, 110)
+        self.assertEqual(third.node.local_x, 220)
+
+    def test_flex_row_justify_space_between_single_child_behaves_as_start(self) -> None:
+        frame = Frame().flex("row", gap=10, justify="space-between").width(300)
+        only = frame.add_spacer(20).width(100)
+        frame.node.resolved_width = 300
+        only.node.resolved_width = 100
+        only.node.resolved_height = 20
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        self.assertEqual(only.node.local_x, 0)
+
+    def test_flex_row_justify_negative_remaining_space_clamps_to_zero(self) -> None:
+        """When children overflow content width, remaining space clamps to 0."""
+        frame = Frame().flex("row", gap=10, justify="center").width(200)
+        first = frame.add_spacer(20).width(100)
+        second = frame.add_spacer(20).width(100)
+        third = frame.add_spacer(20).width(100)
+        frame.node.resolved_width = 200
+        for child in (first, second, third):
+            child.node.resolved_width = 100
+            child.node.resolved_height = 20
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        self.assertEqual(first.node.local_x, 0)
+        self.assertEqual(second.node.local_x, 110)
+        self.assertEqual(third.node.local_x, 220)
+
+    # -- Row align positions --
+
+    def test_flex_row_align_center_positions_shorter_child(self) -> None:
+        frame = Frame().flex("row", gap=10, align="center").width(300)
+        tall = frame.add_spacer(60).width(100)
+        short = frame.add_spacer(20).width(100)
+        frame.node.resolved_width = 300
+        tall.node.resolved_width = 100
+        tall.node.resolved_height = 60
+        short.node.resolved_width = 100
+        short.node.resolved_height = 20
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        self.assertEqual(tall.node.local_x, 0)
+        self.assertEqual(short.node.local_x, 110)
+        self.assertEqual(tall.node.local_y, 0)
+        self.assertEqual(short.node.local_y, 20)
+        self.assertEqual(frame.node.resolved_height, 60)
+
+    def test_flex_row_align_end_positions_shorter_child(self) -> None:
+        frame = Frame().flex("row", gap=10, align="end").width(300)
+        tall = frame.add_spacer(60).width(100)
+        short = frame.add_spacer(20).width(100)
+        frame.node.resolved_width = 300
+        tall.node.resolved_width = 100
+        tall.node.resolved_height = 60
+        short.node.resolved_width = 100
+        short.node.resolved_height = 20
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        self.assertEqual(tall.node.local_x, 0)
+        self.assertEqual(short.node.local_x, 110)
+        self.assertEqual(tall.node.local_y, 0)
+        self.assertEqual(short.node.local_y, 40)
+        self.assertEqual(frame.node.resolved_height, 60)
+
+    # -- Wrapped row: column_gap and row_gap separation --
+
+    def test_flex_row_wrap_column_gap_controls_horizontal_spacing(self) -> None:
+        frame = Frame().flex("row", wrap=True, column_gap=12, row_gap=10).width(100)
+        children = [frame.add_spacer(12).width(width) for width in (40, 40, 40)]
+        frame.node.resolved_width = 100
+        for child in children:
+            child.node.resolved_width = 40
+            child.node.resolved_height = 12
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual(children[1].node.local_x, 52)
+        self.assertEqual(children[2].node.local_y, 22)
+        self.assertEqual(frame.node.resolved_height, 34)
+
+    def test_flex_row_wrap_row_gap_controls_vertical_spacing(self) -> None:
+        frame = Frame().flex("row", wrap=True, column_gap=12, row_gap=10).width(100)
+        children = [frame.add_spacer(12).width(40) for _ in range(3)]
+        frame.node.resolved_width = 100
+        for child in children:
+            child.node.resolved_width = 40
+            child.node.resolved_height = 12
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual(children[1].node.local_y, 0)
+        self.assertEqual(children[2].node.local_y, 22)
+        self.assertEqual(frame.node.resolved_height, 34)
+
+    # -- Wrapped row per-row justify and align --
+
+    def test_flex_row_wrap_justify_center_applies_per_row(self) -> None:
+        frame = Frame().flex("row", wrap=True, gap=10, justify="center").width(200)
+        a = frame.add_spacer(20).width(80)
+        b = frame.add_spacer(20).width(80)
+        c = frame.add_spacer(20).width(80)
+        frame.node.resolved_width = 200
+        for child in (a, b, c):
+            child.node.resolved_height = 20
+            child.node.resolved_width = 80
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        # Row 1: a(80) + gap(10) + b(80) = 170, remaining=30, center offset=15
+        self.assertEqual(a.node.local_x, 15)
+        self.assertEqual(b.node.local_x, 105)
+        # Row 2: c(80) alone, remaining=120, center offset=60
+        self.assertEqual(c.node.local_x, 60)
+        self.assertEqual(c.node.local_y, 30)
+
+    def test_flex_row_wrap_align_end_applies_per_row(self) -> None:
+        frame = Frame().flex("row", wrap=True, gap=10, align="end").width(140)
+        a = frame.add_spacer(40).width(60)
+        b = frame.add_spacer(20).width(60)
+        c = frame.add_spacer(30).width(60)
+        frame.node.resolved_width = 140
+        for child, height in ((a, 40), (b, 20), (c, 30)):
+            child.node.resolved_width = 60
+            child.node.resolved_height = height
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        self.assertEqual(a.node.local_x, 0)
+        self.assertEqual(b.node.local_x, 70)
+        self.assertEqual(a.node.local_y, 0)
+        self.assertEqual(b.node.local_y, 20)
+        self.assertEqual(c.node.local_y, 50)
+
+    def test_flex_row_wrap_oversized_child_remains_alone(self) -> None:
+        """Oversized single child placed alone, may overflow, does not stretch or shrink."""
+        frame = Frame().flex("row", wrap=True, gap=10, justify="center").width(100)
+        oversized = frame.add_spacer(20).width(140)
+        following = frame.add_spacer(20).width(40)
+        frame.node.resolved_width = 100
+        oversized.node.resolved_width = 140
+        oversized.node.resolved_height = 20
+        following.node.resolved_width = 40
+        following.node.resolved_height = 20
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual((oversized.node.local_x, oversized.node.local_y), (0, 0))
+        self.assertEqual((following.node.local_x, following.node.local_y), (30, 30))
+        self.assertEqual(frame.node.resolved_height, 50)
+
+    # -- Column: row_gap vertical stacking, column_gap ignored --
+
+    def test_flex_column_row_gap_controls_vertical_spacing(self) -> None:
+        frame = Frame().flex("column", row_gap=15).width(120)
+        first = Spacer(20)
+        second = Spacer(30)
+        frame.add(first).add(second)
+        frame.node.resolved_width = 120
+        first.node.resolved_width = 120
+        first.node.resolved_height = 20
+        second.node.resolved_width = 120
+        second.node.resolved_height = 30
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        self.assertEqual((first.node.local_x, first.node.local_y), (0, 0))
+        self.assertEqual((second.node.local_x, second.node.local_y), (0, 35))
+        self.assertEqual(frame.node.resolved_height, 65)
+
+    def test_flex_column_column_gap_ignored_for_stacking(self) -> None:
+        frame = Frame().flex("column", column_gap=50).width(120)
+        first = Spacer(20)
+        second = Spacer(30)
+        frame.add(first).add(second)
+        frame.node.resolved_width = 120
+        first.node.resolved_width = 120
+        first.node.resolved_height = 20
+        second.node.resolved_width = 120
+        second.node.resolved_height = 30
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        self.assertEqual(first.node.local_y, 0)
+        self.assertEqual(second.node.local_y, 20)
+        self.assertEqual(frame.node.resolved_height, 50)
+
+    def test_flex_column_align_center_x_position(self) -> None:
+        frame = Frame().flex("column", gap=10, align="center").width(300)
+        wide = frame.add_spacer(20).width(200)
+        narrow = frame.add_spacer(30).width(100)
+        frame.node.resolved_width = 300
+        wide.node.resolved_width = 200
+        wide.node.resolved_height = 20
+        narrow.node.resolved_width = 100
+        narrow.node.resolved_height = 30
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        self.assertEqual(wide.node.local_x, 50)
+        self.assertEqual(narrow.node.local_x, 100)
+        self.assertEqual(frame.node.resolved_height, 60)
+
+    def test_flex_column_align_end_x_position(self) -> None:
+        frame = Frame().flex("column", gap=10, align="end").width(300)
+        wide = frame.add_spacer(20).width(200)
+        narrow = frame.add_spacer(30).width(100)
+        frame.node.resolved_width = 300
+        wide.node.resolved_width = 200
+        wide.node.resolved_height = 20
+        narrow.node.resolved_width = 100
+        narrow.node.resolved_height = 30
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, None)
+
+        self.assertEqual(wide.node.local_x, 100)
+        self.assertEqual(narrow.node.local_x, 200)
+        self.assertEqual(frame.node.resolved_height, 60)
+
+    # -- Column: explicit-height justify --
+
+    def test_flex_column_justify_center_with_explicit_height(self) -> None:
+        frame = Frame().flex("column", gap=10, justify="center").width(300).height(100)
+        first = frame.add_spacer(20).width(100)
+        second = frame.add_spacer(30).width(100)
+        frame.node.resolved_width = 300
+        first.node.resolved_width = 100
+        first.node.resolved_height = 20
+        second.node.resolved_width = 100
+        second.node.resolved_height = 30
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, 100)
+
+        self.assertEqual(first.node.local_y, 20)
+        self.assertEqual(second.node.local_y, 50)
+
+    def test_flex_column_justify_end_with_explicit_height(self) -> None:
+        frame = Frame().flex("column", gap=10, justify="end").width(300).height(100)
+        first = frame.add_spacer(20).width(100)
+        second = frame.add_spacer(30).width(100)
+        frame.node.resolved_width = 300
+        first.node.resolved_width = 100
+        first.node.resolved_height = 20
+        second.node.resolved_width = 100
+        second.node.resolved_height = 30
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, 100)
+
+        self.assertEqual(first.node.local_y, 40)
+        self.assertEqual(second.node.local_y, 70)
+
+    def test_flex_column_justify_space_between_with_explicit_height(self) -> None:
+        frame = Frame().flex("column", gap=10, justify="space-between").width(300).height(120)
+        first = frame.add_spacer(20).width(100)
+        second = frame.add_spacer(20).width(100)
+        third = frame.add_spacer(20).width(100)
+        frame.node.resolved_width = 300
+        for child in (first, second, third):
+            child.node.resolved_width = 100
+            child.node.resolved_height = 20
+
+        from smart_report.layout.pass3_heights import _layout_container
+        _layout_container(frame.node, 120)
+
+        self.assertEqual(first.node.local_y, 0)
+        self.assertEqual(second.node.local_y, 50)
+        self.assertEqual(third.node.local_y, 100)
+
+    def test_flex_column_justify_noop_when_auto_height(self) -> None:
+        """Justify has no visible effect when parent height is auto."""
+        frame = Frame().flex("column", gap=10, justify="center").width(120)
+        first = Spacer(20)
+        second = Spacer(30)
+        frame.add(first).add(second)
+        frame.node.resolved_width = 120
+        first.node.resolved_width = 120
+        first.node.resolved_height = 20
+        second.node.resolved_width = 120
+        second.node.resolved_height = 30
+
+        resolve_heights(frame.node, None)
+
+        self.assertEqual(first.node.local_y, 0)
+        self.assertEqual(second.node.local_y, 30)
+        self.assertEqual(frame.node.resolved_height, 60)
+
+
 
 @unittest.skipIf(PdfReader is None, "pypdf is not installed")
 class TableV2PdfTests(unittest.TestCase):
