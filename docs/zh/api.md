@@ -307,7 +307,33 @@ cards.add_text("卡片 4").width(140).padding(10).background("#dbeafe")
 
 `.flex("row", gap=10, wrap=True)` 从左到右排列子元素，当子元素总宽度（含间距）超过容器宽度时自动换行到下一行。同一个 `gap` 值同时用于同行元素之间的水平间距和行与行之间的垂直间距。设置了显式宽度的子元素保持该宽度；没有宽度的文本子元素按自然文本宽度测量。单个子元素宽度超过容器时独占一行，可能水平溢出。
 
-**限制**：仅支持行方向换行（`flex("column", wrap=True)` 会抛出 `ValueError`）；不支持列方向换行。无 `justify-content`、`align-items`、`row_gap`、`column_gap` API。不是完整 CSS flexbox 实现。分页时不保证按行边界切分。
+**限制**：仅支持行方向换行（`flex("column", wrap=True)` 会抛出 `ValueError`）；不支持列方向换行。不是完整 CSS flexbox 实现。分页时不保证按行边界切分。
+
+## Flex 精细化控制 (v2.9)
+
+```python
+row = Frame().flex("row", gap=8, justify="center", align="center").width(400)
+row.add_text("A").width(80).padding(8).background("#dbeafe")
+row.add_text("B").width(80).padding(8).background("#dbeafe")
+
+wrapped = Frame().flex("row", gap=8, wrap=True, row_gap=20, column_gap=8).width(300)
+wrapped.add_text("项目 1").width(80).padding(8).background("#fef3c7")
+wrapped.add_text("项目 2").width(80).padding(8).background("#fef3c7")
+
+col = Frame().flex("column", gap=8, justify="space-between", align="center").width(300).height(200)
+col.add_text("顶部").padding(8).background("#ede9fe")
+col.add_text("底部").padding(8).background("#ede9fe")
+```
+
+`flex()` 新增四个关键字参数：`justify`、`align`、`row_gap` 和 `column_gap`。
+
+`justify` 控制主轴放置。支持值：`start`、`center`、`end`、`space-between`。非换行行和换行行（逐行）均有效。Column justify 仅在父容器有显式内容高度时分配垂直空间；auto-height column justify 为 no-op。
+
+`align` 控制交叉轴放置。支持值：`start`、`center`、`end`。行模式下按最高行高偏移各项；列模式下按内容宽度水平偏移各项。
+
+`row_gap` 和 `column_gap` 分别设置轴向间距。行和换行行水平间距使用 `column_gap`（回退到 `gap`）。换行行垂直推进和列堆叠使用 `row_gap`（回退到 `gap`）。列堆叠忽略 `column_gap`。
+
+**限制**：不是完整 CSS flexbox 实现。不支持 `stretch`、`space-around`、`space-evenly`。不支持 flex grow/shrink/basis。不支持反向方向。不支持列方向换行。分页时不保证按行边界切分。
 
 ## 字体注册
 
@@ -395,7 +421,7 @@ frame.add_spacer(12)
 | `.padding(...)` | 设置内边距 |
 | `.typography(value)` | 设置文字预处理模式，支持 `"plain"`、`"auto"`、`"advanced"` |
 | `.text_direction(value)` | 设置文字方向，支持 `"auto"`、`"ltr"`、`"rtl"` |
-| `.flex(direction="row", gap=None, wrap=False)` | 使用 flex 行/列布局；`wrap=True` 启用行换行（仅行方向） |
+| `.flex(direction="row", gap=None, wrap=False, justify="start", align="start", row_gap=None, column_gap=None)` | 使用 flex 行/列布局；`wrap=True` 启用行换行（仅行方向）；`justify` 控制主轴对齐，`align` 控制交叉轴对齐；`row_gap` / `column_gap` 分别设置纵轴和横轴间距 |
 | `.grid(columns, gap=None)` | 使用固定列数网格布局 |
 | `.columns(count, gap=None)` | 使用多列瀑布流布局 |
 | `.keep_together()` | 分页时尽量整体移动到下一页，不拆分该节点 |
@@ -456,7 +482,7 @@ height("auto")   # 内容自适应
 - 图片和 SVG 仍保持原子分页；当前页空间不足时会整体移动到下一页，超出整页高度的图片不会分片
 - 富表格单元格分页是保守实现：单个未跨行/跨列的 `Frame` / `Text` 富单元格可以拆分；一行多个未跨行/跨列且全为 `Text` 的富单元格也可以拆分；未跨行/跨列的混合 `Text` + `Frame` 行也可以拆分；跨行/跨列、图片、多 `Frame` 或其他混合富内容的行仍保持原子分页
 - `flex` / `grid` / `columns` 是实用布局模式，并非完整 CSS 约束求解器
-- Flex 行换行仅支持行方向；不支持列方向换行，无 justify/align API，无行感知分页保证
+- Flex 行换行仅支持行方向；不支持列方向换行，无行感知分页保证
 - 字体 fallback 已支持；复杂字体 shaping、bidi 和 OpenType 特性依赖可选 ReportLab 能力，默认路径不保证完整支持
 - 表格自动适配 (`auto_fit_columns`) 仅支持纯字符串单元格；富 `Frame` / `Text` / `Image` 单元格不参与 v2.6 自动宽度计算
 - `Text.link(url)` 仅支持 whole-text 链接；不支持行内子字符串链接、markdown/HTML 解析、自动链接样式、纯字符串表格单元格链接 API 或任意注解 API

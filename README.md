@@ -53,6 +53,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - v2.6 adds `Table.auto_fit_columns()` for automatic column sizing based on plain-text natural widths, with Fit Then Clamp behavior and optional min/max constraints
 - v2.7 adds `Text.link(url)` for whole-text PDF external URL link annotations, including linked rich `Text` table cells
 - v2.8 adds row-only flex wrapping via `.flex("row", wrap=True)` with uniform gap on both axes
+- v2.9 adds flex `justify`, `align`, `row_gap`, and `column_gap` for finer control over item placement
 
 ## v2.8 flex row wrap
 
@@ -66,7 +67,33 @@ cards.add_text("Card 4").width(140).padding(10).background("#dbeafe")
 
 `flex("row", wrap=True)` lays out children left to right and wraps to the next row when the combined width (including gaps) exceeds the container width. The same `gap` value applies horizontally between items and vertically between wrapped rows. Children with explicit widths keep those widths; text children without widths measure to their natural text width. A single child wider than the container is placed alone on its row and may overflow.
 
-**Limitations**: row-only wrapping; no column wrap. No `justify-content`, `align-items`, `row_gap`, or `column_gap` APIs. Not a full CSS flexbox implementation. No row-aware pagination guarantee across page breaks.
+**Limitations**: row-only wrapping; no column wrap. Not a full CSS flexbox implementation. No row-aware pagination guarantee across page breaks.
+
+## v2.9 flex refinements
+
+```python
+row = Frame().flex("row", gap=8, justify="center", align="center").width(400)
+row.add_text("A").width(80).padding(8).background("#dbeafe")
+row.add_text("B").width(80).padding(8).background("#dbeafe")
+
+wrapped = Frame().flex("row", gap=8, wrap=True, row_gap=20, column_gap=8).width(300)
+wrapped.add_text("Item 1").width(80).padding(8).background("#fef3c7")
+wrapped.add_text("Item 2").width(80).padding(8).background("#fef3c7")
+
+col = Frame().flex("column", gap=8, justify="space-between", align="center").width(300).height(200)
+col.add_text("Top").padding(8).background("#ede9fe")
+col.add_text("Bottom").padding(8).background("#ede9fe")
+```
+
+`flex()` gains four new keyword arguments: `justify`, `align`, `row_gap`, and `column_gap`.
+
+`justify` controls main-axis placement. Supported values: `start`, `center`, `end`, `space-between`. Works for both non-wrapped rows and wrapped rows (per-row). Column justify distributes vertical space only when the parent has an explicit content height; auto-height column justify is a no-op.
+
+`align` controls cross-axis placement. Supported values: `start`, `center`, `end`. In row mode, this offsets items vertically within the tallest row height. In column mode, this offsets items horizontally against the content width.
+
+`row_gap` and `column_gap` set axis-specific spacing. Row and wrapped-row horizontal spacing uses `column_gap` (falls back to `gap`). Wrapped-row vertical advancement and column stacking use `row_gap` (falls back to `gap`). Column stacking ignores `column_gap`.
+
+**Limitations**: not full CSS flexbox. No `stretch`, `space-around`, or `space-evenly`. No flex grow/shrink/basis. No reverse directions. No column wrap. No row-aware pagination guarantee.
 
 ## v2.6 table auto-fit
 
@@ -354,6 +381,7 @@ margin((24, 24, 20, 24))    # top, right, bottom, left
 - `examples/v2_6_table_auto_fit.py`
 - `examples/v2_7_rich_text_links.py`
 - `examples/v2_8_flex_wrap.py`
+- `examples/v2_9_flex_refinements.py`
 - `examples/zh_table_demo.py`
 
 Run one with:
@@ -368,7 +396,7 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v2.8 release adds row-only flex wrapping via `.flex("row", wrap=True)` with uniform gap on both axes, while preserving backward compatibility with the v2.3, v2.4, v2.6, and v2.7 builder API.
+The v2.9 release adds flex `justify`, `align`, `row_gap`, and `column_gap` for finer control over item placement, while preserving backward compatibility with the v2.8, v2.4, v2.6, and v2.7 builder API.
 
 ## Current limitations
 
@@ -376,7 +404,7 @@ The v2.8 release adds row-only flex wrapping via `.flex("row", wrap=True)` with 
 - Pagination keeps images and SVG content atomic: if the current page lacks space, the whole image moves to the next page; oversized images are not sliced
 - Rich table-cell pagination is conservative: single unspanned rich `Frame`/`Text` cells, rows whose rich cells are all unspanned `Text` cells, and mixed unspanned `Text` + `Frame` rows can split; spanned rows, rich images, and multi-Frame rows remain atomic
 - Flex/grid/columns are practical layout primitives, not a complete CSS constraint solver
-- Flex row wrap is row-only; no column wrap, no justify/align APIs, no row-aware pagination guarantee
+- Flex row wrap is row-only; no column wrap, no row-aware pagination guarantee
 - v2.3 uses HarfBuzz for advanced measurement, but rendering still uses ReportLab text APIs; exact glyph positioning, arbitrary glyph-ID drawing, vertical writing, and color-font support are not guaranteed
 - Table auto-fit (`auto_fit_columns`) works on plain-string cells only; rich `Frame`/`Text`/`Image` cells do not contribute natural widths in v2.6
 - `Text.link(url)` is whole-text only; no inline substring links, no markdown/HTML parsing, no automatic link styling, no plain string table cell link API, and no arbitrary annotation API
