@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from io import BytesIO
 import tempfile
 import unittest
 from pathlib import Path
@@ -109,6 +110,62 @@ class TextLinkApiTests(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaisesRegex(ValueError, "link|url"):
                     Text("Example").link(value)
+
+
+class DocumentSaveToBytesTests(unittest.TestCase):
+    def test_document_save_to_bytes_returns_pdf_bytes(self) -> None:
+        doc = document()
+        doc.page("A4").add_text("Document bytes smoke").absolute(36, 36)
+
+        pdf_bytes = doc.build().save_to_bytes()
+
+        self.assertIsInstance(pdf_bytes, bytes)
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
+        self.assertGreater(len(pdf_bytes), 100)
+
+    def test_document_builder_save_to_bytes_delegates_to_built_document(self) -> None:
+        doc = document()
+        doc.page("A4").add_text("Builder bytes smoke").absolute(36, 36)
+
+        pdf_bytes = doc.save_to_bytes()
+
+        self.assertTrue(pdf_bytes.startswith(b"%PDF"))
+        self.assertGreater(len(pdf_bytes), 100)
+
+    def test_repeated_save_to_bytes_calls_return_valid_pdf_bytes(self) -> None:
+        doc = document()
+        doc.page("A4").add_text("Repeated bytes smoke").absolute(36, 36)
+
+        first_pdf = doc.save_to_bytes()
+        second_pdf = doc.save_to_bytes()
+
+        self.assertTrue(first_pdf.startswith(b"%PDF"))
+        self.assertTrue(second_pdf.startswith(b"%PDF"))
+        self.assertGreater(len(first_pdf), 100)
+        self.assertGreater(len(second_pdf), 100)
+
+    def test_file_save_still_writes_non_empty_pdf(self) -> None:
+        doc = document()
+        doc.page("A4").add_text("File save smoke").absolute(36, 36)
+
+        temp_dir, output = _save_temp_pdf(doc, "file_save_still_works.pdf")
+        with temp_dir:
+            self.assertTrue(output.exists())
+            self.assertTrue(output.read_bytes().startswith(b"%PDF"))
+            self.assertGreater(output.stat().st_size, 100)
+
+
+@unittest.skipIf(PdfReader is None, "pypdf is not installed")
+class DocumentSaveToBytesPdfTests(unittest.TestCase):
+    def test_save_to_bytes_output_can_be_read_and_text_extracted(self) -> None:
+        assert PdfReader is not None
+        doc = document()
+        doc.page("A4").add_text("Hello from save_to_bytes").absolute(36, 36)
+
+        pdf_bytes = doc.save_to_bytes()
+        text = _document_text(PdfReader(BytesIO(pdf_bytes)))
+
+        self.assertIn("Hello from save_to_bytes", text)
 
 
 class DocumentStructureSectionApiTests(unittest.TestCase):

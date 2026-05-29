@@ -64,7 +64,7 @@ class PathLike(Protocol):
 
 
 class CanvasFactory(Protocol):
-    def __call__(self, file_path: str, pagesize: tuple[float, float]) -> CanvasLike: ...
+    def __call__(self, target: str | BytesIO, pagesize: tuple[float, float]) -> CanvasLike: ...
 
 
 class SvgToDrawingFn(Protocol):
@@ -80,10 +80,10 @@ class ReportLabCanvasAdapter:
     page_width: float
     page_height: float
 
-    def __init__(self, file_path: str, page_size: tuple[float, float]) -> None:
+    def __init__(self, target: str | BytesIO, page_size: tuple[float, float]) -> None:
         canvas_module = import_module("reportlab.pdfgen.canvas")
         canvas_class = cast(CanvasFactory, getattr(canvas_module, "Canvas"))
-        self._canvas = canvas_class(file_path, pagesize=page_size)
+        self._canvas = canvas_class(target, pagesize=page_size)
         self.page_width, self.page_height = page_size
 
     @property

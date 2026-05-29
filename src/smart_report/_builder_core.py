@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from collections.abc import Sequence
+from io import BytesIO
 from importlib import import_module
 from math import isfinite
 from typing import TYPE_CHECKING, Literal, Protocol, TypeVar, cast
@@ -54,12 +55,13 @@ class CloneNodeFnProto(Protocol):
 
 
 class AdapterCtorProto(Protocol):
-    def __call__(self, file_path: str, page_size: tuple[float, float]) -> "ReportLabCanvasAdapter": ...
+    def __call__(self, target: "SaveTarget", page_size: tuple[float, float]) -> "ReportLabCanvasAdapter": ...
 
 BuilderT = TypeVar("BuilderT", bound="NodeBuilder")
 ContainerT = TypeVar("ContainerT", bound="ContainerBuilder")
 EdgeInput = SizeInput | tuple[SizeInput, ...]
 DocumentMetadata = dict[str, str]
+SaveTarget = str | BytesIO
 
 PAGE_SIZES: dict[str, tuple[float, float]] = {
     "A4": (595.2756, 841.8898),
@@ -572,6 +574,9 @@ class DocumentBuilder:
     def save(self, file_path: str) -> None:
         self.build().save(file_path)
 
+    def save_to_bytes(self) -> bytes:
+        return self.build().save_to_bytes()
+
     def header(self) -> "Canvas":
         from .containers.canvas import Canvas
 
@@ -671,6 +676,14 @@ class Document:
     metadata: DocumentMetadata | None = None
 
     def save(self, file_path: str) -> None:
+        self._save_to_target(file_path)
+
+    def save_to_bytes(self) -> bytes:
+        buffer = BytesIO()
+        self._save_to_target(buffer)
+        return buffer.getvalue()
+
+    def _save_to_target(self, target: SaveTarget) -> None:
         if not self.pages:
             raise ValueError("Document has no pages")
 
@@ -693,7 +706,7 @@ class Document:
         resolve_size_fn = cast(ResolveSizeFnProto, getattr(units_module, "resolve_size"))
 
         first_page_size = self._page_size(self.pages[0], resolve_size_fn)
-        adapter = reportlab_canvas_adapter(file_path=file_path, page_size=first_page_size)
+        adapter = reportlab_canvas_adapter(target=target, page_size=first_page_size)
         if self.metadata is not None:
             adapter.set_metadata(
                 title=self.metadata.get("title"),
