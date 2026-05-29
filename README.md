@@ -54,6 +54,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - v2.7 adds `Text.link(url)` for whole-text PDF external URL link annotations, including linked rich `Text` table cells
 - v2.8 adds row-only flex wrapping via `.flex("row", wrap=True)` with uniform gap on both axes
 - v2.9 adds flex `justify`, `align`, `row_gap`, and `column_gap` for finer control over item placement
+- v2.10 adds `save_to_bytes()` for in-memory PDF bytes and async framework integration via `asyncio.to_thread`
 
 ## v2.8 flex row wrap
 
@@ -94,6 +95,50 @@ col.add_text("Bottom").padding(8).background("#ede9fe")
 `row_gap` and `column_gap` set axis-specific spacing. Row and wrapped-row horizontal spacing uses `column_gap` (falls back to `gap`). Wrapped-row vertical advancement and column stacking use `row_gap` (falls back to `gap`). Column stacking ignores `column_gap`.
 
 **Limitations**: not full CSS flexbox. No `stretch`, `space-around`, or `space-evenly`. No flex grow/shrink/basis. No reverse directions. No column wrap. No row-aware pagination guarantee.
+
+## save_to_bytes
+
+```python
+from smart_report import document
+
+doc = document()
+page = doc.page("A4")
+page.add_frame().padding(36).add_text("Hello from bytes")
+
+pdf_bytes = doc.save_to_bytes()
+assert isinstance(pdf_bytes, bytes)
+assert pdf_bytes[:5] == b"%PDF-"
+```
+
+`save_to_bytes()` builds and renders the document, returning raw PDF bytes instead of writing to a file. It shares the same 4-pass pipeline as `save()` and is available on both `DocumentBuilder` and the built `Document` object.
+
+### Async integration (FastAPI, Starlette, etc.)
+
+`save_to_bytes()` is synchronous and CPU-bound. To integrate with an async framework without blocking the event loop, offload it with `asyncio.to_thread`:
+
+```python
+import asyncio
+from fastapi import FastAPI
+from fastapi.responses import Response
+from smart_report import document
+
+app = FastAPI()
+
+@app.get("/report")
+async def generate_report():
+    doc = document()
+    page = doc.page("A4")
+    page.add_frame().padding(36).add_text("Async report")
+
+    pdf_bytes = await asyncio.to_thread(doc.save_to_bytes)
+    return Response(content=pdf_bytes, media_type="application/pdf")
+```
+
+`asyncio.to_thread` runs the blocking call in a separate thread, keeping the event loop responsive. It does not make PDF generation faster; it just prevents one slow render from stalling other requests.
+
+For true parallel CPU-bound batch generation (many PDFs at once), use `ProcessPoolExecutor` or a similar process-based worker pool. Threads share the GIL, so thread-based concurrency won't speed up the actual rendering work.
+
+**Limitations**: no native async rendering inside smart-report. `save_to_bytes()` is blocking. `asyncio.to_thread` is an integration pattern, not a performance optimization. `asave_to_bytes` or `asave` do not exist.
 
 ## v2.6 table auto-fit
 
@@ -396,7 +441,7 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v2.9 release adds flex `justify`, `align`, `row_gap`, and `column_gap` for finer control over item placement, while preserving backward compatibility with the v2.8, v2.4, v2.6, and v2.7 builder API.
+The v2.10 release adds `save_to_bytes()` for in-memory PDF byte output and async framework integration via `asyncio.to_thread`, while preserving backward compatibility with all prior releases including the v2.9 flex `justify`, `align`, `row_gap`, and `column_gap` refinements.
 
 ## Current limitations
 

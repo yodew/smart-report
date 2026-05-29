@@ -42,6 +42,7 @@ doc = document()
 | `doc.footer()` | 创建重复页脚模板 |
 | `doc.watermark()` | 创建重复水印模板 |
 | `doc.save(path)` | 渲染并保存 PDF |
+| `doc.save_to_bytes()` | 渲染并返回 PDF 原始字节；不写入文件 |
 
 页码占位符只在文本中生效：
 
@@ -334,6 +335,50 @@ col.add_text("底部").padding(8).background("#ede9fe")
 `row_gap` 和 `column_gap` 分别设置轴向间距。行和换行行水平间距使用 `column_gap`（回退到 `gap`）。换行行垂直推进和列堆叠使用 `row_gap`（回退到 `gap`）。列堆叠忽略 `column_gap`。
 
 **限制**：不是完整 CSS flexbox 实现。不支持 `stretch`、`space-around`、`space-evenly`。不支持 flex grow/shrink/basis。不支持反向方向。不支持列方向换行。分页时不保证按行边界切分。
+
+## save_to_bytes (v2.10)
+
+```python
+from smart_report import document
+
+doc = document()
+page = doc.page("A4")
+page.add_frame().padding(36).add_text("Hello from bytes")
+
+pdf_bytes = doc.save_to_bytes()
+assert isinstance(pdf_bytes, bytes)
+assert pdf_bytes[:5] == b"%PDF-"
+```
+
+`save_to_bytes()` 构建并渲染文档，返回 PDF 原始字节而非写入文件。它与 `save()` 共享相同的 4-pass 渲染流程，可在 `DocumentBuilder` 和构建后的 `Document` 对象上调用。
+
+### 异步集成（FastAPI / Starlette 等）
+
+`save_to_bytes()` 是同步且 CPU 密集的。要与异步框架集成而不阻塞事件循环，可使用 `asyncio.to_thread` 卸载到线程池：
+
+```python
+import asyncio
+from fastapi import FastAPI
+from fastapi.responses import Response
+from smart_report import document
+
+app = FastAPI()
+
+@app.get("/report")
+async def generate_report():
+    doc = document()
+    page = doc.page("A4")
+    page.add_frame().padding(36).add_text("异步报告")
+
+    pdf_bytes = await asyncio.to_thread(doc.save_to_bytes)
+    return Response(content=pdf_bytes, media_type="application/pdf")
+```
+
+`asyncio.to_thread` 在单独线程中执行阻塞调用，保持事件循环响应。它不会加速 PDF 生成；只是防止单次慢渲染拖慢其他请求。
+
+要实现真正的并行 CPU 密集型批量生成（同时生成大量 PDF），请使用 `ProcessPoolExecutor` 或类似的基于进程的工作池。线程共享 GIL，基于线程的并发不会加速实际的渲染工作。
+
+**限制**：smart-report 没有原生异步渲染。`save_to_bytes()` 是阻塞的。`asyncio.to_thread` 是集成模式，不是性能优化。不存在 `asave_to_bytes` 或 `asave`。
 
 ## 字体注册
 
