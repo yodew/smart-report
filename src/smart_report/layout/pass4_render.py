@@ -37,9 +37,9 @@ def _flatten_node(
 
     context_path = stacking_path
     if node.creates_stacking_context:
-        context_path = stacking_path + (node.style.z_index,)
+        context_path = stacking_path + (node.style.z_index, tree_order)
 
-    sort_key = context_path + (node.style.z_index, tree_order)
+    sort_key = context_path if node.creates_stacking_context else context_path + (node.style.z_index, tree_order)
     active_clips = clip_stack
     if node.style.overflow.value == "hidden":
         active_clips = clip_stack + (

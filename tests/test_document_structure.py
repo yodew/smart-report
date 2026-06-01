@@ -8,8 +8,11 @@ import unittest
 from pathlib import Path
 from typing import Any, cast
 
-from smart_report import Frame, Text, document
-from smart_report.layout.node import Rect
+from smart_report import Canvas, Frame, Text, document
+from smart_report.layout.node import LayoutNode, PositionMode, Rect, Style
+from smart_report.layout.pass2_widths import resolve_widths
+from smart_report.layout.pass3_heights import resolve_heights
+from smart_report.layout.pass4_render import build_render_list
 from smart_report.layout.text_wrap import wrap_text
 from smart_report.render.rl_adapter import ReportLabCanvasAdapter
 
@@ -86,6 +89,235 @@ def _fill_section_page(page: object, prefix: str, count: int = 4) -> None:
     add(frame)
 
 
+def _render_node(
+    node_type: str,
+    name: str,
+    *,
+    z_index: int = 0,
+    absolute: bool = False,
+    children: list[LayoutNode] | None = None,
+) -> LayoutNode:
+    style = Style(z_index=z_index)
+    if absolute:
+        style.position = PositionMode.ABSOLUTE
+    node = LayoutNode(
+        node_type=node_type,
+        style=style,
+        name=name,
+        resolved_width=100.0,
+        resolved_height=40.0,
+    )
+    for child in children or []:
+        _ = node.add_child(child)
+    return node
+
+
+def _rendered_names(root: LayoutNode) -> list[str]:
+    return [item.node.name or item.node.node_type for item in build_render_list(root)]
+
+
+def _painted_names_by_page_from_save_to_bytes(doc: object) -> list[list[str]]:
+    from smart_report.render import painters
+
+    records: list[tuple[int, str]] = []
+    painters_module = cast(Any, painters)
+    original_paint = painters_module.paint_render_item
+
+    def record_paint(adapter: Any, item: Any) -> None:
+        page_index = item.node.page_index
+        records.append((0 if page_index is None else int(page_index), item.node.name or item.node.node_type))
+        original_paint(adapter, item)
+
+    painters_module.paint_render_item = record_paint
+    try:
+        save_to_bytes = getattr(doc, "save_to_bytes")
+        _ = save_to_bytes()
+    finally:
+        painters_module.paint_render_item = original_paint
+
+    names_by_page: list[list[str]] = []
+    for page_index, name in records:
+        while len(names_by_page) <= page_index:
+            names_by_page.append([])
+        names_by_page[page_index].append(name)
+    return names_by_page
+
+
+def _resolve_page_layout(page: Any) -> LayoutNode:
+    node = cast(LayoutNode, page.node)
+    resolve_widths(node)
+    resolve_heights(node)
+    return node
+
+
+def _child_by_name(node: LayoutNode, name: str) -> LayoutNode:
+    for child in node.children:
+        if child.name == name:
+            return child
+    raise AssertionError(f"Missing child named {name!r}")
+
+
+class RenderOrderPass4Tests(unittest.TestCase):
+    def test_container_background_renders_before_children(self) -> None:
+        panel = _render_node(
+            "canvas",
+            "panel-background",
+            z_index=5,
+            children=[_render_node("text", "panel-label", z_index=-1)],
+        )
+        page = _render_node("page", "page", children=[panel])
+
+        self.assertEqual(_rendered_names(page), ["panel-background", "panel-label"])
+
+    def test_higher_z_index_paints_after_lower_z_index_inside_canvas(self) -> None:
+        chart = _render_node(
+            "canvas",
+            "chart-background",
+            children=[
+                _render_node("rect", "forecast-band", z_index=4),
+                _render_node("line", "baseline", z_index=-2),
+            ],
+        )
+        page = _render_node("page", "page", children=[chart])
+
+        self.assertEqual(_rendered_names(page), ["chart-background", "baseline", "forecast-band"])
+
+    def test_equal_z_index_preserves_tree_order(self) -> None:
+        canvas = _render_node(
+            "canvas",
+            "canvas-background",
+            children=[
+                _render_node("text", "first-label", z_index=2),
+                _render_node("text", "second-label", z_index=2),
+            ],
+        )
+        page = _render_node("page", "page", children=[canvas])
+
+        self.assertEqual(_rendered_names(page), ["canvas-background", "first-label", "second-label"])
+
+    def test_page_absolute_layers_and_canvas_children_compose_predictably(self) -> None:
+        page = _render_node(
+            "page",
+            "page",
+            children=[
+                _render_node("rect", "page-underlay", z_index=-10, absolute=True),
+                _render_node(
+                    "canvas",
+                    "chart-background",
+                    children=[_render_node("line", "chart-highlight", z_index=10)],
+                ),
+                _render_node("text", "page-annotation", absolute=True),
+                _render_node("rect", "page-overlay", z_index=10, absolute=True),
+            ],
+        )
+
+        self.assertEqual(
+            _rendered_names(page),
+            ["page-underlay", "chart-background", "chart-highlight", "page-annotation", "page-overlay"],
+        )
+
+
+class AbsoluteReportRegionLayoutTests(unittest.TestCase):
+    def test_fixed_absolute_regions_resolve_expected_geometry(self) -> None:
+        doc: Any = document()
+        page = doc.page((400.0, 300.0))
+        page.add(Canvas().name("full-page-region").size(400, 300).absolute(0, 0))
+        page.add(Frame().name("kpi-region").width(120).height(64).absolute(32, 36))
+        page.add(Canvas().name("chart-region").size(220, 110).absolute(150, 120))
+
+        root = _resolve_page_layout(page)
+
+        self.assertEqual(root.resolved_width, 400.0)
+        self.assertEqual(root.resolved_height, 300.0)
+        self.assertEqual(
+            (
+                _child_by_name(root, "full-page-region").local_x,
+                _child_by_name(root, "full-page-region").local_y,
+                _child_by_name(root, "full-page-region").resolved_width,
+                _child_by_name(root, "full-page-region").resolved_height,
+            ),
+            (0.0, 0.0, 400.0, 300.0),
+        )
+        self.assertEqual(
+            (
+                _child_by_name(root, "kpi-region").local_x,
+                _child_by_name(root, "kpi-region").local_y,
+                _child_by_name(root, "kpi-region").resolved_width,
+                _child_by_name(root, "kpi-region").resolved_height,
+            ),
+            (32.0, 36.0, 120.0, 64.0),
+        )
+        self.assertEqual(
+            (
+                _child_by_name(root, "chart-region").local_x,
+                _child_by_name(root, "chart-region").local_y,
+                _child_by_name(root, "chart-region").resolved_width,
+                _child_by_name(root, "chart-region").resolved_height,
+            ),
+            (150.0, 120.0, 220.0, 110.0),
+        )
+
+    def test_absolute_regions_do_not_advance_parent_flow_layout(self) -> None:
+        doc: Any = document()
+        page = doc.page((400.0, 300.0))
+        report = Frame().name("report-root").size(360, 200)
+        report.add(Canvas().name("absolute-region").size(100, 50).absolute(24, 120))
+        report.add(Frame().name("flow-one").size(300, 40))
+        report.add(Frame().name("flow-two").size(300, 30))
+        page.add(report)
+
+        root = _resolve_page_layout(page)
+        report_node = _child_by_name(root, "report-root")
+        absolute_region = _child_by_name(report_node, "absolute-region")
+        flow_one = _child_by_name(report_node, "flow-one")
+        flow_two = _child_by_name(report_node, "flow-two")
+
+        self.assertEqual(report_node.resolved_height, 200.0)
+        self.assertEqual((absolute_region.local_x, absolute_region.local_y), (24.0, 120.0))
+        self.assertEqual((flow_one.local_x, flow_one.local_y), (0.0, 0.0))
+        self.assertEqual((flow_two.local_x, flow_two.local_y), (0.0, 40.0))
+
+    def test_layered_report_shape_uses_predefined_absolute_regions(self) -> None:
+        doc: Any = document()
+        page = doc.page((600.0, 800.0))
+        background = Canvas().name("full-page-background").size(600, 800).absolute(0, 0).z(-10)
+        kpi_card = Frame().name("kpi-card-region").size(160, 84).absolute(32, 32).z(2)
+        chart = Canvas().name("chart-placeholder-region").width(360).height(210).absolute(208, 150).z(1)
+        chart.add_rect().name("chart-plot-area").size(320, 160).absolute(20, 24)
+        flow_content = Frame().name("flow-content-region").size(536, 280).absolute(32, 420)
+        flow_content.add(Frame().name("flow-row-one").height(42))
+        flow_content.add(Frame().name("flow-row-two").height(42))
+        page.add(background).add(kpi_card).add(chart).add(flow_content)
+
+        root = _resolve_page_layout(page)
+        background_node = _child_by_name(root, "full-page-background")
+        kpi_node = _child_by_name(root, "kpi-card-region")
+        chart_node = _child_by_name(root, "chart-placeholder-region")
+        flow_node = _child_by_name(root, "flow-content-region")
+        plot_area = _child_by_name(chart_node, "chart-plot-area")
+        flow_row_one = _child_by_name(flow_node, "flow-row-one")
+        flow_row_two = _child_by_name(flow_node, "flow-row-two")
+
+        self.assertEqual(
+            (background_node.local_x, background_node.local_y, background_node.resolved_width, background_node.resolved_height),
+            (0.0, 0.0, 600.0, 800.0),
+        )
+        self.assertEqual(
+            (kpi_node.local_x, kpi_node.local_y, kpi_node.resolved_width, kpi_node.resolved_height),
+            (32.0, 32.0, 160.0, 84.0),
+        )
+        self.assertEqual(
+            (chart_node.local_x, chart_node.local_y, chart_node.resolved_width, chart_node.resolved_height),
+            (208.0, 150.0, 360.0, 210.0),
+        )
+        self.assertEqual(
+            (flow_node.local_x, flow_node.local_y, flow_node.resolved_width, flow_node.resolved_height),
+            (32.0, 420.0, 536.0, 280.0),
+        )
+        self.assertEqual((plot_area.local_x, plot_area.local_y), (20.0, 24.0))
+        self.assertEqual((flow_row_one.local_y, flow_row_two.local_y), (0.0, 42.0))
+
+
 class TextLinkApiTests(unittest.TestCase):
     def test_text_link_stores_url_and_returns_self(self) -> None:
         text = Text("Example")
@@ -143,6 +375,36 @@ class DocumentSaveToBytesTests(unittest.TestCase):
         self.assertTrue(second_pdf.startswith(b"%PDF"))
         self.assertGreater(len(first_pdf), 100)
         self.assertGreater(len(second_pdf), 100)
+
+    def test_repeated_save_to_bytes_keeps_reserved_overlay_padding_stable(self) -> None:
+        doc: Any = document()
+        doc.header().height(36).add_text("Stable header").absolute(36, 8)
+        doc.footer().height(28).add_text("Stable footer").absolute(36, 8)
+        page = doc.page((300.0, 220.0)).padding(12)
+        page.add_text("Stable body").name("stable-body")
+
+        first_pdf = doc.save_to_bytes()
+        first_padding = page.node.style.padding
+        first_base_padding = page.node.content["base_padding"]
+        second_pdf = doc.save_to_bytes()
+        second_padding = page.node.style.padding
+        second_base_padding = page.node.content["base_padding"]
+
+        self.assertTrue(first_pdf.startswith(b"%PDF"))
+        self.assertTrue(second_pdf.startswith(b"%PDF"))
+        self.assertEqual(
+            (first_padding.top, first_padding.right, first_padding.bottom, first_padding.left),
+            (36.0, 12.0, 28.0, 12.0),
+        )
+        self.assertEqual(
+            (second_padding.top, second_padding.right, second_padding.bottom, second_padding.left),
+            (36.0, 12.0, 28.0, 12.0),
+        )
+        self.assertEqual(
+            (first_base_padding.top, first_base_padding.right, first_base_padding.bottom, first_base_padding.left),
+            (12.0, 12.0, 12.0, 12.0),
+        )
+        self.assertIs(second_base_padding, first_base_padding)
 
     def test_file_save_still_writes_non_empty_pdf(self) -> None:
         doc = document()
@@ -232,6 +494,79 @@ class DocumentStructureSectionApiTests(unittest.TestCase):
 
         self.assertIs(result, doc)
         self.assertEqual(built.metadata, {"title": "Initial", "author": "Author", "subject": "Subject"})
+
+
+class DocumentOverlayRenderOrderTests(unittest.TestCase):
+    def test_document_overlays_render_around_layered_page_content(self) -> None:
+        doc: Any = document()
+        doc.watermark().height(80).add_text("Document watermark").name("document-watermark-label").absolute(40, 20)
+        doc.header().height(30).add_text("Document header").name("document-header-label").absolute(24, 8)
+        doc.footer().height(24).add_text("Document footer").name("document-footer-label").absolute(24, 8)
+        page = doc.page((360.0, 240.0))
+        page.add(Canvas().name("page-underlay").size(320, 120).absolute(20, 50).z(-20))
+        body = Frame().name("page-content").padding(10)
+        body.add_text("Layered body content").name("body-label")
+        page.add(body)
+        page.add(Canvas().name("page-overlay").size(320, 40).absolute(20, 90).z(20))
+
+        names_by_page = _painted_names_by_page_from_save_to_bytes(doc)
+        layered_names = [
+            name
+            for name in names_by_page[0]
+            if name
+            in {
+                "__doc_watermark__",
+                "document-watermark-label",
+                "page-underlay",
+                "page-content",
+                "body-label",
+                "page-overlay",
+                "__doc_header__",
+                "document-header-label",
+                "__doc_footer__",
+                "document-footer-label",
+            }
+        ]
+
+        self.assertEqual(
+            layered_names,
+            [
+                "__doc_watermark__",
+                "document-watermark-label",
+                "page-underlay",
+                "page-content",
+                "body-label",
+                "page-overlay",
+                "__doc_header__",
+                "document-header-label",
+                "__doc_footer__",
+                "document-footer-label",
+            ],
+        )
+
+    def test_section_overlay_override_keeps_unspecified_document_overlay_fallbacks(self) -> None:
+        doc: Any = document()
+        doc.watermark().height(60).add_text("Global watermark").name("global-watermark-label").absolute(40, 20)
+        doc.header().height(24).add_text("Global header").name("global-header-label").absolute(24, 8)
+        doc.footer().height(24).add_text("Global footer").name("global-footer-label").absolute(24, 8)
+        fallback = doc.section("Fallback")
+        fallback.page((300.0, 220.0)).add_text("Fallback body").name("fallback-body")
+        override = doc.section("Override")
+        override.header().height(24).add_text("Section header").name("section-header-label").absolute(24, 8)
+        override.page((300.0, 220.0)).add_text("Override body").name("override-body")
+
+        names_by_page = _painted_names_by_page_from_save_to_bytes(doc)
+
+        self.assertEqual(len(names_by_page), 2)
+        self.assertIn("global-watermark-label", names_by_page[0])
+        self.assertIn("global-header-label", names_by_page[0])
+        self.assertIn("global-footer-label", names_by_page[0])
+        self.assertIn("fallback-body", names_by_page[0])
+        self.assertIn("global-watermark-label", names_by_page[1])
+        self.assertNotIn("global-header-label", names_by_page[1])
+        self.assertIn("section-header-label", names_by_page[1])
+        self.assertIn("global-footer-label", names_by_page[1])
+        self.assertIn("override-body", names_by_page[1])
 
 
 @unittest.skipIf(PdfReader is None, "pypdf is not installed")
