@@ -31,5 +31,6 @@ v2.4 已覆盖：
 - v2.8 增加 `.flex("row", wrap=True)` 行换行布局，单一 gap 同时控制水平和垂直间距
 - v2.9 增加 flex `justify`、`align`、`row_gap`、`column_gap` 精细化控制
 - v2.10 增加 `save_to_bytes()` 用于返回 PDF 原始字节，支持异步框架集成（`asyncio.to_thread`）
+- v2.11 强化多图层报告渲染顺序契约，并增加基于预设区域的复杂报告示例
 
 后续改动应保持向后兼容；破坏性 API 调整应留到下一个主版本。

@@ -55,6 +55,30 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - v2.8 adds row-only flex wrapping via `.flex("row", wrap=True)` with uniform gap on both axes
 - v2.9 adds flex `justify`, `align`, `row_gap`, and `column_gap` for finer control over item placement
 - v2.10 adds `save_to_bytes()` for in-memory PDF bytes and async framework integration via `asyncio.to_thread`
+- v2.11 strengthens layered report rendering contracts and adds a fixed-region multi-layer report example
+
+## v2.11 layered reports
+
+```python
+from smart_report import Canvas, Frame, document
+
+doc = document()
+page = doc.page("A4")
+
+background = Canvas().size(595, 842).absolute(0, 0).z(-20)
+background.add_rect().absolute(0, 0).size(595, 842).background("#f4f7fb")
+page.add(background)
+
+summary = Frame().size(523, 120).absolute(36, 96).padding(16).background("#ffffff").z(10)
+summary.add_text("Executive Summary").font_size(18)
+page.add(summary)
+```
+
+v2.11 focuses smart-report on rich PDF report composition: users define fixed report regions, then layer backgrounds, decoration, content, annotations, watermarks, headers, and footers with `Canvas`, `Frame`, `.absolute(...)`, and `.z(...)`. The render-order contract is covered by regression tests so container backgrounds paint before descendants, equal z-index keeps tree order, and overlay layers remain predictable.
+
+See `examples/v2_11_layered_report.py` for a complete dashboard-style report with a full-page background, KPI cards, a chart placeholder region, flow content inside a fixed region, table content, watermark, header, and footer.
+
+**Scope**: v2.11 is not a full CSS engine. It does not add flex grow/shrink/basis, stretch, `space-around`, `space-evenly`, reverse directions, or column wrap. For dense PDF reports, prefer predefined region sizes and explicit layering.
 
 ## v2.8 flex row wrap
 
@@ -427,6 +451,7 @@ margin((24, 24, 20, 24))    # top, right, bottom, left
 - `examples/v2_7_rich_text_links.py`
 - `examples/v2_8_flex_wrap.py`
 - `examples/v2_9_flex_refinements.py`
+- `examples/v2_11_layered_report.py`
 - `examples/zh_table_demo.py`
 
 Run one with:
@@ -441,7 +466,7 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v2.10 release adds `save_to_bytes()` for in-memory PDF byte output and async framework integration via `asyncio.to_thread`, while preserving backward compatibility with all prior releases including the v2.9 flex `justify`, `align`, `row_gap`, and `column_gap` refinements.
+The v2.11 release strengthens layered report rendering contracts and adds a fixed-region multi-layer report example, while preserving backward compatibility with all prior releases including the v2.10 `save_to_bytes()` API and async framework integration guidance.
 
 ## Current limitations
 

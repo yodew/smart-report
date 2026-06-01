@@ -336,6 +336,29 @@ col.add_text("底部").padding(8).background("#ede9fe")
 
 **限制**：不是完整 CSS flexbox 实现。不支持 `stretch`、`space-around`、`space-evenly`。不支持 flex grow/shrink/basis。不支持反向方向。不支持列方向换行。分页时不保证按行边界切分。
 
+## 多图层报告 (v2.11)
+
+```python
+from smart_report import Canvas, Frame, document
+
+doc = document()
+page = doc.page("A4")
+
+background = Canvas().size(595, 842).absolute(0, 0).z(-20)
+background.add_rect().absolute(0, 0).size(595, 842).background("#f4f7fb")
+page.add(background)
+
+summary = Frame().size(523, 120).absolute(36, 96).padding(16).background("#ffffff").z(10)
+summary.add_text("Executive Summary").font_size(18)
+page.add(summary)
+```
+
+v2.11 的重点是元素丰富的 PDF 报告组合：使用者先预设报告区域大小，再用 `Canvas`、`Frame`、`.absolute(...)` 和 `.z(...)` 叠加背景、装饰、内容、标注、水印、页眉和页脚。渲染顺序已有回归测试覆盖：容器背景先于子元素绘制，相同 z-index 保持树顺序，overlay 图层顺序保持可预测。
+
+完整示例见 `examples/v2_11_layered_report.py`，其中包含全页背景、KPI 卡片、图表占位区域、固定区域内的流式文本、表格内容、水印、页眉和页脚。
+
+**范围**：v2.11 不是完整 CSS 引擎。不新增 flex grow/shrink/basis、stretch、`space-around`、`space-evenly`、反向方向或列方向换行。对于密集 PDF 报告，推荐预设区域尺寸并显式控制图层。
+
 ## save_to_bytes (v2.10)
 
 ```python
