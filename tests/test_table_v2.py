@@ -1378,6 +1378,31 @@ class TableV2ModelTests(unittest.TestCase):
         self.assertEqual(adapter.rounded_clips, [(10, 20, 80, 40, 5)])
         self.assertEqual(adapter.images[0][1], "contain")
 
+    def test_image_accepts_path_source_and_normalizes_to_string(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            image_path = Path(directory) / "sample.png"
+            image_path.write_bytes(_png_bytes(17, 9))
+
+            image = Image(image_path)
+
+        self.assertEqual(image.node.content["src"], str(image_path))
+        self.assertIsInstance(image.node.content["src"], str)
+        self.assertEqual(image.node.content["intrinsic_width"], 17.0)
+        self.assertEqual(image.node.content["intrinsic_height"], 9.0)
+
+    def test_add_image_accepts_path_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            image_path = Path(directory) / "sample.png"
+            image_path.write_bytes(_png_bytes(13, 7))
+            frame = Frame()
+
+            image = frame.add_image(image_path)
+
+        self.assertEqual(image.node.content["src"], str(image_path))
+        self.assertEqual(frame.node.children[0].content["src"], str(image_path))
+        self.assertEqual(image.node.content["intrinsic_width"], 13.0)
+        self.assertEqual(image.node.content["intrinsic_height"], 7.0)
+
 
 class TableV2PaginationTests(unittest.TestCase):
     def _rows(self, count: int = 18) -> list[list[str]]:

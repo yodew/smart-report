@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import base64
+from os import PathLike, fspath
 from io import BytesIO
 from pathlib import Path
 
 from .._builder_core import NodeBuilder
 from ..layout.node import LayoutNode, Style
 
-ImageSource = str | bytes
+ImageSource = str | bytes | PathLike[str]
 
 
 class Image(NodeBuilder):
@@ -24,15 +25,17 @@ class Image(NodeBuilder):
             self.node.content.pop("src", None)
             _set_intrinsic_size(self.node, value)
             return self
-        if value.startswith("data:image/"):
-            _prefix, _separator, payload = value.partition(",")
+
+        source = fspath(value)
+        if source.startswith("data:image/"):
+            _prefix, _separator, payload = source.partition(",")
             self.node.content["src_bytes"] = base64.b64decode(payload)
             self.node.content.pop("src", None)
             _set_intrinsic_size(self.node, self.node.content["src_bytes"])
             return self
-        self.node.content["src"] = value
+        self.node.content["src"] = source
         self.node.content.pop("src_bytes", None)
-        _set_intrinsic_size(self.node, value)
+        _set_intrinsic_size(self.node, source)
         return self
 
     def fit(self, value: str) -> "Image":

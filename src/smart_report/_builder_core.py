@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from io import BytesIO
 from importlib import import_module
 from math import isfinite
+from os import PathLike
 from typing import TYPE_CHECKING, Literal, Protocol, TypeVar, cast
 
 from .layout.node import Edges, LayoutNode, OverflowMode, PositionMode, Style
@@ -396,7 +397,7 @@ class ContainerBuilder(NodeBuilder):
         _ = self.add(cast(NodeBuilder, child))
         return child
 
-    def add_image(self, src: str | bytes) -> "Image":
+    def add_image(self, src: str | bytes | PathLike[str]) -> "Image":
         from .elements.image import Image
 
         child = Image(src)
