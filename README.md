@@ -31,6 +31,8 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Table auto-fit columns: content-based sizing for plain-text cells with min/max constraints
 - Whole-Text URL links via `Text.link(url)` for external PDF link annotations
 
+For the full API reference, including `Rect`, `Line`, `Spacer`, table styling, image fitting, fonts, colors, and shared chainable methods, see [docs/zh/api.md](./docs/zh/api.md).
+
 ## v2.4 status
 
 - Chinese API documentation is available in `docs/zh/api.md`
@@ -56,6 +58,7 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - v2.9 adds flex `justify`, `align`, `row_gap`, and `column_gap` for finer control over item placement
 - v2.10 adds `save_to_bytes()` for in-memory PDF bytes and async framework integration via `asyncio.to_thread`
 - v2.11 strengthens layered report rendering contracts and adds a fixed-region multi-layer report example
+- v2.11.1 accepts `pathlib.Path` image sources and expands API docs for shapes, tables, colors, fonts, and chainable methods
 
 ## v2.11 layered reports
 
@@ -466,7 +469,7 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v2.11 release strengthens layered report rendering contracts and adds a fixed-region multi-layer report example, while preserving backward compatibility with all prior releases including the v2.10 `save_to_bytes()` API and async framework integration guidance.
+The v2.11.1 release adds `pathlib.Path` support for local image sources and expands API documentation, while preserving backward compatibility with the v2.11 layered report rendering contracts and all prior releases including the v2.10 `save_to_bytes()` API.
 
 ## Current limitations
 
