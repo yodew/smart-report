@@ -65,6 +65,7 @@ def paint_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
         typography=node.style.typography,
         text_direction=node.style.text_direction,
         color=node.style.color,
+        align=str(node.content.get("align", "left")),
     )
     link_url = node.content.get("link_url")
     if isinstance(link_url, str):

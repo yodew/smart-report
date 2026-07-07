@@ -21,7 +21,7 @@ from smart_report.layout.pass3_heights import resolve_heights
 from smart_report.layout.pass2_widths import resolve_widths
 from smart_report.layout.table_model import TableCellBox, fit_plain_overflow_text, plain_cell_natural_width, plain_overflow_text_width, table_cell_box_natural_width, table_cell_boxes, table_cell_padding, table_column_widths, table_height, table_row_heights, table_rows
 from smart_report.layout.text_wrap import wrap_text
-from smart_report.render.painters import paint_image, paint_render_item, paint_table
+from smart_report.render.painters import paint_image, paint_render_item, paint_table, paint_text
 from smart_report.render.rl_adapter import DEFAULT_TEXT_COLOR, ReportLabCanvasAdapter
 from smart_report.style.color import parse_color
 from smart_report.style.typography import shape_text
@@ -211,6 +211,47 @@ class TableV2ModelTests(unittest.TestCase):
 
         self.assertEqual(text.node.style.typography, "auto")
         self.assertEqual(text.node.style.text_direction, "rtl")
+
+    def test_text_builder_stores_alignment(self) -> None:
+        text = Text("Centered").align("center")
+
+        self.assertEqual(text.node.content["align"], "center")
+
+    def test_text_builder_rejects_unsupported_alignment(self) -> None:
+        with self.assertRaises(ValueError):
+            _ = Text("Nope").align("justify")
+
+    def test_paint_text_passes_alignment_to_adapter(self) -> None:
+        text = Text("Centered").align("center").width(100)
+        text.node.resolved_width = 100
+        text.node.resolved_height = 20
+        adapter = _SpyAdapter()
+
+        paint_text(cast(ReportLabCanvasAdapter, adapter), RenderItem(text.node, Rect(10, 20, 100, 20), (), (0,)))
+
+        self.assertEqual(adapter.text_kwargs[0]["align"], "center")
+
+    def test_adapter_draw_text_offsets_centered_lines(self) -> None:
+        fake_canvas = _FakeCanvas()
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 100
+
+        adapter.draw_text(
+            x=10,
+            y=10,
+            width=100,
+            text="Hi",
+            font_name="Helvetica",
+            font_size=10,
+            line_height=12,
+            color=None,
+            align="center",
+        )
+
+        expected_x = 10 + ((100 - string_width("Hi", "Helvetica", 10)) / 2)
+        self.assertAlmostEqual(fake_canvas.text_object.origins[0][0], expected_x, places=3)
 
     def test_table_cell_boxes_carry_typography_options(self) -> None:
         table = Table([["Label", "مرحبا"]]).typography("auto").text_direction("rtl")

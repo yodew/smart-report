@@ -15,6 +15,13 @@ class Text(NodeBuilder):
         self.node.content["text"] = value
         return self
 
+    def align(self, value: str) -> "Text":
+        normalized = value.lower()
+        if normalized not in {"left", "center", "right"}:
+            raise ValueError(f"Unsupported text alignment: {value}")
+        self.node.content["align"] = normalized
+        return self
+
     def link(self, url: object) -> "Text":
         if not isinstance(url, str):
             raise TypeError("Text.link url must be a string")
