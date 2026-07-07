@@ -59,6 +59,7 @@ For the full API reference, including `Rect`, `Line`, `Spacer`, table styling, i
 - v2.10 adds `save_to_bytes()` for in-memory PDF bytes and async framework integration via `asyncio.to_thread`
 - v2.11 strengthens layered report rendering contracts and adds a fixed-region multi-layer report example
 - v2.11.1 accepts `pathlib.Path` image sources and expands API docs for shapes, tables, colors, fonts, and chainable methods
+- v2.11.2 adds `Text.align(...)` for left, center, and right aligned text within fixed text widths
 
 ## v2.11 layered reports
 
@@ -469,7 +470,7 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v2.11.1 release adds `pathlib.Path` support for local image sources and expands API documentation, while preserving backward compatibility with the v2.11 layered report rendering contracts and all prior releases including the v2.10 `save_to_bytes()` API.
+The v2.11.2 release adds `Text.align(...)` for left, center, and right aligned text within fixed text widths, while preserving backward compatibility with the v2.11.1 `pathlib.Path` image-source support, the v2.11 layered report rendering contracts, and all prior releases including the v2.10 `save_to_bytes()` API.
 
 ## Current limitations
 

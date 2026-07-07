@@ -309,8 +309,21 @@ frame.add_text("مرحبا smart-report").typography("auto").text_direction("rtl
 | `.text_direction(value)` | 设置文字方向，支持 `"auto"`、`"ltr"`、`"rtl"` |
 | `.color(value)` | 设置文字颜色 |
 | `.text(value)` | 替换已有 `Text` 节点的文本内容 |
+| `.align(value)` | 设置文本块内每一行的水平对齐，支持 `"left"`、`"center"`、`"right"` |
 | `.link(url)` | 为整个文字节点添加 PDF 外部 URL 链接注释；`url` 必须为非空字符串 |
 | `.margin(...)` | 设置外边距 |
+
+固定区域内文本居中可给文本节点设置宽度并调用 `.align("center")`：
+
+```python
+frame = Frame().size(195, 135).absolute(384, 79)
+frame.add_text("体质辨析：气虚质 + 痰湿质\n五行辨析：土过旺、木金偏弱") \
+    .width("100%") \
+    .font_size(10) \
+    .line_height(27) \
+    .align("center")
+page.add(frame)
+```
 
 > 注意：中文字体需要先注册可用字体；当前默认字体为 `Helvetica`，并不适合中文正式输出。中文连续文本会按实际字形宽度换行，表格测量、分页和最终绘制使用同一套换行逻辑。
 
