@@ -135,24 +135,48 @@ def _parse_explicit_edges(
 
 
 class NodeBuilder:
+    """Base class for chainable element/container builders.
+
+    Most public builders inherit these methods, so calls such as
+    ``.size(...)``, ``.absolute(...)``, ``.background(...)``, ``.z(...)``,
+    ``.font_size(...)``, and ``.padding(...)`` can be chained on text,
+    frames, canvases, tables, images, and shapes where applicable.
+    """
+
     node: LayoutNode
 
     def __init__(self, node: LayoutNode) -> None:
         self.node = node
 
     def name(self: BuilderT, value: str) -> BuilderT:
+        """Set an optional debug name for this node."""
+
         self.node.name = value
         return self
 
     def width(self: BuilderT, value: SizeInput) -> BuilderT:
+        """Set node width.
+
+        Values may be points, unit strings such as ``"10mm"``, percentages
+        such as ``"100%"``, or ``"auto"``.
+        """
+
         self.node.style.width = parse_size(value)
         return self
 
     def height(self: BuilderT, value: SizeInput) -> BuilderT:
+        """Set node height.
+
+        Values may be points, unit strings such as ``"2cm"``, percentages,
+        or ``"auto"``.
+        """
+
         self.node.style.height = parse_size(value)
         return self
 
     def size(self: BuilderT, width: SizeInput, height: SizeInput) -> BuilderT:
+        """Set width and height together."""
+
         self.node.style.width = parse_size(width)
         self.node.style.height = parse_size(height)
         return self
@@ -223,77 +247,139 @@ class NodeBuilder:
         return self
 
     def background(self: BuilderT, value: str | None) -> BuilderT:
+        """Set background fill color.
+
+        Supports named colors, ``#RRGGBB``, ``#RRGGBBAA``, ``rgb(...)``,
+        ``rgba(...)``, ``"transparent"``, or ``None`` for no background.
+        """
+
         self.node.style.background = parse_color(value)
         return self
 
     def color(self: BuilderT, value: str | None) -> BuilderT:
+        """Set foreground/text color using the shared color syntax."""
+
         self.node.style.color = parse_color(value)
         return self
 
     def opacity(self: BuilderT, value: float) -> BuilderT:
+        """Set overall node opacity from 0.0 to 1.0."""
+
         self.node.style.opacity = value
         return self
 
     def z(self: BuilderT, value: int) -> BuilderT:
+        """Set z-index; larger values paint above smaller values."""
+
         self.node.style.z_index = value
         return self
 
     def overflow(self: BuilderT, value: str) -> BuilderT:
+        """Set overflow behavior.
+
+        Accepted values are ``"visible"`` and ``"hidden"``. Hidden clips
+        child content to this node's bounds.
+        """
+
         self.node.style.overflow = OverflowMode(value)
         return self
 
     def absolute(self: BuilderT, left: SizeInput = 0, top: SizeInput = 0) -> BuilderT:
+        """Position this node absolutely within its parent content box."""
+
         self.node.style.position = PositionMode.ABSOLUTE
         self.node.style.left = parse_size(left)
         self.node.style.top = parse_size(top)
         return self
 
     def flow(self: BuilderT) -> BuilderT:
+        """Return this node to normal flow layout."""
+
         self.node.style.position = PositionMode.FLOW
         self.node.style.left = None
         self.node.style.top = None
         return self
 
     def font(self: BuilderT, name: str) -> BuilderT:
+        """Set font name for text rendered by this node."""
+
         self.node.style.font_name = name
         self.node.style.font_family = None
         return self
 
     def font_family(self: BuilderT, name: str) -> BuilderT:
+        """Set a registered font family name.
+
+        The concrete font is resolved from the registered family, currently
+        using the regular face for this builder.
+        """
+
         self.node.style.font_family = name
         self.node.style.font_name = DEFAULT_FONT_REGISTRY.font_name_for_family(name)
         return self
 
     def font_size(self: BuilderT, size: float) -> BuilderT:
+        """Set font size in points.
+
+        If line height has not been explicitly set, it updates to
+        ``size * 1.2``.
+        """
+
         self.node.style.font_size = size
         if self.node.style.line_height_auto:
             self.node.style.line_height = size * 1.2
         return self
 
     def line_height(self: BuilderT, value: float) -> BuilderT:
+        """Set explicit line height in points.
+
+        Calling this disables automatic ``font_size * 1.2`` line height.
+        """
+
         self.node.style.line_height = value
         self.node.style.line_height_auto = False
         return self
 
     def typography(self: BuilderT, value: str) -> BuilderT:
+        """Set text shaping/preprocessing mode.
+
+        Accepted values are ``"plain"``, ``"auto"``, and ``"advanced"``.
+        """
+
         self.node.style.typography = normalize_typography_mode(value)
         return self
 
     def text_direction(self: BuilderT, value: str) -> BuilderT:
+        """Set text direction.
+
+        Accepted values are ``"auto"``, ``"ltr"``, and ``"rtl"``.
+        """
+
         self.node.style.text_direction = normalize_text_direction(value)
         return self
 
 
     def stroke(self: BuilderT, color: str | None, width: float) -> BuilderT:
+        """Set stroke/border color and width."""
+
         self.node.style.stroke_color = parse_color(color)
         self.node.style.stroke_width = width
         return self
 
     def radius(self: BuilderT, value: float) -> BuilderT:
+        """Set border radius in points."""
+
         self.node.style.border_radius = value
         return self
 
     def layout(self: BuilderT, value: str) -> BuilderT:
+        """Set layout mode directly.
+
+        Accepted values are ``"flow"``, ``"flex"``, ``"grid"``, and
+        ``"columns"``. Prefer ``.flex(...)``, ``.grid(...)``, or
+        ``.columns(...)`` for normal use.
+        """
+
         normalized = value.lower()
         if normalized not in {"flow", "flex", "grid", "columns"}:
             raise ValueError(f"Unsupported layout mode: {value}")
@@ -301,6 +387,8 @@ class NodeBuilder:
         return self
 
     def gap(self: BuilderT, value: SizeInput) -> BuilderT:
+        """Set layout gap used by flex, grid, and columns layouts."""
+
         self.node.content["gap"] = _edge_points(value)
         return self
 
@@ -315,6 +403,14 @@ class NodeBuilder:
         row_gap: SizeInput | None = None,
         column_gap: SizeInput | None = None,
     ) -> BuilderT:
+        """Use practical flex row/column layout.
+
+        ``direction`` accepts ``"row"`` or ``"column"``. ``wrap=True`` is
+        supported only for row direction. ``justify`` accepts ``"start"``,
+        ``"center"``, ``"end"``, ``"space-between"``. ``align`` accepts
+        ``"start"``, ``"center"``, ``"end"``.
+        """
+
         normalized = direction.lower()
         if normalized not in {"row", "column"}:
             raise ValueError(f"Unsupported flex direction: {direction}")
@@ -345,6 +441,8 @@ class NodeBuilder:
         return self
 
     def grid(self: BuilderT, columns: int, *, gap: SizeInput | None = None) -> BuilderT:
+        """Use fixed-column grid layout."""
+
         if columns < 1:
             raise ValueError("Grid columns must be >= 1")
         if columns > MAX_LAYOUT_TRACKS:
@@ -356,6 +454,8 @@ class NodeBuilder:
         return self
 
     def columns(self: BuilderT, count: int, *, gap: SizeInput | None = None) -> BuilderT:
+        """Use multi-column flow layout."""
+
         if count < 1:
             raise ValueError("Column count must be >= 1")
         if count > MAX_LAYOUT_TRACKS:
@@ -367,31 +467,47 @@ class NodeBuilder:
         return self
 
     def keep_together(self: BuilderT, value: bool = True) -> BuilderT:
+        """Ask pagination to keep this node together when possible."""
+
         self.node.content["keep_together"] = value
         return self
 
     def keep_with_next(self: BuilderT, value: bool = True) -> BuilderT:
+        """Ask pagination to keep this node with the next flow sibling."""
+
         self.node.content["keep_with_next"] = value
         return self
 
     def page_break_before(self: BuilderT, value: bool = True) -> BuilderT:
+        """Force a page break before this node when paginating."""
+
         self.node.content["page_break_before"] = value
         return self
 
     def page_break_after(self: BuilderT, value: bool = True) -> BuilderT:
+        """Force a page break after this node when paginating."""
+
         self.node.content["page_break_after"] = value
         return self
 
     def build(self) -> LayoutNode:
+        """Return the underlying layout node."""
+
         return self.node
 
 
 class ContainerBuilder(NodeBuilder):
+    """Base class for builders that can contain child nodes."""
+
     def add(self: ContainerT, child: NodeBuilder) -> ContainerT:
+        """Add an existing builder as a child and return this container."""
+
         _ = self.node.add_child(child.build())
         return self
 
     def add_text(self, text: str) -> "Text":
+        """Create and add a ``Text`` child, returning the child builder."""
+
         from .elements.text import Text
 
         child = Text(text)
@@ -399,6 +515,12 @@ class ContainerBuilder(NodeBuilder):
         return child
 
     def add_image(self, src: str | bytes | PathLike[str]) -> "Image":
+        """Create and add an ``Image`` child.
+
+        ``src`` may be a string path, ``pathlib.Path``, image bytes, or a
+        ``data:image/...;base64,...`` string.
+        """
+
         from .elements.image import Image
 
         child = Image(src)
@@ -406,6 +528,8 @@ class ContainerBuilder(NodeBuilder):
         return child
 
     def add_rect(self) -> "Rect":
+        """Create and add a rectangle shape child."""
+
         from .elements.shape import Rect
 
         child = Rect()
@@ -413,6 +537,8 @@ class ContainerBuilder(NodeBuilder):
         return child
 
     def add_line(self) -> "Line":
+        """Create and add a line shape child."""
+
         from .elements.shape import Line
 
         child = Line()
@@ -420,6 +546,8 @@ class ContainerBuilder(NodeBuilder):
         return child
 
     def add_spacer(self, height: SizeInput) -> "Spacer":
+        """Create and add a fixed-height spacer child."""
+
         from .elements.spacer import Spacer
 
         child = Spacer(height)
@@ -427,6 +555,8 @@ class ContainerBuilder(NodeBuilder):
         return child
 
     def add_canvas(self) -> "Canvas":
+        """Create and add a nested ``Canvas`` layer container."""
+
         from .containers.canvas import Canvas
 
         child = Canvas()
@@ -434,6 +564,8 @@ class ContainerBuilder(NodeBuilder):
         return child
 
     def add_frame(self) -> "Frame":
+        """Create and add a nested flow ``Frame`` container."""
+
         from .containers.frame import Frame
 
         child = Frame()
@@ -441,6 +573,8 @@ class ContainerBuilder(NodeBuilder):
         return child
 
     def add_table(self, rows: Sequence[Sequence[object]]) -> "Table":
+        """Create and add a ``Table`` child from row data."""
+
         from .containers.table import Table
 
         child = Table(rows)
@@ -449,7 +583,11 @@ class ContainerBuilder(NodeBuilder):
 
 
 class PageBuilder(ContainerBuilder):
+    """Single PDF page builder returned by ``document().page(...)``."""
+
     def __init__(self, size: str | tuple[float, float] = "A4") -> None:
+        """Create a page with a named or explicit ``(width, height)`` size."""
+
         width, height = resolve_page_size(size)
         style = Style(width=Fixed(width), height=Fixed(height))
         super().__init__(LayoutNode(node_type="page", style=style))
@@ -457,6 +595,8 @@ class PageBuilder(ContainerBuilder):
 
 @dataclass(slots=True)
 class DocumentSection:
+    """Internal section metadata used for scoped overlays and outlines."""
+
     section_id: str
     name: str | None
     page_numbering: Literal["continue", "restart"]
@@ -467,31 +607,47 @@ class DocumentSection:
 
 
 class SectionBuilder:
+    """Builder for a named document section."""
+
     def __init__(self, document: "DocumentBuilder", section: DocumentSection) -> None:
         self._document = document
         self.section = section
 
     def page(self, size: str | tuple[float, float] = "A4") -> PageBuilder:
+        """Create a page inside this section."""
+
         return self._document._add_page_to_section(self.section, size)
 
     def header(self) -> "Canvas":
+        """Create a section-scoped repeating header canvas."""
+
         return self._overlay("header", "__doc_header__", 200)
 
     def footer(self) -> "Canvas":
+        """Create a section-scoped repeating footer canvas."""
+
         return self._overlay("footer", "__doc_footer__", 210)
 
     def watermark(self) -> "Canvas":
+        """Create a section-scoped repeating watermark canvas."""
+
         return self._overlay("watermark", "__doc_watermark__", -100)
 
     def suppress_header(self) -> "SectionBuilder":
+        """Disable inherited document headers for this section."""
+
         self.section.suppressed_overlays.add("header")
         return self
 
     def suppress_footer(self) -> "SectionBuilder":
+        """Disable inherited document footers for this section."""
+
         self.section.suppressed_overlays.add("footer")
         return self
 
     def suppress_watermark(self) -> "SectionBuilder":
+        """Disable inherited document watermarks for this section."""
+
         self.section.suppressed_overlays.add("watermark")
         return self
 
@@ -508,6 +664,8 @@ class SectionBuilder:
 
 
 class DocumentBuilder:
+    """Top-level chainable document builder."""
+
     _root: LayoutNode
 
     def __init__(self) -> None:
@@ -523,9 +681,17 @@ class DocumentBuilder:
 
     @property
     def pages(self) -> list[LayoutNode]:
+        """Built page nodes currently attached to the document."""
+
         return self._root.children
 
     def page(self, size: str | tuple[float, float] = "A4") -> PageBuilder:
+        """Create a page in the default section.
+
+        ``size`` accepts ``"A4"``, ``"LETTER"``, or an explicit
+        ``(width, height)`` tuple in points.
+        """
+
         return self._add_page_to_section(self._get_default_section(), size)
 
     def section(
@@ -535,6 +701,13 @@ class DocumentBuilder:
         page_numbering: str = "restart",
         outline: bool = True,
     ) -> SectionBuilder:
+        """Create a named document section.
+
+        ``page_numbering`` accepts ``"restart"`` or ``"continue"``.
+        Section headers, footers, watermarks, and page-number placeholders are
+        scoped to pages added through the returned builder.
+        """
+
         if page_numbering not in {"continue", "restart"}:
             raise ValueError(f"Unsupported section page numbering: {page_numbering}")
         section = self._create_section(
@@ -551,6 +724,8 @@ class DocumentBuilder:
         subject: str | None = None,
         keywords: str | None = None,
     ) -> "DocumentBuilder":
+        """Set PDF metadata fields and return this document builder."""
+
         values = {
             "title": title,
             "author": author,
@@ -563,6 +738,8 @@ class DocumentBuilder:
         return self
 
     def build(self) -> "Document":
+        """Build an immutable ``Document`` ready to save or render to bytes."""
+
         return Document(
             pages=self.pages,
             overlay_templates={
@@ -574,12 +751,18 @@ class DocumentBuilder:
         )
 
     def save(self, file_path: str) -> None:
+        """Build and save the document to a PDF file path."""
+
         self.build().save(file_path)
 
     def save_to_bytes(self) -> bytes:
+        """Build and render the document, returning raw PDF bytes."""
+
         return self.build().save_to_bytes()
 
     def header(self) -> "Canvas":
+        """Create a repeating document-level header canvas."""
+
         from .containers.canvas import Canvas
 
         canvas = Canvas()
@@ -591,6 +774,8 @@ class DocumentBuilder:
         return canvas
 
     def footer(self) -> "Canvas":
+        """Create a repeating document-level footer canvas."""
+
         from .containers.canvas import Canvas
 
         canvas = Canvas()
@@ -602,6 +787,8 @@ class DocumentBuilder:
         return canvas
 
     def watermark(self) -> "Canvas":
+        """Create a repeating document-level watermark canvas."""
+
         from .containers.canvas import Canvas
 
         canvas = Canvas()
@@ -653,6 +840,8 @@ class DocumentBuilder:
 
 
 def resolve_page_size(size: str | tuple[float, float]) -> tuple[float, float]:
+    """Resolve ``"A4"``, ``"LETTER"``, or explicit page size tuples."""
+
     if isinstance(size, tuple):
         width, height = size
         if not isfinite(width) or not isfinite(height) or width <= 0 or height <= 0:
@@ -667,20 +856,28 @@ def resolve_page_size(size: str | tuple[float, float]) -> tuple[float, float]:
 
 
 def document() -> DocumentBuilder:
+    """Create a new chainable document builder."""
+
     return DocumentBuilder()
 
 
 @dataclass(slots=True)
 class Document:
+    """Built document that can be saved to disk or rendered to bytes."""
+
     pages: list[LayoutNode]
     overlay_templates: dict[str, list[LayoutNode]] | None = None
     sections: list[DocumentSection] | None = None
     metadata: DocumentMetadata | None = None
 
     def save(self, file_path: str) -> None:
+        """Render and save this document to a PDF file path."""
+
         self._save_to_target(file_path)
 
     def save_to_bytes(self) -> bytes:
+        """Render this document and return raw PDF bytes."""
+
         buffer = BytesIO()
         self._save_to_target(buffer)
         return buffer.getvalue()
