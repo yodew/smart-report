@@ -10,7 +10,11 @@ from ..style.units import Fixed, SizeInput, parse_size
 
 
 class Spacer(NodeBuilder):
+    """Fixed-height empty flow element."""
+
     def __init__(self, height: SizeInput) -> None:
+        """Create a spacer with a fixed non-negative height."""
+
         parsed = parse_size(height)
         if not isinstance(parsed, Fixed):
             raise ValueError("Spacer height requires a fixed point-compatible value")
