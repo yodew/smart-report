@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .node import LayoutNode
+from .text_wrap import text_width
 from ..style.font import string_width
 from ..style.units import Percent
 from ..style.units import is_auto
@@ -78,10 +79,34 @@ def _wrapped_flex_child_available_width(child: LayoutNode, content_width: float)
 def _text_natural_width(node: LayoutNode) -> float:
     text = str(node.content.get("text", ""))
     widest_line = max(
-        (string_width(line, node.style.font_name, node.style.font_size) for line in text.splitlines() if line.strip()),
+        (
+            text_width(
+                line,
+                node.style.font_name,
+                node.style.font_size,
+                string_width,
+                node.style.typography,
+                node.style.text_direction,
+                _letter_spacing_points(node),
+            )
+            for line in text.splitlines()
+            if line.strip()
+        ),
         default=0.0,
     )
     return widest_line + node.style.padding.horizontal
+
+
+def _letter_spacing_points(node: LayoutNode) -> float:
+    value = node.content.get("letter_spacing")
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        if value.endswith("em"):
+            return float(value[:-2]) * node.style.font_size
+        if value.endswith("%"):
+            return (float(value[:-1]) / 100.0) * node.style.font_size
+    return 0.0
 
 
 def _layout_gap(node: LayoutNode) -> float:

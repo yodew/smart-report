@@ -356,6 +356,19 @@ def _measure_text_height(node: LayoutNode) -> float:
         font_size,
         typography=node.style.typography,
         text_direction=node.style.text_direction,
+        letter_spacing=_letter_spacing_points(node),
     )
     return max(line_height, len(wrapped_lines) * line_height) + node.style.padding.vertical
+
+
+def _letter_spacing_points(node: LayoutNode) -> float:
+    value = node.content.get("letter_spacing")
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        if value.endswith("em"):
+            return float(value[:-2]) * node.style.font_size
+        if value.endswith("%"):
+            return (float(value[:-1]) / 100.0) * node.style.font_size
+    return 0.0
 MAX_LAYOUT_TRACKS = 64

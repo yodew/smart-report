@@ -20,6 +20,7 @@ def wrap_text(
     string_width: StringWidthFn | None = None,
     typography: TypographyMode = "plain",
     text_direction: TextDirection = "auto",
+    letter_spacing: float = 0.0,
 ) -> list[str]:
     if not text:
         return [""]
@@ -32,7 +33,7 @@ def wrap_text(
         if not paragraph.strip():
             lines.append("")
             continue
-        lines.extend(_wrap_paragraph(paragraph, safe_width, font_name, font_size, measure, typography, text_direction))
+        lines.extend(_wrap_paragraph(paragraph, safe_width, font_name, font_size, measure, typography, text_direction, letter_spacing))
 
     return lines or [""]
 
@@ -45,6 +46,7 @@ def _wrap_paragraph(
     string_width: StringWidthFn,
     typography: TypographyMode,
     text_direction: TextDirection,
+    letter_spacing: float,
 ) -> list[str]:
     tokens = _tokens(paragraph)
     lines: list[str] = []
@@ -54,7 +56,7 @@ def _wrap_paragraph(
         if token.isspace() and not current:
             continue
         candidate = f"{current}{token}"
-        if _string_width(candidate.rstrip(), font_name, font_size, string_width, typography, text_direction) <= width:
+        if _string_width(candidate.rstrip(), font_name, font_size, string_width, typography, text_direction, letter_spacing) <= width:
             current = candidate
             continue
         if current.strip():
@@ -63,12 +65,12 @@ def _wrap_paragraph(
             current = token.lstrip()
             if not current:
                 continue
-            if _string_width(current, font_name, font_size, string_width, typography, text_direction) <= width:
+            if _string_width(current, font_name, font_size, string_width, typography, text_direction, letter_spacing) <= width:
                 continue
         else:
             current = token.lstrip()
-        if _string_width(current, font_name, font_size, string_width, typography, text_direction) > width:
-            split_parts = _split_long_token(current, width, font_name, font_size, string_width, typography, text_direction)
+        if _string_width(current, font_name, font_size, string_width, typography, text_direction, letter_spacing) > width:
+            split_parts = _split_long_token(current, width, font_name, font_size, string_width, typography, text_direction, letter_spacing)
             lines.extend(split_parts[:-1])
             current = split_parts[-1] if split_parts else ""
 
@@ -135,12 +137,13 @@ def _split_long_token(
     string_width: StringWidthFn,
     typography: TypographyMode,
     text_direction: TextDirection,
+    letter_spacing: float,
 ) -> list[str]:
     parts: list[str] = []
     current = ""
     for character in token:
         candidate = f"{current}{character}"
-        if current and _string_width(candidate, font_name, font_size, string_width, typography, text_direction) > width:
+        if current and _string_width(candidate, font_name, font_size, string_width, typography, text_direction, letter_spacing) > width:
             parts.append(current)
             current = character
             continue
@@ -161,7 +164,23 @@ def _string_width(
     string_width: StringWidthFn,
     typography: TypographyMode,
     text_direction: TextDirection,
+    letter_spacing: float = 0.0,
 ) -> float:
+    base_width: float
     if typography == "advanced":
-        return shaped_string_width(text, font_name, font_size)
-    return string_width(shape_text_for_width(text, typography, text_direction), font_name, font_size)
+        base_width = shaped_string_width(text, font_name, font_size)
+    else:
+        base_width = string_width(shape_text_for_width(text, typography, text_direction), font_name, font_size)
+    return base_width + max(0, len(text) - 1) * letter_spacing
+
+
+def text_width(
+    text: str,
+    font_name: str,
+    font_size: float,
+    string_width: StringWidthFn | None = None,
+    typography: TypographyMode = "plain",
+    text_direction: TextDirection = "auto",
+    letter_spacing: float = 0.0,
+) -> float:
+    return _string_width(text, font_name, font_size, string_width or _string_width_fn(), typography, text_direction, letter_spacing)
