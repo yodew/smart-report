@@ -1283,7 +1283,7 @@ class TableV2ModelTests(unittest.TestCase):
         vertical_segments = [line for line in adapter.lines if line[0] == line[2] == 100.0]
         self.assertEqual(
             [(line[1], line[3]) for line in vertical_segments],
-            [(0.0, 26.0), (26.0, 52.0)],
+            [(0.0, 26.4), (26.4, 52.8)],
         )
 
     def test_collapsed_borders_split_colspan_shared_edge_without_overlap(self) -> None:
@@ -2987,6 +2987,7 @@ class _FakeTextObject:
         self.origins: list[tuple[float, float]] = []
         self.output: list[str] = []
         self.font_names: list[str] = []
+        self.char_spaces: list[float] = []
 
     def setFont(self, _font_name: str, _font_size: float, _leading: float | None = None) -> None:
         _ = (_font_size, _leading)
@@ -3000,6 +3001,9 @@ class _FakeTextObject:
 
     def setLeading(self, _leading: float) -> None:
         return
+
+    def setCharSpace(self, char_space: float) -> None:
+        self.char_spaces.append(char_space)
 
     def textOut(self, _text: str) -> None:
         self.output.append(_text)

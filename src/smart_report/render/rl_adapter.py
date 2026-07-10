@@ -54,6 +54,7 @@ class TextObjectLike(Protocol):
     def setFillColorRGB(self, r: float, g: float, b: float) -> None: ...
     def setTextOrigin(self, x: float, y: float) -> None: ...
     def setLeading(self, leading: float) -> None: ...
+    def setCharSpace(self, charSpace: float) -> None: ...
     def textOut(self, text: str) -> None: ...
     def textLine(self, text: str = "") -> None: ...
 
@@ -159,19 +160,31 @@ class ReportLabCanvasAdapter:
         typography: TypographyMode = "plain",
         text_direction: TextDirection = "auto",
         align: str = "left",
+        height: float | None = None,
+        valign: str = "top",
+        letter_spacing: float = 0.0,
     ) -> None:
-        wrapped_lines = wrap_text(text, width, font_name, font_size, typography=typography, text_direction=text_direction)
-        baseline_y = self.page_height - y - font_size
+        wrapped_lines = wrap_text(text, width, font_name, font_size, typography=typography, text_direction=text_direction, letter_spacing=letter_spacing)
+        text_height = max(line_height, len(wrapped_lines) * line_height)
+        vertical_offset = 0.0
+        if height is not None:
+            extra_height = max(0.0, height - text_height)
+            if valign == "middle":
+                vertical_offset = extra_height / 2.0
+            elif valign == "bottom":
+                vertical_offset = extra_height
+        baseline_y = self.page_height - y - vertical_offset - font_size
         text_object = cast(TextObjectLike, self._canvas.beginText(x, baseline_y))
         text_object.setFont(font_name, font_size, line_height)
         text_object.setLeading(line_height)
+        text_object.setCharSpace(letter_spacing)
         text_color = color or DEFAULT_TEXT_COLOR
         text_object.setFillColorRGB(text_color.red, text_color.green, text_color.blue)
         self._canvas.setFillAlpha(text_color.alpha)
         current_baseline_y = baseline_y
         for line in wrapped_lines:
             display_line = shape_text(line, typography, text_direction)
-            line_width = shaped_string_width(display_line, font_name, font_size) if typography == "advanced" else string_width(display_line, font_name, font_size)
+            line_width = (shaped_string_width(display_line, font_name, font_size) if typography == "advanced" else string_width(display_line, font_name, font_size)) + max(0, len(display_line) - 1) * letter_spacing
             offset = max(0.0, width - line_width)
             if align == "center":
                 offset /= 2

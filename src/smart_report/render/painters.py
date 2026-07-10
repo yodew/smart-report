@@ -8,9 +8,9 @@ from typing import Callable, Literal
 from ..layout.node import Rect, RenderItem
 from ..layout.pass4_render import build_render_list
 from ..layout.table_model import TableCellBox, fit_plain_overflow_text, layout_rich_cell_content, normalize_plain_overflow_text, table_cell_boxes
-from ..layout.text_wrap import wrap_text
+from ..layout.text_wrap import text_width, wrap_text
 from ..style.color import RGBA
-from ..style.font import shaped_string_width, string_width
+from ..style.font import string_width
 from ..style.typography import shape_text
 from .rl_adapter import ReportLabCanvasAdapter
 
@@ -66,6 +66,9 @@ def paint_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
         text_direction=node.style.text_direction,
         color=node.style.color,
         align=str(node.content.get("align", "left")),
+        height=max(0.0, bounds.height - padding.vertical),
+        valign=str(node.content.get("valign", "top")),
+        letter_spacing=_letter_spacing_points(node),
     )
     link_url = node.content.get("link_url")
     if isinstance(link_url, str):
@@ -86,14 +89,19 @@ def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderIt
         node.style.font_size,
         typography=node.style.typography,
         text_direction=node.style.text_direction,
+        letter_spacing=_letter_spacing_points(node),
     )
+    text_height = max(node.style.line_height, len(wrapped_lines) * node.style.line_height)
+    content_height = max(0.0, bounds.height - padding.vertical)
+    vertical_offset = 0.0
+    valign = node.content.get("valign", "top")
+    if valign == "middle":
+        vertical_offset = max(0.0, content_height - text_height) / 2.0
+    elif valign == "bottom":
+        vertical_offset = max(0.0, content_height - text_height)
     for line_index, line in enumerate(wrapped_lines):
         display_line = shape_text(line, node.style.typography, node.style.text_direction)
-        line_width = (
-            shaped_string_width(display_line, node.style.font_name, node.style.font_size)
-            if node.style.typography == "advanced"
-            else string_width(display_line, node.style.font_name, node.style.font_size)
-        )
+        line_width = text_width(display_line, node.style.font_name, node.style.font_size, string_width, node.style.typography, node.style.text_direction, _letter_spacing_points(node))
         if line_width <= 0:
             continue
         offset = max(0.0, content_width - line_width)
@@ -107,11 +115,26 @@ def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderIt
             link_url,
             Rect(
                 x=content_x + offset,
-                y=content_y + (line_index * node.style.line_height),
+                y=content_y + vertical_offset + (line_index * node.style.line_height),
                 width=line_width,
                 height=node.style.line_height,
             ),
         )
+
+
+def _letter_spacing_points(node: object) -> float:
+    content = getattr(node, "content", {})
+    style = getattr(node, "style", None)
+    font_size = float(getattr(style, "font_size", 12.0))
+    value = content.get("letter_spacing") if isinstance(content, dict) else None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        if value.endswith("em"):
+            return float(value[:-2]) * font_size
+        if value.endswith("%"):
+            return (float(value[:-1]) / 100.0) * font_size
+    return 0.0
 
 
 def paint_image(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
