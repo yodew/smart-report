@@ -80,7 +80,8 @@ class Style:
     font_name: str = field(default_factory=get_default_font_name)
     font_family: str | None = None
     font_size: float = 12.0
-    line_height: float = 14.0
+    line_height: float = 14.4
+    line_height_auto: bool = True
     typography: TypographyMode = "plain"
     text_direction: TextDirection = "auto"
     border_radius: float = 0.0
@@ -175,6 +176,7 @@ def clone_layout_node(node: LayoutNode, include_children: bool = True) -> Layout
         font_family=node.style.font_family,
         font_size=node.style.font_size,
         line_height=node.style.line_height,
+        line_height_auto=node.style.line_height_auto,
         typography=node.style.typography,
         text_direction=node.style.text_direction,
         border_radius=node.style.border_radius,

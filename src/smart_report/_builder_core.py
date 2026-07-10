@@ -266,12 +266,13 @@ class NodeBuilder:
 
     def font_size(self: BuilderT, size: float) -> BuilderT:
         self.node.style.font_size = size
-        if self.node.style.line_height < size:
+        if self.node.style.line_height_auto:
             self.node.style.line_height = size * 1.2
         return self
 
     def line_height(self: BuilderT, value: float) -> BuilderT:
         self.node.style.line_height = value
+        self.node.style.line_height_auto = False
         return self
 
     def typography(self: BuilderT, value: str) -> BuilderT:
