@@ -310,20 +310,25 @@ frame.add_text("مرحبا smart-report").typography("auto").text_direction("rtl
 | `.color(value)` | 设置文字颜色 |
 | `.text(value)` | 替换已有 `Text` 节点的文本内容 |
 | `.align(value)` | 设置文本块内每一行的水平对齐，支持 `"left"`、`"center"`、`"right"` |
+| `.valign(value)` | 设置固定文本高度内的垂直对齐，支持 `"top"`、`"middle"`、`"bottom"` |
+| `.letter_spacing(value)` | 设置字距，支持点值、`"0.05em"` 或 `"5%"`；`0.05em` / `5%` 均表示当前字号的 5% |
 | `.link(url)` | 为整个文字节点添加 PDF 外部 URL 链接注释；`url` 必须为非空字符串 |
 | `.margin(...)` | 设置外边距 |
 
-固定区域内文本居中可给文本节点设置宽度并调用 `.align("center")`：
+固定区域内文本居中可给文本节点设置宽高，并调用 `.align("center")` / `.valign("middle")`：
 
 ```python
 frame = Frame().size(195, 135).absolute(384, 79)
 frame.add_text("体质辨析：气虚质 + 痰湿质\n五行辨析：土过旺、木金偏弱") \
-    .width("100%") \
+    .size("100%", "100%") \
     .font_size(10) \
-    .line_height(27) \
-    .align("center")
+    .align("center") \
+    .valign("middle") \
+    .letter_spacing("0.05em")
 page.add(frame)
 ```
+
+未显式调用 `.line_height(...)` 时，行高会随字号自动计算为 `font_size * 1.2`。例如 `.font_size(10)` 默认行高为 `12`；如需旧版固定行高或精确控制，请显式调用 `.line_height(...)`。
 
 > 注意：中文字体需要先注册可用字体；当前默认字体为 `Helvetica`，并不适合中文正式输出。中文连续文本会按实际字形宽度换行，表格测量、分页和最终绘制使用同一套换行逻辑。
 

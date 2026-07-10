@@ -60,6 +60,7 @@ For the full API reference, including `Rect`, `Line`, `Spacer`, table styling, i
 - v2.11 strengthens layered report rendering contracts and adds a fixed-region multi-layer report example
 - v2.11.1 accepts `pathlib.Path` image sources and expands API docs for shapes, tables, colors, fonts, and chainable methods
 - v2.11.2 adds `Text.align(...)` for left, center, and right aligned text within fixed text widths
+- v2.11.3 adds `Text.valign(...)`, `Text.letter_spacing(...)`, and automatic default line height based on font size
 
 ## v2.11 layered reports
 
@@ -470,7 +471,7 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v2.11.2 release adds `Text.align(...)` for left, center, and right aligned text within fixed text widths, while preserving backward compatibility with the v2.11.1 `pathlib.Path` image-source support, the v2.11 layered report rendering contracts, and all prior releases including the v2.10 `save_to_bytes()` API.
+The v2.11.3 release adds vertical text alignment, letter spacing, and automatic default line height based on font size, while preserving backward compatibility with the v2.11.2 `Text.align(...)` API, the v2.11.1 `pathlib.Path` image-source support, and all prior releases including the v2.10 `save_to_bytes()` API.
 
 ## Current limitations
 
