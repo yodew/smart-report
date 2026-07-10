@@ -14,7 +14,15 @@ ColorInput = str | RGBA | None
 
 
 class Table(NodeBuilder):
+    """Chainable report table builder.
+
+    Rows are a 2D sequence. Cells may be strings/numbers or rich builders such
+    as ``Frame``, ``Text``, and ``Image``.
+    """
+
     def __init__(self, rows: Sequence[Sequence[object]]) -> None:
+        """Create a table from row data."""
+
         style = Style(width=parse_size("100%"), height=parse_size("auto"))
         node = LayoutNode(
             node_type="table",
@@ -29,10 +37,14 @@ class Table(NodeBuilder):
         super().__init__(node)
 
     def rows(self, values: Sequence[Sequence[object]]) -> "Table":
+        """Replace all table rows."""
+
         self.node.content["rows"] = _normalize_rows(values)
         return self
 
     def cell(self, row_index: int, column_index: int, value: object) -> "Table":
+        """Set a single cell value, expanding rows/columns as needed."""
+
         rows = self.node.content.get("rows")
         if not isinstance(rows, list):
             raise ValueError("Table rows are not initialized")
@@ -47,33 +59,64 @@ class Table(NodeBuilder):
         return self
 
     def column_widths(self, values: list[SizeInput]) -> "Table":
+        """Set column widths.
+
+        Values may be point values, unit strings, percentages, or ``"auto"``.
+        """
+
         self.node.content["column_widths"] = values
         return self
 
     def column_min_widths(self, values: list[SizeInput]) -> "Table":
+        """Set per-column minimum widths for auto-fit/clamped sizing."""
+
         _validate_column_width_constraints("column_min_widths", values)
         self.node.content["column_min_widths"] = values
         return self
 
     def column_max_widths(self, values: list[SizeInput]) -> "Table":
+        """Set per-column maximum widths for auto-fit/clamped sizing."""
+
         _validate_column_width_constraints("column_max_widths", values)
         self.node.content["column_max_widths"] = values
         return self
 
     def auto_fit_columns(self, columns: Sequence[int] | None = None) -> "Table":
+        """Auto-fit plain-text columns by natural content width.
+
+        Pass ``None`` to auto-fit all columns, or a sequence of zero-based
+        column indexes to fit only selected columns.
+        """
+
         self.node.content["auto_fit_columns"] = _normalize_auto_fit_columns(columns)
         return self
 
     def align(self, value: str | list[str]) -> "Table":
+        """Set horizontal cell text alignment.
+
+        Accepted values are ``"left"``, ``"center"``, and ``"right"``.
+        Pass a single value for all columns or a list per column.
+        """
+
         _validate_align_value(value)
         self.node.content["align"] = value
         return self
 
     def text_overflow(self, value: str) -> "Table":
+        """Set plain-text cell overflow behavior.
+
+        Accepted values are ``"wrap"``, ``"clip"``, and ``"ellipsis"``.
+        """
+
         self.node.content["text_overflow"] = _normalize_text_overflow(value)
         return self
 
     def valign(self, value: str) -> "Table":
+        """Set vertical cell content alignment.
+
+        Accepted values are ``"top"``, ``"middle"``, and ``"bottom"``.
+        """
+
         self.node.content["valign"] = _normalize_valign(value)
         return self
 
@@ -88,6 +131,11 @@ class Table(NodeBuilder):
         vertical: SizeInput | None = None,
         horizontal: SizeInput | None = None,
     ) -> "Table":
+        """Set default cell padding.
+
+        Prefer named arguments such as ``vertical=6`` and ``horizontal=10``.
+        """
+
         self.node.content["cell_padding"] = _parse_table_edges(
             value,
             top=top,
@@ -110,6 +158,8 @@ class Table(NodeBuilder):
         vertical: SizeInput | None = None,
         horizontal: SizeInput | None = None,
     ) -> "Table":
+        """Set padding for header cells only."""
+
         self.node.content["header_cell_padding"] = _parse_table_edges(
             value,
             top=top,
@@ -129,6 +179,12 @@ class Table(NodeBuilder):
         color: ColorInput = None,
         repeat: bool = True,
     ) -> "Table":
+        """Configure leading header rows.
+
+        ``rows`` is the number of leading body rows treated as headers.
+        ``repeat=True`` repeats them on paginated table slices.
+        """
+
         self.node.content["header_rows"] = max(0, rows)
         self.node.content["repeat_header"] = repeat
         if background is not None:
@@ -147,6 +203,12 @@ class Table(NodeBuilder):
         line_height: float | None = None,
         align: str | list[str] | None = None,
     ) -> "Table":
+        """Override style for header cells.
+
+        ``align`` accepts ``"left"``, ``"center"``, ``"right"``, or a list
+        of those values per column.
+        """
+
         if background is not None:
             self.node.content["header_background"] = parse_color(background)
         if color is not None:
@@ -170,6 +232,11 @@ class Table(NodeBuilder):
         background: ColorInput = None,
         color: ColorInput = None,
     ) -> "Table":
+        """Add footer rows after the body.
+
+        ``repeat=True`` repeats footer rows on paginated table slices.
+        """
+
         self.node.content["footer_rows"] = _normalize_rows(rows)
         self.node.content["repeat_footer"] = repeat
         if background is not None:
@@ -188,6 +255,12 @@ class Table(NodeBuilder):
         line_height: float | None = None,
         align: str | list[str] | None = None,
     ) -> "Table":
+        """Override style for footer cells.
+
+        ``align`` accepts ``"left"``, ``"center"``, ``"right"``, or a list
+        of those values per column.
+        """
+
         if background is not None:
             self.node.content["footer_background"] = parse_color(background)
         if color is not None:
@@ -211,6 +284,8 @@ class Table(NodeBuilder):
         background: ColorInput = "#f1f5f9",
         color: ColorInput = None,
     ) -> "Table":
+        """Add a single footer/subtotal row."""
+
         return self.footer([row], repeat=repeat, background=background, color=color)
 
     def borders(
@@ -221,6 +296,12 @@ class Table(NodeBuilder):
         inner_width: float | None = None,
         outer_width: float | None = None,
     ) -> "Table":
+        """Set table border color and widths.
+
+        To hide borders while keeping text color, use
+        ``.borders("transparent", width=0)``.
+        """
+
         self.node.content["border_color"] = parse_color(color)
         self.node.content["border_width"] = float(width)
         if inner_width is not None:
@@ -230,10 +311,14 @@ class Table(NodeBuilder):
         return self
 
     def border_collapse(self, value: bool = True) -> "Table":
+        """Collapse adjacent cell borders so shared edges paint once."""
+
         self.node.content["border_collapse"] = value
         return self
 
     def cell_border(self, row_index: int, column_index: int, *, color: ColorInput = None, width: float = 1.0) -> "Table":
+        """Override border color and width for one cell."""
+
         styles = _style_map(self.node.content, "cell_styles")
         key = f"{row_index}:{column_index}"
         existing = styles.get(key)
@@ -245,10 +330,14 @@ class Table(NodeBuilder):
         return self
 
     def zebra(self, background: ColorInput = "#f8fafc") -> "Table":
+        """Set alternating row background color."""
+
         self.node.content["zebra_background"] = parse_color(background)
         return self
 
     def repeat_header(self, value: bool = True) -> "Table":
+        """Enable or disable repeating header rows during pagination."""
+
         self.node.content["repeat_header"] = value
         return self
 
@@ -265,6 +354,14 @@ class Table(NodeBuilder):
         text_overflow: str | None = None,
         valign: str | None = None,
     ) -> "Table":
+        """Override style for one logical row by zero-based row index.
+
+        ``align`` accepts ``"left"``, ``"center"``, or ``"right"``.
+        ``text_overflow`` accepts ``"wrap"``, ``"clip"``, or
+        ``"ellipsis"``. ``valign`` accepts ``"top"``, ``"middle"``, or
+        ``"bottom"``.
+        """
+
         styles = _style_map(self.node.content, "row_styles")
         styles[index] = _merge_style_override(
             styles.get(index),
@@ -292,6 +389,14 @@ class Table(NodeBuilder):
         text_overflow: str | None = None,
         valign: str | None = None,
     ) -> "Table":
+        """Override style for one column by zero-based column index.
+
+        ``align`` accepts ``"left"``, ``"center"``, or ``"right"``.
+        ``text_overflow`` accepts ``"wrap"``, ``"clip"``, or
+        ``"ellipsis"``. ``valign`` accepts ``"top"``, ``"middle"``, or
+        ``"bottom"``.
+        """
+
         styles = _style_map(self.node.content, "column_styles")
         styles[index] = _merge_style_override(
             styles.get(index),
@@ -320,6 +425,14 @@ class Table(NodeBuilder):
         text_overflow: str | None = None,
         valign: str | None = None,
     ) -> "Table":
+        """Override style for one cell by zero-based row and column index.
+
+        ``align`` accepts ``"left"``, ``"center"``, or ``"right"``.
+        ``text_overflow`` accepts ``"wrap"``, ``"clip"``, or
+        ``"ellipsis"``. ``valign`` accepts ``"top"``, ``"middle"``, or
+        ``"bottom"``.
+        """
+
         styles = _style_map(self.node.content, "cell_styles")
         key = f"{row_index}:{column_index}"
         styles[key] = _merge_style_override(
@@ -336,6 +449,8 @@ class Table(NodeBuilder):
         return self
 
     def span(self, row_index: int, column_index: int, *, rowspan: int = 1, colspan: int = 1) -> "Table":
+        """Make a cell span rows and/or columns."""
+
         if rowspan < 1 or colspan < 1:
             raise ValueError("Table span values must be >= 1")
         spans = _style_map(self.node.content, "cell_spans")
