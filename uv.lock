@@ -583,7 +583,7 @@ wheels = [
 
 [[package]]
 name = "smart-report"
-version = "2.11.2"
+version = "2.11.3"
 source = { editable = "." }
 dependencies = [
     { name = "arabic-reshaper" },
