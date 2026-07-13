@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .node import LayoutNode
+from .rich_text_layout import rich_text_height
 from .table_model import table_height
 from .text_wrap import wrap_text
 from ..style.units import Auto, Percent, resolve_size
@@ -320,6 +321,8 @@ def _resolve_leaf_height(node: LayoutNode, explicit_height: float | None) -> flo
 
     if node.node_type == "text":
         return _measure_text_height(node)
+    if node.node_type == "rich_text":
+        return rich_text_height(node, node.resolved_width)
     if node.node_type == "image":
         intrinsic_width = node.content.get("intrinsic_width")
         intrinsic_height = node.content.get("intrinsic_height")

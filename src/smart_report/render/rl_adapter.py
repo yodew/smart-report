@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Protocol, cast
 
 from ..layout.node import Rect
+from ..layout.rich_text_layout import RichTextLine
 from ..layout.text_wrap import wrap_text
 from ..style.color import RGBA
 from ..style.font import resolve_text_runs, shaped_string_width, string_width
@@ -196,6 +197,46 @@ class ReportLabCanvasAdapter:
                 text_object.textOut(run.text)
             text_object.textLine()
             current_baseline_y -= line_height
+        self._canvas.drawText(text_object)
+
+    def draw_rich_text(
+        self,
+        x: float,
+        y: float,
+        width: float,
+        lines: list[RichTextLine],
+        align: str = "left",
+        height: float | None = None,
+        valign: str = "top",
+    ) -> None:
+        text_height = sum(line.height for line in lines)
+        vertical_offset = 0.0
+        if height is not None:
+            extra_height = max(0.0, height - text_height)
+            if valign == "middle":
+                vertical_offset = extra_height / 2.0
+            elif valign == "bottom":
+                vertical_offset = extra_height
+        baseline_y = self.page_height - y - vertical_offset
+        text_object = cast(TextObjectLike, self._canvas.beginText(x, baseline_y))
+        current_baseline_y = baseline_y
+        for line in lines:
+            max_font_size = max((fragment.font_size for fragment in line.fragments), default=12.0)
+            current_baseline_y -= max_font_size
+            offset = max(0.0, width - line.width)
+            if align == "center":
+                offset /= 2.0
+            elif align == "left":
+                offset = 0.0
+            text_object.setTextOrigin(x + offset, current_baseline_y)
+            for fragment in line.fragments:
+                text_object.setFont(fragment.font_name, fragment.font_size, line.height)
+                text_color = fragment.color or DEFAULT_TEXT_COLOR
+                text_object.setFillColorRGB(text_color.red, text_color.green, text_color.blue)
+                self._canvas.setFillAlpha(text_color.alpha)
+                text_object.textOut(fragment.text)
+            text_object.textLine()
+            current_baseline_y -= max(0.0, line.height - max_font_size)
         self._canvas.drawText(text_object)
 
     def draw_image(self, image_source: str | bytes, rect: Rect, opacity: float = 1.0, fit: str = "stretch") -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .node import LayoutNode
+from .rich_text_layout import rich_text_natural_width
 from .text_wrap import text_width
 from ..style.font import string_width
 from ..style.units import Percent
@@ -72,6 +73,9 @@ def _wrapped_flex_child_available_width(child: LayoutNode, content_width: float)
         return margin_adjusted_width
     if child.node_type == "text":
         natural_width = _text_natural_width(child)
+        return min(content_width, natural_width) + child.style.margin.horizontal
+    if child.node_type == "rich_text":
+        natural_width = rich_text_natural_width(child)
         return min(content_width, natural_width) + child.style.margin.horizontal
     return margin_adjusted_width
 

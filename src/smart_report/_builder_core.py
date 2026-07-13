@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from .containers.frame import Frame
     from .containers.table import Table
     from .elements.image import Image
+    from .elements.rich_text import RichText
     from .elements.shape import Line, Rect
     from .elements.spacer import Spacer
     from .elements.text import Text
@@ -511,6 +512,15 @@ class ContainerBuilder(NodeBuilder):
         from .elements.text import Text
 
         child = Text(text)
+        _ = self.add(cast(NodeBuilder, child))
+        return child
+
+    def add_rich_text(self, text: str = "") -> "RichText":
+        """Create and add a ``RichText`` child, returning the child builder."""
+
+        from .elements.rich_text import RichText
+
+        child = RichText(text)
         _ = self.add(cast(NodeBuilder, child))
         return child
 

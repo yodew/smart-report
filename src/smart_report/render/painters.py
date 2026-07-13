@@ -7,6 +7,7 @@ from typing import Callable, Literal
 
 from ..layout.node import Rect, RenderItem
 from ..layout.pass4_render import build_render_list
+from ..layout.rich_text_layout import layout_rich_text
 from ..layout.table_model import TableCellBox, fit_plain_overflow_text, layout_rich_cell_content, normalize_plain_overflow_text, table_cell_boxes
 from ..layout.text_wrap import text_width, wrap_text
 from ..style.color import RGBA
@@ -73,6 +74,23 @@ def paint_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     link_url = node.content.get("link_url")
     if isinstance(link_url, str):
         _paint_text_link_annotations(adapter, item, text_value, link_url)
+
+
+def paint_rich_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
+    node = item.node
+    bounds = item.absolute_bounds
+    padding = node.style.padding
+    content_width = max(1.0, bounds.width - padding.horizontal)
+    lines = layout_rich_text(node, content_width)
+    adapter.draw_rich_text(
+        x=bounds.x + padding.left,
+        y=bounds.y + padding.top,
+        width=content_width,
+        lines=lines,
+        align=str(node.content.get("align", "left")),
+        height=max(0.0, bounds.height - padding.vertical),
+        valign=str(node.content.get("valign", "top")),
+    )
 
 
 def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderItem, text_value: str, link_url: str) -> None:
@@ -425,6 +443,7 @@ def _table_border_width(node: object) -> float:
 
 PAINTERS: dict[str, Painter] = {
     "text": paint_text,
+    "rich_text": paint_rich_text,
     "image": paint_image,
     "rect": paint_rect,
     "line": paint_line,
