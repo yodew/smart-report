@@ -286,6 +286,16 @@ def table_source_row_indices(node: LayoutNode, row_count: int) -> list[int]:
     return indices
 
 
+def table_source_row_fragment_indices(node: LayoutNode, row_count: int) -> list[int]:
+    value = node.content.get("source_row_fragment_indices")
+    if not isinstance(value, list) or len(value) != row_count:
+        return [0] * row_count
+    indices: list[int] = []
+    for item in value:
+        indices.append(item if isinstance(item, int) and item >= 0 else 0)
+    return indices
+
+
 def table_column_widths(node: LayoutNode, total_width: float, column_count: int) -> list[float]:
     if column_count <= 0:
         return []
@@ -587,7 +597,15 @@ def table_row_heights(node: LayoutNode, rows: Sequence[Sequence[object]], column
     row_overrides = table_style_map(node, "row_styles")
     cell_overrides = table_style_map(node, "cell_styles")
     source_row_indices = table_source_row_indices(node, len(rows))
-    heights: list[float] = [24.0] * len(rows)
+    source_row_fragment_indices = table_source_row_fragment_indices(node, len(rows))
+    row_height_overrides = table_height_map(node, "row_heights")
+    cell_height_overrides = table_height_map(node, "cell_heights")
+    heights: list[float] = [
+        max(24.0, _height_override(row_height_overrides, source_row_indices[row_index]) or 0.0)
+        if source_row_fragment_indices[row_index] == 0
+        else 24.0
+        for row_index in range(len(rows))
+    ]
     pending_rowspans: list[tuple[TableCellSpan, float]] = []
     for row_index, row in enumerate(rows):
         is_header = row_index < header_rows
@@ -597,6 +615,7 @@ def table_row_heights(node: LayoutNode, rows: Sequence[Sequence[object]], column
         line_height = header_line_height if is_header else footer_line_height if is_footer else node.style.line_height
         padding = header_padding if row_index < header_rows else body_padding
         source_row_index = source_row_indices[row_index]
+        source_row_fragment_index = source_row_fragment_indices[row_index]
         for column_index in range(column_count):
             if (row_index, column_index) in covered:
                 continue
@@ -622,6 +641,9 @@ def table_row_heights(node: LayoutNode, rows: Sequence[Sequence[object]], column
                 node.style.text_direction,
                 _style_text_overflow(table_text_overflow(node), column_override, row_override, cell_override),
             )
+            cell_height_override = _height_override(cell_height_overrides, f"{source_row_index}:{column_index}") if source_row_fragment_index == 0 else None
+            if cell_height_override is not None:
+                required_height = max(required_height, cell_height_override)
             if footer_rows and row_index >= len(rows) - footer_rows:
                 required_height = max(required_height, resolved_line_height + padding.vertical)
             if span.rowspan == 1:
@@ -854,6 +876,26 @@ def table_style_map(node: LayoutNode, key: str) -> dict[object, object]:
     if isinstance(value, dict):
         return value
     return {}
+
+
+def table_height_map(node: LayoutNode, key: str) -> dict[object, float]:
+    value = node.content.get(key)
+    if not isinstance(value, dict):
+        return {}
+    heights: dict[object, float] = {}
+    for map_key, map_value in value.items():
+        if isinstance(map_value, (int, float)) and math.isfinite(float(map_value)) and float(map_value) >= 0:
+            heights[map_key] = float(map_value)
+    return heights
+
+
+def _height_override(heights: dict[object, float], key: object) -> float | None:
+    value = heights.get(key)
+    if value is not None:
+        return value
+    if isinstance(key, int):
+        return heights.get(str(key))
+    return None
 
 
 def _style_override(styles: dict[object, object], key: object) -> dict[str, object]:

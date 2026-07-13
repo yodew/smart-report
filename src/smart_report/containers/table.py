@@ -67,6 +67,30 @@ class Table(NodeBuilder):
         self.node.content["column_widths"] = values
         return self
 
+    def row_height(self, row_index: int, height: SizeInput) -> "Table":
+        """Set a fixed point-compatible minimum height for one logical row."""
+
+        heights = _style_map(self.node.content, "row_heights")
+        heights[row_index] = _height_points(height)
+        return self
+
+    def row_heights(self, values: Sequence[SizeInput | None]) -> "Table":
+        """Set minimum heights for logical rows by zero-based row index."""
+
+        heights: dict[object, object] = {}
+        for row_index, height in enumerate(values):
+            if height is not None:
+                heights[row_index] = _height_points(height)
+        self.node.content["row_heights"] = heights
+        return self
+
+    def cell_height(self, row_index: int, column_index: int, height: SizeInput) -> "Table":
+        """Set a fixed point-compatible minimum height for one logical cell."""
+
+        heights = _style_map(self.node.content, "cell_heights")
+        heights[f"{row_index}:{column_index}"] = _height_points(height)
+        return self
+
     def column_min_widths(self, values: list[SizeInput]) -> "Table":
         """Set per-column minimum widths for auto-fit/clamped sizing."""
 
@@ -463,6 +487,18 @@ def _edge_points(value: SizeInput) -> float:
     if not isinstance(parsed, Fixed):
         raise ValueError("Table cell padding requires fixed point-compatible values")
     return parsed.points
+
+
+def _height_points(value: SizeInput) -> float:
+    parsed = parse_size(value)
+    if not isinstance(parsed, Fixed):
+        raise ValueError("Table row and cell heights require fixed point-compatible values")
+    points = parsed.points
+    if not math.isfinite(points):
+        raise ValueError("Table row and cell heights must be finite")
+    if points < 0:
+        raise ValueError("Table row and cell heights must be non-negative")
+    return points
 
 
 def _validate_column_width_constraints(key: str, values: list[SizeInput]) -> None:
