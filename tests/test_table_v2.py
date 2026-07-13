@@ -12,16 +12,17 @@ from typing import Iterator
 from typing import Sequence
 from typing import cast
 
-from smart_report import DEFAULT_FONT_NAME, Frame, Image, Spacer, Table, Text, document, get_default_font_name, get_fallback_font_families, get_fallback_fonts, get_font, get_font_family, register_font, register_font_family, resolve_text_runs, set_default_font, set_fallback_font_families, set_fallback_fonts, shaped_string_width, string_width
+from smart_report import DEFAULT_FONT_NAME, Frame, Image, RichText, Spacer, Table, Text, document, get_default_font_name, get_fallback_font_families, get_fallback_fonts, get_font, get_font_family, register_font, register_font_family, resolve_text_runs, set_default_font, set_fallback_font_families, set_fallback_fonts, shaped_string_width, string_width
 from smart_report.builder import resolve_page_size
 from smart_report.layout.node import Edges, LayoutNode, Rect, RenderItem, Style
 from smart_report.layout.paginate import _split_flow_child, _split_table_node, _split_text_node, paginate_page, split_frame_node
 from smart_report.layout.pass4_render import build_render_list
 from smart_report.layout.pass3_heights import resolve_heights
 from smart_report.layout.pass2_widths import resolve_widths
+from smart_report.layout.rich_text_layout import layout_rich_text
 from smart_report.layout.table_model import TableCellBox, fit_plain_overflow_text, plain_cell_natural_width, plain_overflow_text_width, table_cell_box_natural_width, table_cell_boxes, table_cell_padding, table_column_widths, table_height, table_row_heights, table_rows
 from smart_report.layout.text_wrap import wrap_text
-from smart_report.render.painters import paint_image, paint_render_item, paint_table, paint_text
+from smart_report.render.painters import paint_image, paint_render_item, paint_rich_text, paint_table, paint_text
 from smart_report.render.rl_adapter import DEFAULT_TEXT_COLOR, ReportLabCanvasAdapter
 from smart_report.style.color import parse_color
 from smart_report.style.typography import shape_text
@@ -958,6 +959,63 @@ class TableV2ModelTests(unittest.TestCase):
         self.assertEqual(rowspan_box.rowspan, 2)
         self.assertEqual(rowspan_box.height, sum(row_heights[1:3]))
 
+    def test_row_height_raises_row_above_default_content_height(self) -> None:
+        baseline = Table([["A"], ["B"]]).header(0).column_widths([120])
+        baseline.node.resolved_width = 120
+        baseline_heights = table_row_heights(baseline.node, table_rows(baseline.node), table_column_widths(baseline.node, 120, 1))
+        table = Table([["A"], ["B"]]).header(0).column_widths([120]).row_heights([42, None])
+        table.node.resolved_width = 120
+
+        row_heights = table_row_heights(table.node, table_rows(table.node), table_column_widths(table.node, 120, 1))
+
+        self.assertGreater(row_heights[0], baseline_heights[0])
+        self.assertEqual(row_heights[0], 42.0)
+        self.assertEqual(row_heights[1], baseline_heights[1])
+        self.assertEqual(table_height(table.node), 42.0 + baseline_heights[1])
+
+    def test_cell_height_raises_row_height_and_box_height(self) -> None:
+        table = Table([["A", "B"]]).header(0).column_widths([80, 80]).cell_height(0, 1, 54)
+        table.node.resolved_width = 160
+
+        boxes = table_cell_boxes(table.node, 0, 0, 160, table_height(table.node))
+        target = next(box for box in boxes if box.column_index == 1)
+
+        self.assertEqual(table_height(table.node), 54.0)
+        self.assertEqual(target.height, 54.0)
+
+    def test_content_taller_than_explicit_height_wins(self) -> None:
+        text = "one two three four five six seven eight"
+        table = Table([[text]]).header(0).column_widths([40]).cell_padding(0).font_size(10).line_height(12).row_height(0, 10)
+        table.node.resolved_width = 40
+
+        height = table_height(table.node)
+
+        self.assertGreater(height, 24.0)
+        self.assertGreater(height, 10.0)
+
+    def test_invalid_row_and_cell_heights_raise_early(self) -> None:
+        invalid_values = ["auto", "50%", -1, float("inf"), float("nan")]
+        for value in invalid_values:
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    _ = Table([["A"]]).row_height(0, value)
+                with self.assertRaises(ValueError):
+                    _ = Table([["A"]]).row_heights([value])
+                with self.assertRaises(ValueError):
+                    _ = Table([["A"]]).cell_height(0, 0, value)
+
+    def test_rowspan_cell_height_distributes_total_height_across_spanned_rows(self) -> None:
+        rows = [["Group", "A"], ["", "B"]]
+        table = Table(rows).header(0).column_widths([80, 80]).span(0, 0, rowspan=2).cell_height(0, 0, 80)
+        table.node.resolved_width = 160
+
+        row_heights = table_row_heights(table.node, rows, table_column_widths(table.node, 160, 2))
+        boxes = table_cell_boxes(table.node, 0, 0, 160, table_height(table.node))
+        rowspan_box = next(box for box in boxes if box.row_index == 0 and box.column_index == 0)
+
+        self.assertEqual(row_heights, [40.0, 40.0])
+        self.assertEqual(rowspan_box.height, 80.0)
+
     def test_invalid_span_raises_for_overlap_or_bounds(self) -> None:
         overlapping = Table([["A", "B"], ["C", "D"]]).span(0, 0, rowspan=2).span(1, 0, colspan=2)
         overlapping.node.resolved_width = 200
@@ -1549,6 +1607,36 @@ class TableV2PaginationTests(unittest.TestCase):
         self.assertEqual(matched_boxes[0].align, "center")
         self.assertIsNotNone(matched_boxes[0].background)
 
+    def test_pagination_preserves_logical_row_and_cell_heights_after_slicing(self) -> None:
+        rows = self._rows(14)
+        table = (
+            Table(rows)
+            .column_widths([140, 100, 100])
+            .header(background="#0f172a", color="#ffffff", repeat=True)
+            .row_height(0, 32)
+            .row_height(6, 48)
+            .cell_height(8, 1, 56)
+            .font_size(10)
+            .line_height(12)
+        )
+        table.node.resolved_width = 340
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 104, 104)
+        header_heights = []
+        row_height_matches = []
+        cell_height_matches = []
+        for table_slice in slices:
+            boxes = table_cell_boxes(table_slice, 0, 0, table_slice.resolved_width, table_slice.resolved_height)
+            header_heights.append(next(box.height for box in boxes if box.source_row_index == 0 and box.column_index == 0))
+            row_height_matches.extend(box.height for box in boxes if box.source_row_index == 6 and box.column_index == 0)
+            cell_height_matches.extend(box.height for box in boxes if box.source_row_index == 8 and box.column_index == 1)
+
+        self.assertGreater(len(slices), 1)
+        self.assertEqual(header_heights, [32.0] * len(slices))
+        self.assertEqual(row_height_matches, [48.0])
+        self.assertEqual(cell_height_matches, [56.0])
+
     def test_table_pagination_keeps_rowspan_rows_together(self) -> None:
         rows = [["Region", "Value"], ["A", "1"], ["Merged", "2"], ["", "3"], ["D", "4"]]
         table = Table(rows).column_widths([120, 120]).span(2, 0, rowspan=2).font_size(10).line_height(12)
@@ -1678,6 +1766,35 @@ class TableV2PaginationTests(unittest.TestCase):
         self.assertGreater(source_rows.count(1), 1)
         self.assertTrue(all(isinstance(cell, LayoutNode) and cell.node_type == "text" for cell in detail_cells))
         self.assertTrue(all(table_slice.resolved_height <= 70 for table_slice in slices))
+
+    def test_rich_text_element_table_cell_splits_without_reapplying_min_height(self) -> None:
+        rich_text = RichText().font_size(8).line_height(10)
+        for index in range(60):
+            rich_text.span(f"note-{index} ")
+        table = (
+            Table([["Metric", "Details"], ["Revenue", rich_text]])
+            .column_widths([90, 160])
+            .cell_padding(vertical=2, horizontal=4)
+            .row_height(1, 78)
+            .cell_height(1, 1, 78)
+        )
+        table.node.resolved_width = 250
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 110, 110)
+        detail_boxes = [
+            next(box for box in table_cell_boxes(table_slice, 0, 0, table_slice.resolved_width, table_slice.resolved_height) if box.source_row_index == 1 and box.column_index == 1)
+            for table_slice in slices
+        ]
+        fragment_indices = [cast(list[int], table_slice.content["source_row_fragment_indices"])[-1] for table_slice in slices]
+        detail_cells = [cast(list[list[object]], table_slice.content["rows"])[-1][1] for table_slice in slices]
+
+        self.assertEqual(fragment_indices, [0, 1])
+        self.assertTrue(all(isinstance(cell, LayoutNode) and cell.node_type == "rich_text" for cell in detail_cells))
+        self.assertEqual(detail_boxes[0].height, 84.0)
+        self.assertEqual(detail_boxes[1].height, 44.0)
+        self.assertLess(detail_boxes[1].height, 78.0)
+
 
     def test_row_with_multiple_rich_text_cells_splits_across_table_slices(self) -> None:
         first_text = Text(" ".join(f"left-{index}" for index in range(80))).font_size(10).line_height(12)
@@ -1997,6 +2114,78 @@ class SubtotalRepeatTests(unittest.TestCase):
 
         self.assertIs(result, table)
         self.assertIsNotNone(table.node.content.get("footer_rows"))
+
+
+class RichTextElementTests(unittest.TestCase):
+    def test_rich_text_builder_stores_styled_runs_and_breaks(self) -> None:
+        rich = RichText()
+        result = rich.span("Revenue ").span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True).br().span("renewals")
+
+        self.assertIs(result, rich)
+        self.assertEqual(rich.node.node_type, "rich_text")
+        self.assertEqual(
+            rich.node.content["runs"],
+            [
+                {"kind": "text", "text": "Revenue "},
+                {"kind": "text", "text": "+18%", "font": "Helvetica", "font_size": 14.0, "color": "#166534", "bold": True},
+                {"kind": "br"},
+                {"kind": "text", "text": "renewals"},
+            ],
+        )
+
+    def test_rich_text_layout_wraps_and_preserves_fragment_styles(self) -> None:
+        rich = (
+            RichText()
+            .font_size(10)
+            .line_height(12)
+            .span("alpha beta gamma", color="#dc2626")
+            .span(" delta", font="Helvetica", font_size=14, bold=True)
+            .br()
+            .span("tail")
+        )
+
+        lines = layout_rich_text(rich.node, 54)
+        fragments = [fragment for line in lines for fragment in line.fragments]
+
+        self.assertGreater(len(lines), 2)
+        self.assertTrue(any(fragment.color == parse_color("#dc2626") for fragment in fragments))
+        self.assertIn("Helvetica-Bold", {fragment.font_name for fragment in fragments})
+        self.assertEqual(lines[-1].fragments[0].text, "tail")
+
+    def test_rich_text_painter_passes_fragment_styles_to_adapter(self) -> None:
+        rich = (
+            RichText()
+            .font_size(10)
+            .line_height(12)
+            .span("A", font="Helvetica", color="#ff0000")
+            .span("B", font="Courier", color="#0000ff")
+            .width(100)
+        )
+        resolve_widths(rich.node, 100)
+        resolve_heights(rich.node)
+        item = RenderItem(rich.node, Rect(0, 0, 100, rich.node.resolved_height), (), (0,))
+        spy = _SpyAdapter()
+
+        paint_rich_text(cast(ReportLabCanvasAdapter, spy), item)
+
+        self.assertEqual(spy.rich_text_fragments, ["A", "B"])
+        self.assertEqual(spy.rich_text_fonts, ["Helvetica", "Courier"])
+        self.assertEqual(spy.rich_text_colors, [parse_color("#ff0000"), parse_color("#0000ff")])
+
+    def test_reportlab_adapter_draw_rich_text_uses_fragment_fonts_and_colors(self) -> None:
+        rich = RichText().span("A", font="Helvetica", color="#ff0000").span("B", font="Courier", color="#0000ff")
+        lines = layout_rich_text(rich.node, 100)
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        fake_canvas = _FakeCanvas()
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 200
+
+        adapter.draw_rich_text(10, 20, 100, lines)
+
+        self.assertEqual(fake_canvas.text_object.output, ["A", "B"])
+        self.assertEqual(fake_canvas.text_object.font_names, ["Helvetica", "Courier"])
+        self.assertEqual(fake_canvas.text_object.fill_colors, [(1.0, 0.0, 0.0), (0.0, 0.0, 1.0)])
 
 
 class LayoutPrimitiveTests(unittest.TestCase):
@@ -2941,6 +3130,9 @@ class _SpyAdapter:
         self.texts: list[str] = []
         self.text_kwargs: list[dict[str, object]] = []
         self.rects: list[Rect] = []
+        self.rich_text_fragments: list[str] = []
+        self.rich_text_fonts: list[str] = []
+        self.rich_text_colors: list[object] = []
 
     @contextmanager
     def isolated_state(self) -> Iterator["_SpyAdapter"]:
@@ -2961,6 +3153,16 @@ class _SpyAdapter:
     def draw_text(self, **kwargs: object) -> None:
         self.text_kwargs.append(dict(kwargs))
         self.texts.append(str(kwargs.get("text", "")))
+
+    def draw_rich_text(self, **kwargs: object) -> None:
+        lines = kwargs.get("lines")
+        if not isinstance(lines, list):
+            return
+        for line in lines:
+            for fragment in getattr(line, "fragments", ()):
+                self.rich_text_fragments.append(str(getattr(fragment, "text", "")))
+                self.rich_text_fonts.append(str(getattr(fragment, "font_name", "")))
+                self.rich_text_colors.append(getattr(fragment, "color", None))
 
     def draw_line(self, x1: float, y1: float, x2: float, y2: float, color: object, stroke_width: float) -> None:
         self.line_widths.append(float(stroke_width))
