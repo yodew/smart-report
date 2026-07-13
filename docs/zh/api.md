@@ -144,6 +144,7 @@ page.add(hero)
 | --- | --- | --- |
 | `.add(child)` | 当前容器 | 添加已经创建好的 `Text` / `Table` / `Frame` / `Canvas` / `Image` / `Rect` / `Line` 等 builder |
 | `.add_text(text)` | `Text` | 添加文本节点 |
+| `.add_rich_text(text="")` | `RichText` | 添加富文本节点，可继续追加不同样式的 span |
 | `.add_image(src)` | `Image` | 添加图片节点，`src` 可为路径、bytes 或 data URL |
 | `.add_rect()` | `Rect` | 添加矩形；常用于背景块、卡片底色、遮罩、边框 |
 | `.add_line()` | `Line` | 添加线段；常用于分隔线、装饰线、坐标轴 |
@@ -192,6 +193,9 @@ frame.add(table)
 | 方法 | 说明 |
 | --- | --- |
 | `.column_widths(values)` | 设置列宽，支持点值、百分比、`"auto"`；未设置时平均分配 |
+| `.row_height(row_index, height)` | 设置指定逻辑行的最小高度；只接受固定点值兼容尺寸，内容更高时内容优先 |
+| `.row_heights(values)` | 按逻辑行索引批量设置最小高度；列表中的 `None` 表示不覆盖该行 |
+| `.cell_height(row_index, column_index, height)` | 设置指定逻辑单元格的最小高度；跨行单元格按总高度分配到覆盖行 |
 | `.column_min_widths(values)` / `.column_max_widths(values)` | 设置列宽约束，配合 `.auto_fit_columns()` 使用 |
 | `.auto_fit_columns(columns=None)` | 启用列宽自动适配；不传参数时适配所有列，传入列索引列表时仅适配选中列。遗留 `column_widths(["auto"])` 不传 `.auto_fit_columns()` 仍保持等分行为 |
 | `.align(value)` | 设置文本水平对齐，可传单个值或按列传列表；支持 `"left"`、`"center"`、`"right"` |
@@ -238,7 +242,7 @@ table = Table([
 
 **兼容性**：遗留写法 `column_widths(["auto"])` 在不调用 `.auto_fit_columns()` 时仍保持等分分配，向后兼容。
 
-**限制**：v2.6 仅支持纯字符串单元格的自然宽度测量；富 `Frame` / `Text` / `Image` 单元格不参与自动适配计算。连字（hyphenation）、多行省略号、富单元格自然宽度和 Rich Text Links 在 v2.6 中不可用。
+**限制**：v2.6 仅支持纯字符串单元格的自然宽度测量；富 `Frame` / `Text` / `RichText` / `Image` 单元格不参与自动适配计算。连字（hyphenation）、多行省略号、富单元格自然宽度和 Rich Text Links 在 v2.6 中不可用。
 
 样式覆盖优先级：
 
@@ -274,6 +278,17 @@ table = Table([
 
 分页遇到 `rowspan` 时会把断点移动到合法行边界，避免把一个跨行单元格拆到两页。
 
+表格行高/单元格高度是“最小高度”，不会压缩或裁剪更高的内容。高度值要求是固定点值兼容尺寸，例如 `36`、`"12mm"`、`"1cm"`；不支持 `"auto"`、百分比、负数或无穷值。
+
+```python
+table = Table([
+    ["项目", "说明"],
+    ["收入", "续约和新增客户共同增长"],
+]) \
+    .row_height(0, 32) \
+    .cell_height(1, 1, 48)
+```
+
 v1.1 起，单元格可以放入 `Frame` / `Text` / `Image` 等 builder：
 
 ```python
@@ -285,7 +300,7 @@ table = Table([["指标", "详情"], ["收入", details]]) \
     .borders("#94a3b8", width=0.5, inner_width=0.25, outer_width=1.5)
 ```
 
-v2.1 起，普通富单元格可以更细粒度分页：单个未参与 `rowspan` / `colspan` 的 `Frame` 或 `Text` 富单元格会随表格切片拆分；当某一行有多个富内容且它们全都是未跨行/跨列的 `Text` 时，也可以一起拆分；未跨行/跨列的混合 `Text` + `Frame` 行也可以一起拆分。重复表头/表尾和基于原始逻辑行号的样式仍会保留。含跨行/跨列、图片、多 `Frame`，或其他混合富内容的行仍保持原子分页，以避免破坏 span 边界。
+v2.1 起，普通富单元格可以更细粒度分页：单个未参与 `rowspan` / `colspan` 的 `Frame`、`Text` 或 `RichText` 富单元格会随表格切片拆分；当某一行有多个富内容且它们全都是未跨行/跨列的 `Text` / `RichText` 时，也可以一起拆分；未跨行/跨列的混合 `Text` / `RichText` + `Frame` 行也可以一起拆分。重复表头/表尾和基于原始逻辑行号的样式仍会保留。含跨行/跨列、图片、多 `Frame`，或其他混合富内容的行仍保持原子分页，以避免破坏 span 边界。
 
 v2.0 起，auto-height 容器中的百分比 absolute `top` 会基于最终内容高度解析；`top >= "100%"` 在 auto-height 父容器中会被拒绝，因为这类布局无法得到有限高度。
 
@@ -343,6 +358,41 @@ display_text = shape_text(text, "auto", "rtl")
 ```
 
 正式输出请注册支持阿拉伯文/希伯来文的 TTF 字体。`examples/v2_2_typography.py` 会注册内置的 `NotoNaskhArabic-Medium.ttf` / `NotoNaskhArabic-Bold.ttf` 并用于阿拉伯文本渲染，避免回退到 `Helvetica` 后乱码。当前功能是实用预处理层，不承诺完整 HarfBuzz/OpenType glyph positioning、Indic 文字 shaping 或高级字距调整。
+
+### `RichText`
+
+`RichText` 是独立富文本元素，不改变 `Text` 的行为。适合在同一段文字里混合字体、字号、颜色、加粗和硬换行。
+
+```python
+from smart_report import RichText
+
+rich = (
+    RichText()
+    .span("收入 ", font_size=12, color="#0f172a")
+    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True)
+    .br()
+    .span("企业客户续约强劲", font_size=10, color="#475569")
+    .width(180)
+)
+
+frame.add(rich)
+frame.add_rich_text("起始文本").span(" 重点", color="#dc2626", bold=True)
+```
+
+常用方法：
+
+| 方法 | 说明 |
+| --- | --- |
+| `.text(value)` | 清空已有 runs，并设置为一个普通文本 run |
+| `.span(text, font=None, font_family=None, font_size=None, color=None, bold=False)` | 追加一个行内片段，可覆盖字体、字体族、字号、颜色和加粗 |
+| `.br(count=1)` | 追加一个或多个硬换行；`count` 必须大于等于 1 |
+| `.clear()` | 清空所有富文本 runs |
+| `.align(value)` | 设置固定宽度内的水平对齐，支持 `"left"`、`"center"`、`"right"` |
+| `.valign(value)` | 设置固定高度内的垂直对齐，支持 `"top"`、`"middle"`、`"bottom"` |
+
+`RichText` 可作为普通元素放入 `Frame` / `Canvas`，也可以作为表格富单元格。普通 Base14 字体支持 `bold=True` 映射到对应粗体，如 `Helvetica` -> `Helvetica-Bold`；注册字体族时可通过 `font_family` 使用字体族中的 bold face。
+
+**限制**：`RichText` 不解析 HTML/Markdown；不支持行内链接、下划线、斜体或复杂 CSS。需要整段链接时仍使用 `Text.link(url)`。
 
 ### `Text.link(url)` (v2.7)
 

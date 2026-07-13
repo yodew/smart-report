@@ -22,12 +22,12 @@ Modern PDF creation library for Python with a custom 4-pass layout engine on top
 - Basic automatic pagination for flow content
 - Deeper pagination for nested frames and fixed-height blocks
 - Practical `flex`, `grid`, and `columns` container layout modes
-- Table column widths, alignment, cell padding, `rowspan` / `colspan`, header styling, zebra rows, rounded borders, and repeated headers on pagination
+- Table column widths, row/cell minimum heights, alignment, cell padding, `rowspan` / `colspan`, header styling, zebra rows, rounded borders, and repeated headers on pagination
 - Public font registration helpers, width-based CJK text wrapping, and optional Arabic/bidi typography preprocessing
 - PNG and SVG image rendering
 - Top-down width resolution and bottom-up height measurement
 - Paint ordering through `z-index`
-- `Text`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
+- `Text`, `RichText`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
 - Table auto-fit columns: content-based sizing for plain-text cells with min/max constraints
 - Whole-Text URL links via `Text.link(url)` for external PDF link annotations
 
@@ -61,6 +61,28 @@ For the full API reference, including `Rect`, `Line`, `Spacer`, table styling, i
 - v2.11.1 accepts `pathlib.Path` image sources and expands API docs for shapes, tables, colors, fonts, and chainable methods
 - v2.11.2 adds `Text.align(...)` for left, center, and right aligned text within fixed text widths
 - v2.11.3 adds `Text.valign(...)`, `Text.letter_spacing(...)`, and automatic default line height based on font size
+- v2.11.5 adds table row/cell minimum heights and a standalone `RichText` element for styled inline spans without changing `Text`
+
+## RichText and Table Heights
+
+```python
+from smart_report import RichText, Table
+
+rich = (
+    RichText()
+    .span("Revenue ")
+    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True)
+    .br()
+    .span("Enterprise renewals remained strong", font_size=10, color="#475569")
+    .width(180)
+)
+
+table = Table([["Metric", "Details"], ["Revenue", rich]]) \
+    .row_height(0, 32) \
+    .cell_height(1, 1, 48)
+```
+
+`RichText` is a separate element, so existing `Text` behavior stays unchanged. Use `.span(...)` for inline font/font-family/font-size/color/bold changes and `.br()` for hard line breaks. Table row and cell heights are fixed-point-compatible minimum heights: content taller than the requested height still wins.
 
 ## v2.11 layered reports
 
@@ -471,15 +493,15 @@ MIT. See [LICENSE](./LICENSE).
 
 ## Stability
 
-The v2.11.3 release adds vertical text alignment, letter spacing, and automatic default line height based on font size, while preserving backward compatibility with the v2.11.2 `Text.align(...)` API, the v2.11.1 `pathlib.Path` image-source support, and all prior releases including the v2.10 `save_to_bytes()` API.
+The v2.11.5 release adds table row/cell minimum heights and a standalone `RichText` element for inline styled spans, while preserving existing `Text` behavior and all prior releases including the v2.10 `save_to_bytes()` API.
 
 ## Current limitations
 
 - `rowspan` content is kept together during pagination rather than split across pages
 - Pagination keeps images and SVG content atomic: if the current page lacks space, the whole image moves to the next page; oversized images are not sliced
-- Rich table-cell pagination is conservative: single unspanned rich `Frame`/`Text` cells, rows whose rich cells are all unspanned `Text` cells, and mixed unspanned `Text` + `Frame` rows can split; spanned rows, rich images, and multi-Frame rows remain atomic
+- Rich table-cell pagination is conservative: single unspanned rich `Frame`/`Text`/`RichText` cells, rows whose rich cells are all unspanned `Text`/`RichText` cells, and mixed unspanned `Text`/`RichText` + `Frame` rows can split; spanned rows, rich images, and multi-Frame rows remain atomic
 - Flex/grid/columns are practical layout primitives, not a complete CSS constraint solver
 - Flex row wrap is row-only; no column wrap, no row-aware pagination guarantee
 - v2.3 uses HarfBuzz for advanced measurement, but rendering still uses ReportLab text APIs; exact glyph positioning, arbitrary glyph-ID drawing, vertical writing, and color-font support are not guaranteed
-- Table auto-fit (`auto_fit_columns`) works on plain-string cells only; rich `Frame`/`Text`/`Image` cells do not contribute natural widths in v2.6
+- Table auto-fit (`auto_fit_columns`) works on plain-string cells only; rich `Frame`/`Text`/`RichText`/`Image` cells do not contribute natural widths
 - `Text.link(url)` is whole-text only; no inline substring links, no markdown/HTML parsing, no automatic link styling, no plain string table cell link API, and no arbitrary annotation API
