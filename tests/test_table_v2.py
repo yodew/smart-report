@@ -2116,6 +2116,53 @@ class SubtotalRepeatTests(unittest.TestCase):
         self.assertIsNotNone(table.node.content.get("footer_rows"))
 
 
+class TextOverflowElementTests(unittest.TestCase):
+    def test_text_overflow_api_accepts_table_like_modes(self) -> None:
+        text = Text("alpha beta")
+
+        self.assertIs(text.text_overflow("clip"), text)
+        self.assertEqual(text.node.content["text_overflow"], "clip")
+        self.assertIs(text.text_overflow("ellipsis"), text)
+        self.assertEqual(text.node.content["text_overflow"], "ellipsis")
+        self.assertIs(text.text_overflow("wrap"), text)
+        self.assertEqual(text.node.content["text_overflow"], "wrap")
+        with self.assertRaises(ValueError):
+            text.text_overflow("fade")
+
+    def test_text_ellipsis_paints_single_fitted_line_and_clips_box(self) -> None:
+        text = Text("Alpha Beta Gamma").font("Helvetica").font_size(12).line_height(14).width(60).height(24).text_overflow("ellipsis").align("center").valign("middle")
+        resolve_widths(text.node, 60)
+        resolve_heights(text.node)
+        item = RenderItem(text.node, Rect(10, 20, 60, 24), (), (0,))
+        spy = _SpyAdapter()
+
+        paint_text(cast(ReportLabCanvasAdapter, spy), item)
+
+        self.assertEqual(spy.text_kwargs[0]["text_overflow"], "ellipsis")
+        self.assertEqual(spy.text_kwargs[0]["text"], "Alpha B…")
+        self.assertEqual(spy.text_kwargs[0]["height"], 24.0)
+        self.assertEqual(spy.text_kwargs[0]["align"], "center")
+        self.assertEqual(spy.text_kwargs[0]["valign"], "middle")
+        self.assertEqual(spy.clip_rects, [Rect(10, 20, 60, 24)])
+
+    def test_text_clip_collapses_newlines_and_preserves_link_rect(self) -> None:
+        text = Text("Alpha\nBeta Gamma").font("Helvetica").font_size(12).line_height(14).width(90).height(20).text_overflow("clip").link("https://example.com")
+        resolve_widths(text.node, 90)
+        resolve_heights(text.node)
+        item = RenderItem(text.node, Rect(0, 0, 90, 20), (), (0,))
+        spy = _SpyAdapter()
+
+        paint_text(cast(ReportLabCanvasAdapter, spy), item)
+
+        self.assertEqual(spy.text_kwargs[0]["text"], "Alpha Beta Gamma")
+        self.assertEqual(spy.text_kwargs[0]["text_overflow"], "clip")
+        self.assertEqual(len(spy.links), 1)
+        self.assertEqual(spy.links[0][0], "https://example.com")
+        self.assertLessEqual(spy.links[0][1].width, 90)
+
+
+
+
 class RichTextElementTests(unittest.TestCase):
     def test_rich_text_builder_stores_styled_runs_and_breaks(self) -> None:
         rich = RichText()
@@ -2171,6 +2218,39 @@ class RichTextElementTests(unittest.TestCase):
         self.assertEqual(spy.rich_text_fragments, ["A", "B"])
         self.assertEqual(spy.rich_text_fonts, ["Helvetica", "Courier"])
         self.assertEqual(spy.rich_text_colors, [parse_color("#ff0000"), parse_color("#0000ff")])
+
+
+    def test_rich_text_letter_spacing_resolves_global_and_span_values(self) -> None:
+        rich = RichText().font_size(10).letter_spacing("10%").span("AB").span("CD", font_size=20, letter_spacing="0.1em")
+
+        lines = layout_rich_text(rich.node, 500)
+        fragments = [fragment for line in lines for fragment in line.fragments]
+
+        self.assertEqual([fragment.letter_spacing for fragment in fragments], [1.0, 2.0])
+        self.assertEqual(lines[0].width, string_width("AB", "Helvetica", 10) + 1.0 + string_width("CD", "Helvetica", 20) + 2.0)
+
+    def test_rich_text_spacing_affects_wrapping(self) -> None:
+        compact = RichText().font("Helvetica").font_size(10).span("AB CD")
+        spaced = RichText().font("Helvetica").font_size(10).letter_spacing(4).span("AB CD")
+
+        compact_lines = layout_rich_text(compact.node, 31)
+        spaced_lines = layout_rich_text(spaced.node, 31)
+
+        self.assertEqual(len(compact_lines), 1)
+        self.assertGreater(len(spaced_lines), 1)
+
+    def test_reportlab_adapter_draw_rich_text_sets_fragment_char_spacing(self) -> None:
+        rich = RichText().letter_spacing(1).span("A").span("B", letter_spacing=2)
+        lines = layout_rich_text(rich.node, 100)
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        fake_canvas = _FakeCanvas()
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 200
+
+        adapter.draw_rich_text(10, 20, 100, lines)
+
+        self.assertEqual(fake_canvas.text_object.char_spaces, [1.0, 2.0])
 
     def test_reportlab_adapter_draw_rich_text_uses_fragment_fonts_and_colors(self) -> None:
         rich = RichText().span("A", font="Helvetica", color="#ff0000").span("B", font="Courier", color="#0000ff")
@@ -3121,6 +3201,8 @@ def _patched_table_string_width(string_width: object) -> Iterator[None]:
 class _SpyAdapter:
     def __init__(self) -> None:
         self.rounded_clips: list[tuple[float, float, float, float, float]] = []
+        self.clip_rects: list[Rect] = []
+        self.links: list[tuple[str, Rect]] = []
         self.drawn_radii: list[float] = []
         self.rect_fills: list[object] = []
         self.images: list[tuple[Rect, str]] = []
@@ -3141,8 +3223,8 @@ class _SpyAdapter:
     def apply_clip_rounded_rect(self, rect: Rect, radius: float) -> None:
         self.rounded_clips.append((rect.x, rect.y, rect.width, rect.height, radius))
 
-    def apply_clip_rect(self, _rect: Rect) -> None:
-        return
+    def apply_clip_rect(self, rect: Rect) -> None:
+        self.clip_rects.append(rect)
 
     def draw_rect(self, rect: Rect, fill: object = None, stroke: object = None, stroke_width: float = 0.0, radius: float = 0.0) -> None:
         _ = (rect, fill, stroke, stroke_width)
@@ -3172,6 +3254,9 @@ class _SpyAdapter:
     def draw_image(self, _source: object, rect: Rect, opacity: float = 1.0, fit: str = "stretch") -> None:
         _ = opacity
         self.images.append((rect, fit))
+
+    def link_url(self, url: str, rect: Rect) -> None:
+        self.links.append((url, rect))
 
 
 def _png_bytes(width: int, height: int) -> bytes:
