@@ -327,6 +327,7 @@ frame.add_text("مرحبا smart-report").typography("auto").text_direction("rtl
 | `.align(value)` | 设置文本块内每一行的水平对齐，支持 `"left"`、`"center"`、`"right"` |
 | `.valign(value)` | 设置固定文本高度内的垂直对齐，支持 `"top"`、`"middle"`、`"bottom"` |
 | `.letter_spacing(value)` | 设置字距，支持点值、`"0.05em"` 或 `"5%"`；`0.05em` / `5%` 均表示当前字号的 5% |
+| `.text_overflow(value)` | 设置固定文本框内的溢出处理，支持 `"wrap"`（默认）、`"clip"`、`"ellipsis"` |
 | `.link(url)` | 为整个文字节点添加 PDF 外部 URL 链接注释；`url` 必须为非空字符串 |
 | `.margin(...)` | 设置外边距 |
 
@@ -344,6 +345,14 @@ page.add(frame)
 ```
 
 未显式调用 `.line_height(...)` 时，行高会随字号自动计算为 `font_size * 1.2`。例如 `.font_size(10)` 默认行高为 `12`；如需旧版固定行高或精确控制，请显式调用 `.line_height(...)`。
+
+固定尺寸文本框可以使用 `.text_overflow("clip")` 或 `.text_overflow("ellipsis")` 做表格单元格类似的单行截断。两种模式都会把硬换行折叠为空格；`"clip"` 直接裁切文本框外的内容，`"ellipsis"` 会绘制可放下的最长前缀并追加 `…`。未调用时仍保持原来的自动换行行为。
+
+```python
+frame.add_text("过长的指标名称需要适配固定区域") \
+    .size(96, 18) \
+    .text_overflow("ellipsis")
+```
 
 > 注意：中文字体需要先注册可用字体；当前默认字体为 `Helvetica`，并不适合中文正式输出。中文连续文本会按实际字形宽度换行，表格测量、分页和最终绘制使用同一套换行逻辑。
 
@@ -369,7 +378,8 @@ from smart_report import RichText
 rich = (
     RichText()
     .span("收入 ", font_size=12, color="#0f172a")
-    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True)
+    .letter_spacing("4%")
+    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True, letter_spacing="0.08em")
     .br()
     .span("企业客户续约强劲", font_size=10, color="#475569")
     .width(180)
@@ -384,13 +394,14 @@ frame.add_rich_text("起始文本").span(" 重点", color="#dc2626", bold=True)
 | 方法 | 说明 |
 | --- | --- |
 | `.text(value)` | 清空已有 runs，并设置为一个普通文本 run |
-| `.span(text, font=None, font_family=None, font_size=None, color=None, bold=False)` | 追加一个行内片段，可覆盖字体、字体族、字号、颜色和加粗 |
+| `.span(text, font=None, font_family=None, font_size=None, color=None, bold=False, letter_spacing=None)` | 追加一个行内片段，可覆盖字体、字体族、字号、颜色、加粗和字距 |
+| `.letter_spacing(value)` | 设置全局富文本字距；单个 span 的 `letter_spacing` 会覆盖该值 |
 | `.br(count=1)` | 追加一个或多个硬换行；`count` 必须大于等于 1 |
 | `.clear()` | 清空所有富文本 runs |
 | `.align(value)` | 设置固定宽度内的水平对齐，支持 `"left"`、`"center"`、`"right"` |
 | `.valign(value)` | 设置固定高度内的垂直对齐，支持 `"top"`、`"middle"`、`"bottom"` |
 
-`RichText` 可作为普通元素放入 `Frame` / `Canvas`，也可以作为表格富单元格。普通 Base14 字体支持 `bold=True` 映射到对应粗体，如 `Helvetica` -> `Helvetica-Bold`；注册字体族时可通过 `font_family` 使用字体族中的 bold face。
+`RichText` 可作为普通元素放入 `Frame` / `Canvas`，也可以作为表格富单元格。普通 Base14 字体支持 `bold=True` 映射到对应粗体，如 `Helvetica` -> `Helvetica-Bold`；注册字体族时可通过 `font_family` 使用字体族中的 bold face。`RichText.align(...)` / `.valign(...)` 是整个富文本框的对齐方式；行内 span 共享同一个 line box，不提供独立的左/中/右或上/中/下对齐。如需某段内容独立对齐，请拆成单独的 `Text` / `RichText` 节点。
 
 **限制**：`RichText` 不解析 HTML/Markdown；不支持行内链接、下划线、斜体或复杂 CSS。需要整段链接时仍使用 `Text.link(url)`。
 

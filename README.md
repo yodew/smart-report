@@ -62,6 +62,26 @@ For the full API reference, including `Rect`, `Line`, `Spacer`, table styling, i
 - v2.11.2 adds `Text.align(...)` for left, center, and right aligned text within fixed text widths
 - v2.11.3 adds `Text.valign(...)`, `Text.letter_spacing(...)`, and automatic default line height based on font size
 - v2.11.5 adds table row/cell minimum heights and a standalone `RichText` element for styled inline spans without changing `Text`
+- v2.11.6 adds opt-in `Text.text_overflow(...)` for fixed text boxes plus RichText global/per-span letter spacing
+
+## Text Overflow and RichText Spacing
+
+```python
+frame.add_text("Long report label that must fit") \
+    .size(96, 18) \
+    .text_overflow("ellipsis")
+
+rich = (
+    RichText()
+    .letter_spacing("4%")
+    .span("Revenue ")
+    .span("+18%", color="#166534", bold=True, letter_spacing="0.08em")
+)
+```
+
+`Text.text_overflow("wrap")` keeps the existing default behavior. `"clip"` and `"ellipsis"` use table-like single-line fixed-box behavior: hard line breaks collapse to spaces, `"clip"` clips at the text box edge, and `"ellipsis"` renders the longest fitting prefix plus `…`. RichText letter spacing follows the same units as `Text.letter_spacing(...)`; span-level spacing overrides the RichText-level default.
+
+`RichText.align(...)` and `.valign(...)` are box-level controls. Inline spans do not have independent left/center/right or top/middle/bottom alignment because they share a line box; use separate `Text` / `RichText` boxes when a fragment needs independent alignment.
 
 ## RichText and Table Heights
 
