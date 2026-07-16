@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from .._builder_core import NodeBuilder
 from ..layout.node import LayoutNode, Style
-
-
-LetterSpacingInput = str | int | float
+from ..layout.text_overflow import normalize_text_overflow
+from ..style.letter_spacing import LetterSpacingInput, normalize_letter_spacing
 
 
 class Text(NodeBuilder):
@@ -69,7 +68,19 @@ class Text(NodeBuilder):
         current font size.
         """
 
-        self.node.content["letter_spacing"] = _normalize_letter_spacing(value)
+        self.node.content["letter_spacing"] = normalize_letter_spacing(value)
+        return self
+
+    def text_overflow(self, value: str) -> "Text":
+        """Set fixed-box overflow handling.
+
+        Accepted values are ``"wrap"`` (default), ``"clip"``, and
+        ``"ellipsis"``. ``"clip"`` and ``"ellipsis"`` use table-like
+        single-line behavior: line breaks collapse to spaces and ellipsis
+        renders the longest fitting prefix plus ``...``.
+        """
+
+        self.node.content["text_overflow"] = normalize_text_overflow(value)
         return self
 
     def link(self, url: object) -> "Text":
@@ -85,16 +96,3 @@ class Text(NodeBuilder):
             raise ValueError("Text.link url must not be empty")
         self.node.content["link_url"] = url
         return self
-
-
-def _normalize_letter_spacing(value: LetterSpacingInput) -> str | float:
-    if isinstance(value, (int, float)):
-        return float(value)
-    normalized = value.strip().lower()
-    if normalized.endswith("em"):
-        float(normalized[:-2])
-        return normalized
-    if normalized.endswith("%"):
-        float(normalized[:-1])
-        return normalized
-    return float(normalized)
