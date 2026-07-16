@@ -8,10 +8,12 @@ from typing import Callable, Literal
 from ..layout.node import Rect, RenderItem
 from ..layout.pass4_render import build_render_list
 from ..layout.rich_text_layout import layout_rich_text
-from ..layout.table_model import TableCellBox, fit_plain_overflow_text, layout_rich_cell_content, normalize_plain_overflow_text, table_cell_boxes
+from ..layout.table_model import TableCellBox, layout_rich_cell_content, table_cell_boxes
+from ..layout.text_overflow import fit_plain_overflow_text, normalize_plain_overflow_text, normalize_text_overflow
 from ..layout.text_wrap import text_width, wrap_text
 from ..style.color import RGBA
 from ..style.font import string_width
+from ..style.letter_spacing import resolve_letter_spacing
 from ..style.typography import shape_text
 from .rl_adapter import ReportLabCanvasAdapter
 
@@ -55,25 +57,39 @@ def paint_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     section_total_pages = node.content.get("section_total_pages")
     if isinstance(section_total_pages, int):
         text_value = text_value.replace("{section_total_pages}", str(section_total_pages))
-    adapter.draw_text(
+    content_width = max(1.0, bounds.width - padding.horizontal)
+    text_overflow = normalize_text_overflow(str(node.content.get("text_overflow", "wrap")))
+    letter_spacing = _letter_spacing_points(node)
+    rendered_text = _text_paint_text(node, text_value, content_width, text_overflow, letter_spacing)
+    content_rect = Rect(
         x=bounds.x + padding.left,
         y=bounds.y + padding.top,
-        width=max(1.0, bounds.width - padding.horizontal),
-        text=text_value,
-        font_name=node.style.font_name,
-        font_size=node.style.font_size,
-        line_height=node.style.line_height,
-        typography=node.style.typography,
-        text_direction=node.style.text_direction,
-        color=node.style.color,
-        align=str(node.content.get("align", "left")),
+        width=content_width,
         height=max(0.0, bounds.height - padding.vertical),
-        valign=str(node.content.get("valign", "top")),
-        letter_spacing=_letter_spacing_points(node),
     )
+    with adapter.isolated_state():
+        if text_overflow in {"clip", "ellipsis"}:
+            adapter.apply_clip_rect(content_rect)
+        adapter.draw_text(
+            x=content_rect.x,
+            y=content_rect.y,
+            width=content_rect.width,
+            text=rendered_text,
+            font_name=node.style.font_name,
+            font_size=node.style.font_size,
+            line_height=node.style.line_height,
+            typography=node.style.typography,
+            text_direction=node.style.text_direction,
+            color=node.style.color,
+            align=str(node.content.get("align", "left")),
+            height=content_rect.height,
+            valign=str(node.content.get("valign", "top")),
+            letter_spacing=letter_spacing,
+            text_overflow=text_overflow,
+        )
     link_url = node.content.get("link_url")
     if isinstance(link_url, str):
-        _paint_text_link_annotations(adapter, item, text_value, link_url)
+        _paint_text_link_annotations(adapter, item, rendered_text, link_url, text_overflow)
 
 
 def paint_rich_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
@@ -93,22 +109,26 @@ def paint_rich_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     )
 
 
-def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderItem, text_value: str, link_url: str) -> None:
+def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderItem, text_value: str, link_url: str, text_overflow: str = "wrap") -> None:
     node = item.node
     bounds = item.absolute_bounds
     padding = node.style.padding
     content_x = bounds.x + padding.left
     content_y = bounds.y + padding.top
     content_width = max(1.0, bounds.width - padding.horizontal)
-    wrapped_lines = wrap_text(
-        text_value,
-        content_width,
-        node.style.font_name,
-        node.style.font_size,
-        typography=node.style.typography,
-        text_direction=node.style.text_direction,
-        letter_spacing=_letter_spacing_points(node),
-    )
+    letter_spacing = _letter_spacing_points(node)
+    if text_overflow in {"clip", "ellipsis"}:
+        wrapped_lines = [text_value]
+    else:
+        wrapped_lines = wrap_text(
+            text_value,
+            content_width,
+            node.style.font_name,
+            node.style.font_size,
+            typography=node.style.typography,
+            text_direction=node.style.text_direction,
+            letter_spacing=letter_spacing,
+        )
     text_height = max(node.style.line_height, len(wrapped_lines) * node.style.line_height)
     content_height = max(0.0, bounds.height - padding.vertical)
     vertical_offset = 0.0
@@ -119,7 +139,7 @@ def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderIt
         vertical_offset = max(0.0, content_height - text_height)
     for line_index, line in enumerate(wrapped_lines):
         display_line = shape_text(line, node.style.typography, node.style.text_direction)
-        line_width = text_width(display_line, node.style.font_name, node.style.font_size, string_width, node.style.typography, node.style.text_direction, _letter_spacing_points(node))
+        line_width = min(content_width, text_width(display_line, node.style.font_name, node.style.font_size, string_width, node.style.typography, node.style.text_direction, letter_spacing))
         if line_width <= 0:
             continue
         offset = max(0.0, content_width - line_width)
@@ -140,19 +160,30 @@ def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderIt
         )
 
 
+def _text_paint_text(node: object, text: str, width: float, text_overflow: str, letter_spacing: float) -> str:
+    style = getattr(node, "style")
+    if text_overflow == "clip":
+        return normalize_plain_overflow_text(text)
+    if text_overflow == "ellipsis":
+        return fit_plain_overflow_text(
+            text,
+            width,
+            style.font_name,
+            style.font_size,
+            style.typography,
+            style.text_direction,
+            letter_spacing,
+            string_width,
+        )
+    return text
+
+
 def _letter_spacing_points(node: object) -> float:
     content = getattr(node, "content", {})
     style = getattr(node, "style", None)
     font_size = float(getattr(style, "font_size", 12.0))
     value = content.get("letter_spacing") if isinstance(content, dict) else None
-    if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
-        if value.endswith("em"):
-            return float(value[:-2]) * font_size
-        if value.endswith("%"):
-            return (float(value[:-1]) / 100.0) * font_size
-    return 0.0
+    return resolve_letter_spacing(value, font_size)
 
 
 def paint_image(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
@@ -266,6 +297,7 @@ def _paint_table_cells(adapter: ReportLabCanvasAdapter, item: RenderItem, cell_b
                     text_direction=cell_box.text_direction,
                     color=cell_box.color,
                     align=cell_box.align,
+                    text_overflow=cell_box.text_overflow,
                 )
 
     if node.content.get("border_collapse") is True:

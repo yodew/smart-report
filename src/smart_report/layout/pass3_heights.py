@@ -5,7 +5,9 @@ from __future__ import annotations
 from .node import LayoutNode
 from .rich_text_layout import rich_text_height
 from .table_model import table_height
+from .text_overflow import normalize_text_overflow
 from .text_wrap import wrap_text
+from ..style.letter_spacing import resolve_letter_spacing
 from ..style.units import Auto, Percent, resolve_size
 
 
@@ -352,6 +354,9 @@ def _measure_text_height(node: LayoutNode) -> float:
     font_size = node.style.font_size
     line_height = node.style.line_height
 
+    if normalize_text_overflow(str(node.content.get("text_overflow", "wrap"))) in {"clip", "ellipsis"}:
+        return line_height + node.style.padding.vertical
+
     wrapped_lines = wrap_text(
         text,
         available_width,
@@ -365,13 +370,5 @@ def _measure_text_height(node: LayoutNode) -> float:
 
 
 def _letter_spacing_points(node: LayoutNode) -> float:
-    value = node.content.get("letter_spacing")
-    if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
-        if value.endswith("em"):
-            return float(value[:-2]) * node.style.font_size
-        if value.endswith("%"):
-            return (float(value[:-1]) / 100.0) * node.style.font_size
-    return 0.0
+    return resolve_letter_spacing(node.content.get("letter_spacing"), node.style.font_size)
 MAX_LAYOUT_TRACKS = 64
