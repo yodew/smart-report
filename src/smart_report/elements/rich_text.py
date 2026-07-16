@@ -5,6 +5,7 @@ from __future__ import annotations
 from .._builder_core import NodeBuilder
 from ..layout.node import LayoutNode, Style
 from ..style.color import RGBA
+from ..style.letter_spacing import LetterSpacingInput, normalize_letter_spacing
 
 
 class RichText(NodeBuilder):
@@ -33,6 +34,7 @@ class RichText(NodeBuilder):
         font_size: float | None = None,
         color: str | RGBA | None = None,
         bold: bool = False,
+        letter_spacing: LetterSpacingInput | None = None,
     ) -> "RichText":
         """Append a styled inline text span and return this builder."""
 
@@ -47,7 +49,20 @@ class RichText(NodeBuilder):
             run["color"] = _serializable_color(color)
         if bold:
             run["bold"] = True
+        if letter_spacing is not None:
+            run["letter_spacing"] = normalize_letter_spacing(letter_spacing)
         _runs(self.node).append(run)
+        return self
+
+    def letter_spacing(self, value: LetterSpacingInput) -> "RichText":
+        """Set default extra spacing between characters for all spans.
+
+        A span-level ``letter_spacing`` argument overrides this value for
+        that span. Numbers are points; ``"0.05em"`` and ``"5%"`` resolve
+        against each span's effective font size.
+        """
+
+        self.node.content["letter_spacing"] = normalize_letter_spacing(value)
         return self
 
     def br(self, count: int = 1) -> "RichText":

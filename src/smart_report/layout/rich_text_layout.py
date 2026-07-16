@@ -8,6 +8,7 @@ from .node import LayoutNode
 from .text_wrap import _tokens
 from ..style.color import RGBA, parse_color
 from ..style.font import DEFAULT_FONT_REGISTRY, shaped_string_width, string_width
+from ..style.letter_spacing import resolve_letter_spacing
 from ..style.typography import shape_text_for_width
 
 
@@ -18,6 +19,7 @@ class RichTextFragment:
     font_size: float
     color: RGBA | None
     bold: bool = False
+    letter_spacing: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +66,7 @@ def normalize_rich_text_runs(node: LayoutNode) -> list[RichTextFragment | None]:
                 font_size=font_size,
                 color=_run_color(node, raw_run),
                 bold=bold,
+                letter_spacing=_run_letter_spacing(node, raw_run, font_size),
             )
         )
     return normalized
@@ -136,6 +139,8 @@ def rich_text_runs_for_lines(lines: list[RichTextLine]) -> list[dict[str, object
                 run["color"] = [fragment.color.red, fragment.color.green, fragment.color.blue, fragment.color.alpha]
             if fragment.bold:
                 run["bold"] = True
+            if fragment.letter_spacing != 0:
+                run["letter_spacing"] = fragment.letter_spacing
             runs.append(run)
     return runs
 
@@ -167,8 +172,13 @@ def _run_color(node: LayoutNode, run: dict[object, object]) -> RGBA | None:
     return node.style.color
 
 
+def _run_letter_spacing(node: LayoutNode, run: dict[object, object], font_size: float) -> float:
+    value = run.get("letter_spacing", node.content.get("letter_spacing"))
+    return resolve_letter_spacing(value, font_size)
+
+
 def _copy_fragment(fragment: RichTextFragment, text: str) -> RichTextFragment:
-    return RichTextFragment(text=text, font_name=fragment.font_name, font_size=fragment.font_size, color=fragment.color, bold=fragment.bold)
+    return RichTextFragment(text=text, font_name=fragment.font_name, font_size=fragment.font_size, color=fragment.color, bold=fragment.bold, letter_spacing=fragment.letter_spacing)
 
 
 def _line(fragments: tuple[RichTextFragment, ...], fallback_height: float) -> RichTextLine:
@@ -191,12 +201,14 @@ def _fragments_width(fragments: list[RichTextFragment], node: LayoutNode) -> flo
 
 def _fragment_width(fragment: RichTextFragment, node: LayoutNode) -> float:
     if node.style.typography == "advanced":
-        return shaped_string_width(fragment.text, fragment.font_name, fragment.font_size)
-    return string_width(shape_text_for_width(fragment.text, node.style.typography, node.style.text_direction), fragment.font_name, fragment.font_size)
+        base_width = shaped_string_width(fragment.text, fragment.font_name, fragment.font_size)
+    else:
+        base_width = string_width(shape_text_for_width(fragment.text, node.style.typography, node.style.text_direction), fragment.font_name, fragment.font_size)
+    return base_width + max(0, len(fragment.text) - 1) * fragment.letter_spacing
 
 
 def _fragment_width_no_node(fragment: RichTextFragment) -> float:
-    return string_width(fragment.text, fragment.font_name, fragment.font_size)
+    return string_width(fragment.text, fragment.font_name, fragment.font_size) + max(0, len(fragment.text) - 1) * fragment.letter_spacing
 
 
 def _split_long_fragment(fragment: RichTextFragment, width: float, node: LayoutNode) -> list[RichTextFragment]:

@@ -164,8 +164,12 @@ class ReportLabCanvasAdapter:
         height: float | None = None,
         valign: str = "top",
         letter_spacing: float = 0.0,
+        text_overflow: str = "wrap",
     ) -> None:
-        wrapped_lines = wrap_text(text, width, font_name, font_size, typography=typography, text_direction=text_direction, letter_spacing=letter_spacing)
+        if text_overflow in {"clip", "ellipsis"}:
+            wrapped_lines = [text]
+        else:
+            wrapped_lines = wrap_text(text, width, font_name, font_size, typography=typography, text_direction=text_direction, letter_spacing=letter_spacing)
         text_height = max(line_height, len(wrapped_lines) * line_height)
         vertical_offset = 0.0
         if height is not None:
@@ -231,6 +235,7 @@ class ReportLabCanvasAdapter:
             text_object.setTextOrigin(x + offset, current_baseline_y)
             for fragment in line.fragments:
                 text_object.setFont(fragment.font_name, fragment.font_size, line.height)
+                text_object.setCharSpace(fragment.letter_spacing)
                 text_color = fragment.color or DEFAULT_TEXT_COLOR
                 text_object.setFillColorRGB(text_color.red, text_color.green, text_color.blue)
                 self._canvas.setFillAlpha(text_color.alpha)
