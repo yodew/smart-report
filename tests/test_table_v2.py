@@ -14,7 +14,7 @@ from typing import cast
 
 from smart_report import DEFAULT_FONT_NAME, Frame, Image, RichText, Spacer, Table, Text, document, get_default_font_name, get_fallback_font_families, get_fallback_fonts, get_font, get_font_family, register_font, register_font_family, resolve_text_runs, set_default_font, set_fallback_font_families, set_fallback_fonts, shaped_string_width, string_width
 from smart_report.builder import resolve_page_size
-from smart_report.layout.node import Edges, LayoutNode, Rect, RenderItem, Style
+from smart_report.layout.node import CornerRadii, Edges, LayoutNode, Rect, RenderItem, Style, clone_layout_node
 from smart_report.layout.paginate import _split_flow_child, _split_table_node, _split_text_node, paginate_page, split_frame_node
 from smart_report.layout.pass4_render import build_render_list
 from smart_report.layout.pass3_heights import resolve_heights
@@ -309,8 +309,23 @@ class TableV2ModelTests(unittest.TestCase):
 
         paint_table(cast(ReportLabCanvasAdapter, adapter), item)
 
-        self.assertEqual(adapter.rounded_clips, [(10, 20, 200, table.node.resolved_height, 12)])
-        self.assertIn(12, adapter.drawn_radii)
+        self.assertEqual(adapter.rounded_clips, [(10, 20, 200, table.node.resolved_height, CornerRadii.all(12))])
+        self.assertIn(CornerRadii.all(12), adapter.drawn_radii)
+
+
+    def test_radius_supports_individual_corners_and_clone_preserves_them(self) -> None:
+        image = Image(_png_bytes(8, 8)).radius((1, 2, 3, 4))
+        frame = Frame().radius(top_left=5, bottom_right=7)
+
+        self.assertEqual(image.node.style.border_radius, CornerRadii(1, 2, 3, 4))
+        self.assertEqual(frame.node.style.border_radius, CornerRadii(5, 0, 7, 0))
+        self.assertEqual(clone_layout_node(image.node).style.border_radius, CornerRadii(1, 2, 3, 4))
+        with self.assertRaises(ValueError):
+            Image(_png_bytes(8, 8)).radius((1, 2, 3))  # type: ignore[arg-type]
+        with self.assertRaises(ValueError):
+            Image(_png_bytes(8, 8)).radius(1, top_left=2)
+        with self.assertRaises(ValueError):
+            Image(_png_bytes(8, 8)).radius(-1)
 
     def test_column_widths_support_fixed_percent_and_auto(self) -> None:
         table = Table([["A", "B", "C"]]).column_widths([80, "50%", "auto"])
@@ -1474,8 +1489,46 @@ class TableV2ModelTests(unittest.TestCase):
 
         paint_image(cast(ReportLabCanvasAdapter, adapter), RenderItem(image.node, Rect(10, 20, 80, 40), (), (0,)))
 
-        self.assertEqual(adapter.rounded_clips, [(10, 20, 80, 40, 5)])
+        self.assertEqual(adapter.rounded_clips, [(10, 20, 80, 40, CornerRadii.all(5))])
         self.assertEqual(adapter.images[0][1], "contain")
+
+
+    def test_image_mixed_corner_radius_clips_with_corner_radii(self) -> None:
+        image_bytes = _png_bytes(16, 8)
+        image = Image(image_bytes).cover().radius(top_left=2, top_right=4, bottom_right=6, bottom_left=8).width(80)
+        image.node.resolved_width = 80
+        image.node.resolved_height = 40
+        adapter = _SpyAdapter()
+
+        paint_image(cast(ReportLabCanvasAdapter, adapter), RenderItem(image.node, Rect(10, 20, 80, 40), (), (0,)))
+
+        self.assertEqual(adapter.rounded_clips, [(10, 20, 80, 40, CornerRadii(2, 4, 6, 8))])
+        self.assertEqual(adapter.images[0][1], "cover")
+
+    def test_reportlab_adapter_uses_custom_path_for_mixed_corner_radius(self) -> None:
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        fake_canvas = _FakeCanvas()
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 200
+
+        adapter.draw_rect(Rect(10, 20, 80, 40), fill=parse_color("#ffffff"), radius=CornerRadii(2, 4, 6, 8))
+
+        self.assertEqual(fake_canvas.round_rects, [])
+        self.assertEqual(len(fake_canvas.drawn_paths), 1)
+        self.assertTrue(any(command[0] == "curveTo" for command in fake_canvas.drawn_paths[0]))
+
+    def test_reportlab_adapter_keeps_uniform_radius_fast_path(self) -> None:
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        fake_canvas = _FakeCanvas()
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 200
+
+        adapter.draw_rect(Rect(10, 20, 80, 40), fill=parse_color("#ffffff"), radius=CornerRadii.all(5))
+
+        self.assertEqual(fake_canvas.round_rects, [(10, 140, 80, 40, 5, 0, 1)])
+        self.assertEqual(fake_canvas.drawn_paths, [])
 
     def test_image_accepts_path_source_and_normalizes_to_string(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -3200,10 +3253,10 @@ def _patched_table_string_width(string_width: object) -> Iterator[None]:
 
 class _SpyAdapter:
     def __init__(self) -> None:
-        self.rounded_clips: list[tuple[float, float, float, float, float]] = []
+        self.rounded_clips: list[tuple[float, float, float, float, CornerRadii]] = []
         self.clip_rects: list[Rect] = []
         self.links: list[tuple[str, Rect]] = []
-        self.drawn_radii: list[float] = []
+        self.drawn_radii: list[CornerRadii] = []
         self.rect_fills: list[object] = []
         self.images: list[tuple[Rect, str]] = []
         self.line_widths: list[float] = []
@@ -3220,17 +3273,17 @@ class _SpyAdapter:
     def isolated_state(self) -> Iterator["_SpyAdapter"]:
         yield self
 
-    def apply_clip_rounded_rect(self, rect: Rect, radius: float) -> None:
+    def apply_clip_rounded_rect(self, rect: Rect, radius: CornerRadii) -> None:
         self.rounded_clips.append((rect.x, rect.y, rect.width, rect.height, radius))
 
     def apply_clip_rect(self, rect: Rect) -> None:
         self.clip_rects.append(rect)
 
-    def draw_rect(self, rect: Rect, fill: object = None, stroke: object = None, stroke_width: float = 0.0, radius: float = 0.0) -> None:
+    def draw_rect(self, rect: Rect, fill: object = None, stroke: object = None, stroke_width: float = 0.0, radius: CornerRadii | None = None) -> None:
         _ = (rect, fill, stroke, stroke_width)
         self.rects.append(rect)
         self.rect_fills.append(fill)
-        self.drawn_radii.append(radius)
+        self.drawn_radii.append(radius or CornerRadii())
 
     def draw_text(self, **kwargs: object) -> None:
         self.text_kwargs.append(dict(kwargs))
@@ -3299,10 +3352,35 @@ class _FakeTextObject:
         return
 
 
+class _FakePath:
+    def __init__(self) -> None:
+        self.commands: list[tuple[object, ...]] = []
+
+    def rect(self, x: float, y: float, width: float, height: float) -> None:
+        self.commands.append(("rect", x, y, width, height))
+
+    def roundRect(self, x: float, y: float, width: float, height: float, radius: float) -> None:
+        self.commands.append(("roundRect", x, y, width, height, radius))
+
+    def moveTo(self, x: float, y: float) -> None:
+        self.commands.append(("moveTo", x, y))
+
+    def lineTo(self, x: float, y: float) -> None:
+        self.commands.append(("lineTo", x, y))
+
+    def curveTo(self, x1: float, y1: float, x2: float, y2: float, x3: float, y3: float) -> None:
+        self.commands.append(("curveTo", x1, y1, x2, y2, x3, y3))
+
+    def close(self) -> None:
+        self.commands.append(("close",))
+
+
 class _FakeCanvas:
     def __init__(self) -> None:
         self.text_object = _FakeTextObject()
         self.fill_alphas: list[float] = []
+        self.round_rects: list[tuple[float, float, float, float, float, int, int]] = []
+        self.drawn_paths: list[list[tuple[object, ...]]] = []
 
     def beginText(self, x: float, y: float) -> _FakeTextObject:
         _ = (x, y)
@@ -3341,17 +3419,24 @@ class _FakeCanvas:
         _ = (x, y, width, height, stroke, fill)
 
     def roundRect(self, x: float, y: float, width: float, height: float, radius: float, stroke: int = 1, fill: int = 0) -> None:
-        _ = (x, y, width, height, radius, stroke, fill)
+        self.round_rects.append((x, y, width, height, radius, stroke, fill))
 
     def line(self, x1: float, y1: float, x2: float, y2: float) -> None:
         _ = (x1, y1, x2, y2)
         return
 
-    def beginPath(self) -> object:
-        return object()
+    def drawPath(self, path: object, stroke: int = 1, fill: int = 0) -> None:
+        _ = (stroke, fill)
+        if isinstance(path, _FakePath):
+            self.drawn_paths.append(path.commands)
+
+    def beginPath(self) -> _FakePath:
+        return _FakePath()
 
     def clipPath(self, path: object, stroke: int = 0, fill: int = 0) -> None:
-        _ = (path, stroke, fill)
+        _ = (stroke, fill)
+        if isinstance(path, _FakePath):
+            self.drawn_paths.append(path.commands)
 
     def setFont(self, font_name: str, font_size: float, leading: float | None = None) -> None:
         _ = (font_name, font_size, leading)
