@@ -1489,8 +1489,9 @@ class TableV2ModelTests(unittest.TestCase):
 
         paint_image(cast(ReportLabCanvasAdapter, adapter), RenderItem(image.node, Rect(10, 20, 80, 40), (), (0,)))
 
-        self.assertEqual(adapter.rounded_clips, [(10, 20, 80, 40, CornerRadii.all(5))])
+        self.assertEqual(adapter.rounded_clips, [])
         self.assertEqual(adapter.images[0][1], "contain")
+        self.assertEqual(adapter.image_radii, [CornerRadii.all(5)])
 
 
     def test_image_mixed_corner_radius_clips_with_corner_radii(self) -> None:
@@ -1502,8 +1503,9 @@ class TableV2ModelTests(unittest.TestCase):
 
         paint_image(cast(ReportLabCanvasAdapter, adapter), RenderItem(image.node, Rect(10, 20, 80, 40), (), (0,)))
 
-        self.assertEqual(adapter.rounded_clips, [(10, 20, 80, 40, CornerRadii(2, 4, 6, 8))])
+        self.assertEqual(adapter.rounded_clips, [])
         self.assertEqual(adapter.images[0][1], "cover")
+        self.assertEqual(adapter.image_radii, [CornerRadii(2, 4, 6, 8)])
 
     def test_reportlab_adapter_uses_custom_path_for_mixed_corner_radius(self) -> None:
         adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
@@ -1529,6 +1531,37 @@ class TableV2ModelTests(unittest.TestCase):
 
         self.assertEqual(fake_canvas.round_rects, [(10, 140, 80, 40, 5, 0, 1)])
         self.assertEqual(fake_canvas.drawn_paths, [])
+
+
+    def test_reportlab_adapter_contain_image_radius_clips_fitted_rect(self) -> None:
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        fake_canvas = _FakeCanvas()
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 200
+        adapter._image_reader = lambda _source: object()  # type: ignore[method-assign]
+        adapter._image_size = lambda _reader: (16.0, 8.0)  # type: ignore[method-assign]
+
+        adapter.draw_image(b"fake", Rect(10, 20, 80, 80), fit="contain", radius=CornerRadii.all(5))
+
+        self.assertEqual(fake_canvas.round_rects, [])
+        self.assertEqual(fake_canvas.draw_image_rects, [(10, 120, 80, 40)])
+        self.assertIn(("roundRect", 10, 120, 80, 40, 5), fake_canvas.drawn_paths[0])
+
+    def test_reportlab_adapter_cover_image_radius_keeps_outer_crop_and_clips_fitted_rect(self) -> None:
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        fake_canvas = _FakeCanvas()
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 200
+        adapter._image_reader = lambda _source: object()  # type: ignore[method-assign]
+        adapter._image_size = lambda _reader: (16.0, 8.0)  # type: ignore[method-assign]
+
+        adapter.draw_image(b"fake", Rect(10, 20, 80, 80), fit="cover", radius=CornerRadii(2, 4, 6, 8))
+
+        self.assertEqual(fake_canvas.draw_image_rects, [(-30, 100, 160, 80)])
+        self.assertTrue(any(("rect", 10, 100, 80, 80) in commands for commands in fake_canvas.drawn_paths))
+        self.assertTrue(any(any(command[0] == "curveTo" for command in commands) for commands in fake_canvas.drawn_paths))
 
     def test_image_accepts_path_source_and_normalizes_to_string(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -3259,6 +3292,7 @@ class _SpyAdapter:
         self.drawn_radii: list[CornerRadii] = []
         self.rect_fills: list[object] = []
         self.images: list[tuple[Rect, str]] = []
+        self.image_radii: list[CornerRadii | None] = []
         self.line_widths: list[float] = []
         self.line_colors: list[object] = []
         self.lines: list[tuple[float, float, float, float, float]] = []
@@ -3304,9 +3338,10 @@ class _SpyAdapter:
         self.line_colors.append(color)
         self.lines.append((float(x1), float(y1), float(x2), float(y2), float(stroke_width)))
 
-    def draw_image(self, _source: object, rect: Rect, opacity: float = 1.0, fit: str = "stretch") -> None:
+    def draw_image(self, _source: object, rect: Rect, opacity: float = 1.0, fit: str = "stretch", radius: CornerRadii | None = None) -> None:
         _ = opacity
         self.images.append((rect, fit))
+        self.image_radii.append(radius)
 
     def link_url(self, url: str, rect: Rect) -> None:
         self.links.append((url, rect))
@@ -3381,6 +3416,7 @@ class _FakeCanvas:
         self.fill_alphas: list[float] = []
         self.round_rects: list[tuple[float, float, float, float, float, int, int]] = []
         self.drawn_paths: list[list[tuple[object, ...]]] = []
+        self.draw_image_rects: list[tuple[float, float, float, float]] = []
 
     def beginText(self, x: float, y: float) -> _FakeTextObject:
         _ = (x, y)
@@ -3443,7 +3479,8 @@ class _FakeCanvas:
         return
 
     def drawImage(self, image: object, x: float, y: float, width: float, height: float, mask: object | None = None) -> None:
-        _ = (image, x, y, width, height, mask)
+        _ = (image, mask)
+        self.draw_image_rects.append((x, y, width, height))
 
     def translate(self, dx: float, dy: float) -> None:
         _ = (dx, dy)
