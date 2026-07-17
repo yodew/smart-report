@@ -193,7 +193,7 @@ def paint_image(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     fit = item.node.content.get("object_fit", "stretch")
     object_fit = fit if isinstance(fit, str) else "stretch"
     radius = item.node.style.border_radius
-    if radius > 0:
+    if not radius.is_zero:
         with adapter.isolated_state():
             adapter.apply_clip_rounded_rect(item.absolute_bounds, radius)
             adapter.draw_image(image_source, item.absolute_bounds, opacity=item.node.style.opacity, fit=object_fit)
@@ -242,7 +242,7 @@ def paint_table(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
         return
 
     radius = node.style.border_radius
-    if radius > 0:
+    if not radius.is_zero:
         with adapter.isolated_state():
             adapter.apply_clip_rounded_rect(bounds, radius)
             _paint_table_cells(adapter, item, cell_boxes)
