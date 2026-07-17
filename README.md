@@ -64,6 +64,7 @@ For the full API reference, including `Rect`, `Line`, `Spacer`, table styling, i
 - v2.11.5 adds table row/cell minimum heights and a standalone `RichText` element for styled inline spans without changing `Text`
 - v2.11.6 adds opt-in `Text.text_overflow(...)` for fixed text boxes plus RichText global/per-span letter spacing
 - v2.11.7 adds per-corner `.radius(...)` values for images, rectangles, containers, and tables
+- v2.11.8 fixes image radius clipping so `contain()` / `cover()` radii apply after fit sizing
 
 ## Text Overflow and RichText Spacing
 
