@@ -63,6 +63,7 @@ For the full API reference, including `Rect`, `Line`, `Spacer`, table styling, i
 - v2.11.3 adds `Text.valign(...)`, `Text.letter_spacing(...)`, and automatic default line height based on font size
 - v2.11.5 adds table row/cell minimum heights and a standalone `RichText` element for styled inline spans without changing `Text`
 - v2.11.6 adds opt-in `Text.text_overflow(...)` for fixed text boxes plus RichText global/per-span letter spacing
+- v2.11.7 adds per-corner `.radius(...)` values for images, rectangles, containers, and tables
 
 ## Text Overflow and RichText Spacing
 
@@ -373,7 +374,12 @@ table = (
 Frame().add_text("Section title").keep_with_next()
 Frame().page_break_before()
 Image("chart.png").cover().radius(8)
+Image("hero.png").cover().radius((12, 12, 0, 0))
+Image("avatar.png").cover().radius(top_left=10, bottom_right=10)
 ```
+
+`.radius(8)` keeps the existing uniform-corner behavior. Use `.radius((top_left, top_right, bottom_right, bottom_left))` or named corner arguments when images, cards, tables, or rectangles need independent corner radii.
+
 
 ## v1.5 rich-cell pagination
 

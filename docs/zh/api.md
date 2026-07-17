@@ -219,7 +219,7 @@ frame.add(table)
 | `.span(row_index, column_index, rowspan=1, colspan=1)` | 设置跨行/跨列 |
 | `.rows(values)` | 替换表格数据 |
 | `.cell(row_index, column_index, value)` | 设置或追加指定单元格内容，`value` 可为字符串或富 builder |
-| `.radius(value)` | 设置表格外边框圆角；渲染时会裁剪外角单元格背景 |
+| `.radius(value)` | 设置表格外边框圆角；支持统一值、`(左上, 右上, 右下, 左下)` 元组或 `top_left=` 等命名角；渲染时会裁剪外角单元格背景 |
 
 `row_style(...)`、`column_style(...)`、`cell_style(...)` 支持的关键字包括：`background`、`color`、`align`、`font`、`font_size`、`line_height`、`text_overflow`、`valign`。
 
@@ -586,6 +586,7 @@ width = shaped_string_width("مرحبا", "NotoNaskhArabic", 14)
 hero.add_image("examples/box.png").absolute(24, 218).size(260, 37)
 hero.add_image("examples/box.svg").absolute(286, 218).size(260, 37)
 hero.add_image(png_bytes).size(120, 80).contain().radius(8)
+hero.add_image("examples/photo.png").size(120, 80).cover().radius((12, 12, 0, 0))
 hero.add_image("examples/photo.png").size(120, 80).cover()
 ```
 
@@ -615,7 +616,7 @@ frame.add_spacer(12)
 | `.absolute(left, top)` | 设置矩形在父容器中的位置 |
 | `.background(color)` | 设置填充色；支持 `"transparent"`、`rgba(...)`、`#RRGGBBAA` |
 | `.stroke(color, width)` | 设置边框颜色和宽度 |
-| `.radius(value)` | 设置圆角 |
+| `.radius(value)` | 设置圆角；可传单个值、`(左上, 右上, 右下, 左下)` 元组，或 `top_left=` / `top_right=` / `bottom_right=` / `bottom_left=` 命名参数 |
 | `.opacity(value)` | 设置整体透明度 |
 | `.z(value)` | 设置图层顺序 |
 
@@ -651,7 +652,7 @@ frame.add_text("正文")
 | `.background(color)` | 设置背景色；可传 `None` 表示不绘制背景 |
 | `.stroke(color, width)` | 设置描边 |
 | `.opacity(value)` | 设置透明度 |
-| `.radius(value)` | 设置圆角半径 |
+| `.radius(value)` | 设置圆角半径；可传单个值、`(左上, 右上, 右下, 左下)` 元组，或命名角参数 |
 | `.overflow("hidden")` | 裁剪超出节点边界的子内容；也会形成独立裁剪上下文 |
 | `.margin(...)` | 设置外边距 |
 | `.padding(...)` | 设置内边距 |
