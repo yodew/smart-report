@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 from enum import Enum
 
 from ..style.color import RGBA
@@ -63,6 +64,45 @@ class Edges:
         return cls(top=value, right=value, bottom=value, left=value)
 
 
+
+@dataclass(frozen=True, slots=True)
+class CornerRadii:
+    top_left: float = 0.0
+    top_right: float = 0.0
+    bottom_right: float = 0.0
+    bottom_left: float = 0.0
+
+    @classmethod
+    def all(cls, value: float) -> "CornerRadii":
+        return cls(value, value, value, value)
+
+    @property
+    def is_zero(self) -> bool:
+        return self.top_left <= 0 and self.top_right <= 0 and self.bottom_right <= 0 and self.bottom_left <= 0
+
+    @property
+    def is_uniform(self) -> bool:
+        return self.top_left == self.top_right == self.bottom_right == self.bottom_left
+
+    @property
+    def uniform_value(self) -> float:
+        return self.top_left if self.is_uniform else 0.0
+
+    def fitted(self, width: float, height: float) -> "CornerRadii":
+        limit = max(0.0, min(width, height) / 2.0)
+        return CornerRadii(
+            top_left=_fit_radius(self.top_left, limit),
+            top_right=_fit_radius(self.top_right, limit),
+            bottom_right=_fit_radius(self.bottom_right, limit),
+            bottom_left=_fit_radius(self.bottom_left, limit),
+        )
+
+
+def _fit_radius(value: float, limit: float) -> float:
+    if not math.isfinite(value) or value <= 0:
+        return 0.0
+    return min(value, limit)
+
 @dataclass(slots=True)
 class Style:
     width: SizeSpec = AUTO
@@ -84,7 +124,7 @@ class Style:
     line_height_auto: bool = True
     typography: TypographyMode = "plain"
     text_direction: TextDirection = "auto"
-    border_radius: float = 0.0
+    border_radius: CornerRadii = field(default_factory=CornerRadii)
     stroke_color: RGBA | None = None
     stroke_width: float = 0.0
 

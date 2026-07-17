@@ -10,7 +10,7 @@ from math import isfinite
 from os import PathLike
 from typing import TYPE_CHECKING, Literal, Protocol, TypeVar, cast
 
-from .layout.node import Edges, LayoutNode, OverflowMode, PositionMode, Style
+from .layout.node import CornerRadii, Edges, LayoutNode, OverflowMode, PositionMode, Style
 from .style.color import parse_color
 from .style.font import DEFAULT_FONT_REGISTRY
 from .style.typography import normalize_text_direction, normalize_typography_mode
@@ -62,6 +62,7 @@ class AdapterCtorProto(Protocol):
 BuilderT = TypeVar("BuilderT", bound="NodeBuilder")
 ContainerT = TypeVar("ContainerT", bound="ContainerBuilder")
 EdgeInput = SizeInput | tuple[SizeInput, ...]
+RadiusInput = SizeInput | tuple[SizeInput, ...]
 DocumentMetadata = dict[str, str]
 SaveTarget = str | BytesIO
 
@@ -132,6 +133,43 @@ def _parse_explicit_edges(
         right=_edge_points(resolved_right),
         bottom=_edge_points(resolved_bottom),
         left=_edge_points(resolved_left),
+    )
+
+
+def _radius_points(value: SizeInput) -> float:
+    points = _edge_points(value)
+    if points < 0:
+        raise ValueError("Radius values must be non-negative")
+    return points
+
+
+def _parse_corner_radii(
+    value: RadiusInput | None,
+    *,
+    top_left: SizeInput | None = None,
+    top_right: SizeInput | None = None,
+    bottom_right: SizeInput | None = None,
+    bottom_left: SizeInput | None = None,
+) -> CornerRadii:
+    has_named_values = any(item is not None for item in (top_left, top_right, bottom_right, bottom_left))
+    if value is not None and has_named_values:
+        raise ValueError("Use either positional radius value or named corner radii, not both")
+    if isinstance(value, tuple):
+        if len(value) != 4:
+            raise ValueError("Radius tuple must contain top_left, top_right, bottom_right, bottom_left")
+        return CornerRadii(
+            top_left=_radius_points(value[0]),
+            top_right=_radius_points(value[1]),
+            bottom_right=_radius_points(value[2]),
+            bottom_left=_radius_points(value[3]),
+        )
+    if value is not None:
+        return CornerRadii.all(_radius_points(value))
+    return CornerRadii(
+        top_left=_radius_points(top_left if top_left is not None else 0),
+        top_right=_radius_points(top_right if top_right is not None else 0),
+        bottom_right=_radius_points(bottom_right if bottom_right is not None else 0),
+        bottom_left=_radius_points(bottom_left if bottom_left is not None else 0),
     )
 
 
@@ -367,10 +405,30 @@ class NodeBuilder:
         self.node.style.stroke_width = width
         return self
 
-    def radius(self: BuilderT, value: float) -> BuilderT:
-        """Set border radius in points."""
+    def radius(
+        self: BuilderT,
+        value: RadiusInput | None = None,
+        *,
+        top_left: SizeInput | None = None,
+        top_right: SizeInput | None = None,
+        bottom_right: SizeInput | None = None,
+        bottom_left: SizeInput | None = None,
+    ) -> BuilderT:
+        """Set corner radius.
 
-        self.node.style.border_radius = value
+        ``radius(8)`` keeps the existing uniform-radius behavior. Use
+        ``radius((top_left, top_right, bottom_right, bottom_left))`` or named
+        corner arguments to set corners independently. Values must be fixed
+        point-compatible and non-negative.
+        """
+
+        self.node.style.border_radius = _parse_corner_radii(
+            value,
+            top_left=top_left,
+            top_right=top_right,
+            bottom_right=bottom_right,
+            bottom_left=bottom_left,
+        )
         return self
 
     def layout(self: BuilderT, value: str) -> BuilderT:
