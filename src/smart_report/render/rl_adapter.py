@@ -293,9 +293,9 @@ class ReportLabCanvasAdapter:
             current_baseline_y -= max(0.0, line.height - max_font_size)
         self._canvas.drawText(text_object)
 
-    def draw_image(self, image_source: str | bytes, rect: Rect, opacity: float = 1.0, fit: str = "stretch") -> None:
+    def draw_image(self, image_source: str | bytes, rect: Rect, opacity: float = 1.0, fit: str = "stretch", radius: CornerRadii | None = None) -> None:
         if isinstance(image_source, str) and Path(image_source).suffix.lower() == ".svg":
-            self.draw_svg(image_source, rect, opacity=opacity, fit=fit)
+            self.draw_svg(image_source, rect, opacity=opacity, fit=fit, radius=radius)
             return
 
         if opacity < 1.0:
@@ -305,9 +305,11 @@ class ReportLabCanvasAdapter:
         draw_rect = self._fit_rect(rect, self._image_size(image_reader), fit)
         if fit == "cover":
             self.apply_clip_rect(rect)
+        if radius is not None and not radius.is_zero:
+            self.apply_clip_rounded_rect(draw_rect, radius)
         self._canvas.drawImage(image_reader, draw_rect.x, self.to_rl_y(draw_rect.y, draw_rect.height), draw_rect.width, draw_rect.height, mask="auto")
 
-    def draw_svg(self, image_path: str, rect: Rect, opacity: float = 1.0, fit: str = "stretch") -> None:
+    def draw_svg(self, image_path: str, rect: Rect, opacity: float = 1.0, fit: str = "stretch", radius: CornerRadii | None = None) -> None:
         svglib_module = import_module("svglib.svglib")
         render_pdf_module = import_module("reportlab.graphics.renderPDF")
         svg_to_drawing = cast(SvgToDrawingFn, getattr(svglib_module, "svg2rlg"))
@@ -329,6 +331,8 @@ class ReportLabCanvasAdapter:
 
         if fit == "cover":
             self.apply_clip_rect(rect)
+        if radius is not None and not radius.is_zero:
+            self.apply_clip_rounded_rect(draw_rect, radius)
         self._canvas.translate(draw_rect.x, self.to_rl_y(draw_rect.y, draw_rect.height))
         self._canvas.scale(scale_x, scale_y)
         render_draw(drawing, self._canvas, 0.0, 0.0)

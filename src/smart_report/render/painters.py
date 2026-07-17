@@ -195,8 +195,7 @@ def paint_image(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     radius = item.node.style.border_radius
     if not radius.is_zero:
         with adapter.isolated_state():
-            adapter.apply_clip_rounded_rect(item.absolute_bounds, radius)
-            adapter.draw_image(image_source, item.absolute_bounds, opacity=item.node.style.opacity, fit=object_fit)
+            adapter.draw_image(image_source, item.absolute_bounds, opacity=item.node.style.opacity, fit=object_fit, radius=radius)
         return
     adapter.draw_image(image_source, item.absolute_bounds, opacity=item.node.style.opacity, fit=object_fit)
 
