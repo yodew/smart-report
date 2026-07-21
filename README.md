@@ -27,7 +27,7 @@ smart-report is designed for report-style PDFs: flow content, tables, fixed regi
 - Practical `flex`, `grid`, and `columns` layout modes.
 - Report-oriented `Table` with column widths, auto-fit columns, row/cell minimum heights, alignment, padding, spans, headers, footers, zebra rows, borders, rounded corners, and repeated headers/footers.
 - `Text`, `RichText`, `Image`, `Rect`, `Line`, and `Spacer` elements.
-- Fixed-box text alignment, vertical alignment, letter spacing, overflow clipping, and ellipsis.
+- Fixed-box text alignment, vertical alignment, letter spacing, overflow clipping, and multiline ellipsis.
 - Whole-text PDF URL links through `Text.link(url)`.
 - PNG/JPEG/SVG rendering, image bytes/data URLs, `contain()`, `cover()`, and per-corner radii.
 - Public font registration helpers, fallback fonts, font families, and optional Arabic/bidi typography preprocessing.
@@ -180,9 +180,9 @@ Then import from outside the repository root to confirm the installed wheel is u
 ```
 
 6. Inspect the sdist when README links to documentation or examples. The sdist should include `CHANGELOG.md`, `docs/`, and the example scripts/resources declared in `MANIFEST.in`.
-7. Commit only the intended source/documentation/packaging metadata changes. Do not commit generated `dist/` or `build/` artifacts.
-8. Create a new tag only after the commit is validated. Never move an existing release tag unless explicitly coordinating a release-history correction.
-9. Push the branch and the new tag:
+7. After validation and review pass, commit only the intended source/documentation/packaging metadata changes. Do not commit generated `dist/` or `build/` artifacts.
+8. Create a new tag for that validated commit. Never move an existing release tag unless explicitly coordinating a release-history correction.
+9. Push the branch and the new tag. In this project, commit, tag, and push are the fixed final steps after validation and review pass:
 
 ```bash
 GIT_MASTER=1 git push
