@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.11.9`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.11.10`.
+
+## 2.11.10
+
+- Added multiline `Text.text_overflow("ellipsis")` rendering for fixed-height text boxes while preserving table-cell ellipsis behavior.
+- Fixed the project release workflow to require commit, tag, and push after validation and review pass.
 
 ## 2.11.9
 
