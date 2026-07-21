@@ -303,13 +303,16 @@ frame.add_text("体质辨析：气虚质 + 痰湿质") \
     .letter_spacing("0.05em")
 ```
 
-`text_overflow("clip")` 和 `text_overflow("ellipsis")` 使用类似表格单元格的单行固定框行为：硬换行会折叠为空格，`clip` 直接裁切文本框外内容，`ellipsis` 绘制可放下的最长前缀并追加 `…`。默认 `wrap` 保持自动换行。
+`text_overflow("clip")` 使用类似表格单元格的单行固定框行为：硬换行会折叠为空格，并直接裁切文本框外内容。`text_overflow("ellipsis")` 会先按文本框宽度换行，再按固定高度保留可见行，内容被隐藏时在最后一条可见行追加 `…`。默认 `wrap` 保持自动换行。
 
 ```python
-frame.add_text("过长的指标名称需要适配固定区域") \
-    .size(96, 18) \
+frame.add_text("过长的指标名称需要适配固定区域，并在固定高度内显示多行省略号") \
+    .size(96, 36) \
+    .line_height(12) \
     .text_overflow("ellipsis")
 ```
+
+表格纯文本单元格的 `text_overflow("ellipsis")` 仍保持单行省略行为，用于稳定表格行高。
 
 `.link(url)` 不会自动改变样式。如需视觉提示，请手动设置颜色、下划线替代样式或背景。当前仅支持 whole-text 链接，不支持行内子字符串链接、Markdown/HTML 解析或任意注解 API。
 
