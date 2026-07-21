@@ -877,6 +877,43 @@ class TableV2ModelTests(unittest.TestCase):
 
         self.assertEqual(adapter.texts, [""])
 
+    def test_paint_text_multiline_ellipsis_uses_fixed_height_lines(self) -> None:
+        text = Text("one two three four five six seven").size(78, 24).font("Helvetica").font_size(10).line_height(12).text_overflow("ellipsis")
+        text.node.resolved_width = 78
+        text.node.resolved_height = 24
+        adapter = _SpyAdapter()
+
+        paint_text(cast(ReportLabCanvasAdapter, adapter), RenderItem(text.node, Rect(0, 0, 78, 24), (), (0,)))
+
+        rendered_lines = adapter.texts[0].split("\n")
+        self.assertEqual(len(rendered_lines), 2)
+        self.assertTrue(rendered_lines[-1].endswith("…"))
+        self.assertEqual(adapter.text_kwargs[0]["lines"], rendered_lines)
+        self.assertEqual(len(adapter.clip_rects), 1)
+
+    def test_text_multiline_ellipsis_links_visible_lines_only(self) -> None:
+        text = Text("one two three four five six seven").size(78, 24).font("Helvetica").font_size(10).line_height(12).text_overflow("ellipsis").link("https://example.com")
+        text.node.resolved_width = 78
+        text.node.resolved_height = 24
+        adapter = _SpyAdapter()
+
+        paint_text(cast(ReportLabCanvasAdapter, adapter), RenderItem(text.node, Rect(10, 20, 78, 24), (), (0,)))
+
+        self.assertEqual([url for url, _rect in adapter.links], ["https://example.com", "https://example.com"])
+        self.assertEqual([rect.y for _url, rect in adapter.links], [20, 32])
+
+    def test_text_ellipsis_pagination_keeps_fixed_box_atomic(self) -> None:
+        value = "one two three four five six seven eight nine"
+        text = Text(value).size(48, 24).font_size(10).line_height(12).text_overflow("ellipsis")
+        text.node.resolved_width = 48
+        text.node.resolved_height = 24
+
+        slices = _split_flow_child(text.node, 12, 800)
+
+        self.assertEqual(len(slices), 1)
+        self.assertEqual(slices[0].content["text"], value)
+        self.assertEqual(slices[0].resolved_height, 24)
+
     def test_plain_overflow_width_helpers_use_injected_measurement(self) -> None:
         measured: list[str] = []
 

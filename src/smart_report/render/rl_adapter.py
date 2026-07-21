@@ -214,8 +214,11 @@ class ReportLabCanvasAdapter:
         valign: str = "top",
         letter_spacing: float = 0.0,
         text_overflow: str = "wrap",
+        lines: list[str] | None = None,
     ) -> None:
-        if text_overflow in {"clip", "ellipsis"}:
+        if lines is not None:
+            wrapped_lines = lines
+        elif text_overflow in {"clip", "ellipsis"}:
             wrapped_lines = [text]
         else:
             wrapped_lines = wrap_text(text, width, font_name, font_size, typography=typography, text_direction=text_direction, letter_spacing=letter_spacing)

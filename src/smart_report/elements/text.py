@@ -75,9 +75,10 @@ class Text(NodeBuilder):
         """Set fixed-box overflow handling.
 
         Accepted values are ``"wrap"`` (default), ``"clip"``, and
-        ``"ellipsis"``. ``"clip"`` and ``"ellipsis"`` use table-like
-        single-line behavior: line breaks collapse to spaces and ellipsis
-        renders the longest fitting prefix plus ``...``.
+        ``"ellipsis"``. ``"clip"`` uses table-like single-line behavior.
+        ``"ellipsis"`` wraps text to the fixed box width, keeps the lines
+        visible within the fixed height, and appends ``...`` to the last
+        visible line when content is hidden.
         """
 
         self.node.content["text_overflow"] = normalize_text_overflow(value)

@@ -9,7 +9,7 @@ from ..layout.node import Rect, RenderItem
 from ..layout.pass4_render import build_render_list
 from ..layout.rich_text_layout import layout_rich_text
 from ..layout.table_model import TableCellBox, layout_rich_cell_content, table_cell_boxes
-from ..layout.text_overflow import fit_plain_overflow_text, normalize_plain_overflow_text, normalize_text_overflow
+from ..layout.text_overflow import fit_multiline_overflow_text, fit_plain_overflow_text, normalize_plain_overflow_text, normalize_text_overflow
 from ..layout.text_wrap import text_width, wrap_text
 from ..style.color import RGBA
 from ..style.font import string_width
@@ -60,13 +60,14 @@ def paint_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     content_width = max(1.0, bounds.width - padding.horizontal)
     text_overflow = normalize_text_overflow(str(node.content.get("text_overflow", "wrap")))
     letter_spacing = _letter_spacing_points(node)
-    rendered_text = _text_paint_text(node, text_value, content_width, text_overflow, letter_spacing)
     content_rect = Rect(
         x=bounds.x + padding.left,
         y=bounds.y + padding.top,
         width=content_width,
         height=max(0.0, bounds.height - padding.vertical),
     )
+    rendered_lines = _text_paint_lines(node, text_value, content_width, content_rect.height, text_overflow, letter_spacing)
+    rendered_text = "\n".join(rendered_lines)
     with adapter.isolated_state():
         if text_overflow in {"clip", "ellipsis"}:
             adapter.apply_clip_rect(content_rect)
@@ -86,10 +87,11 @@ def paint_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
             valign=str(node.content.get("valign", "top")),
             letter_spacing=letter_spacing,
             text_overflow=text_overflow,
+            lines=rendered_lines if text_overflow == "ellipsis" else None,
         )
     link_url = node.content.get("link_url")
     if isinstance(link_url, str):
-        _paint_text_link_annotations(adapter, item, rendered_text, link_url, text_overflow)
+        _paint_text_link_annotations(adapter, item, rendered_lines, link_url)
 
 
 def paint_rich_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
@@ -109,7 +111,7 @@ def paint_rich_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     )
 
 
-def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderItem, text_value: str, link_url: str, text_overflow: str = "wrap") -> None:
+def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderItem, rendered_lines: list[str], link_url: str) -> None:
     node = item.node
     bounds = item.absolute_bounds
     padding = node.style.padding
@@ -117,18 +119,7 @@ def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderIt
     content_y = bounds.y + padding.top
     content_width = max(1.0, bounds.width - padding.horizontal)
     letter_spacing = _letter_spacing_points(node)
-    if text_overflow in {"clip", "ellipsis"}:
-        wrapped_lines = [text_value]
-    else:
-        wrapped_lines = wrap_text(
-            text_value,
-            content_width,
-            node.style.font_name,
-            node.style.font_size,
-            typography=node.style.typography,
-            text_direction=node.style.text_direction,
-            letter_spacing=letter_spacing,
-        )
+    wrapped_lines = rendered_lines
     text_height = max(node.style.line_height, len(wrapped_lines) * node.style.line_height)
     content_height = max(0.0, bounds.height - padding.vertical)
     vertical_offset = 0.0
@@ -160,14 +151,16 @@ def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderIt
         )
 
 
-def _text_paint_text(node: object, text: str, width: float, text_overflow: str, letter_spacing: float) -> str:
+def _text_paint_lines(node: object, text: str, width: float, height: float, text_overflow: str, letter_spacing: float) -> list[str]:
     style = getattr(node, "style")
     if text_overflow == "clip":
-        return normalize_plain_overflow_text(text)
+        return [normalize_plain_overflow_text(text)]
     if text_overflow == "ellipsis":
-        return fit_plain_overflow_text(
+        return fit_multiline_overflow_text(
             text,
             width,
+            height,
+            style.line_height,
             style.font_name,
             style.font_size,
             style.typography,
@@ -175,7 +168,15 @@ def _text_paint_text(node: object, text: str, width: float, text_overflow: str, 
             letter_spacing,
             string_width,
         )
-    return text
+    return wrap_text(
+        text,
+        width,
+        style.font_name,
+        style.font_size,
+        typography=style.typography,
+        text_direction=style.text_direction,
+        letter_spacing=letter_spacing,
+    )
 
 
 def _letter_spacing_points(node: object) -> float:

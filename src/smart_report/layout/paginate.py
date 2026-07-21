@@ -25,6 +25,7 @@ from .table_model import (
     table_source_row_fragment_indices,
     table_span_ranges,
 )
+from .text_overflow import normalize_text_overflow
 from .text_wrap import wrap_text
 
 MAX_FIXED_SPLIT_CHUNKS = 10000
@@ -170,6 +171,8 @@ def _split_flow_child(child: LayoutNode, first_content_height: float, following_
     following_node_height = max(1.0, following_content_height - child.style.margin.top - child.style.margin.bottom)
 
     if child.node_type == "text":
+        if normalize_text_overflow(str(child.content.get("text_overflow", "wrap"))) in {"clip", "ellipsis"}:
+            return [clone_layout_node(child)]
         return _split_text_node(child, first_node_height, following_node_height)
     if child.node_type == "rich_text":
         return _split_rich_text_node(child, first_node_height, following_node_height)
