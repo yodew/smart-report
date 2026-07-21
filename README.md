@@ -2,409 +2,37 @@
 
 Modern PDF creation library for Python with a custom 4-pass layout engine on top of ReportLab canvas.
 
-中文文档：
+smart-report is designed for report-style PDFs: flow content, tables, fixed regions, layered backgrounds, watermarks, and precise element positioning can all be composed through chainable Python builders.
 
-- [中文 API 文档](./docs/zh/api.md)
+## Documentation
+
+- [Chinese API reference](./docs/zh/api.md)
+- [Chinese documentation index](./docs/zh/README.md)
+- [Changelog](./CHANGELOG.md)
 
 ## Goals
 
-- Keep the reliability of PDF-native rendering
-- Reduce the gap between classic PDF APIs and modern HTML/CSS mental models
-- Support both flow layout and layered composition
-- Make text, images, and shapes overlap through `z-index`
-
-## Current capabilities
-
-- Flow containers via `Frame`
-- Layered containers via `Canvas`
-- Absolute positioning inside `Canvas`
-- Repeating page overlays via `header()`, `footer()`, and `watermark()`
-- Basic automatic pagination for flow content
-- Deeper pagination for nested frames and fixed-height blocks
-- Practical `flex`, `grid`, and `columns` container layout modes
-- Table column widths, row/cell minimum heights, alignment, cell padding, `rowspan` / `colspan`, header styling, zebra rows, rounded borders, and repeated headers on pagination
-- Public font registration helpers, width-based CJK text wrapping, and optional Arabic/bidi typography preprocessing
-- PNG and SVG image rendering
-- Top-down width resolution and bottom-up height measurement
-- Paint ordering through `z-index`
-- `Text`, `RichText`, `Rect`, `Line`, `Image`, `Spacer`, and report-oriented `Table`
-- Table auto-fit columns: content-based sizing for plain-text cells with min/max constraints
-- Whole-Text URL links via `Text.link(url)` for external PDF link annotations
-
-For the full API reference, including `Rect`, `Line`, `Spacer`, table styling, image fitting, fonts, colors, and shared chainable methods, see [docs/zh/api.md](./docs/zh/api.md).
-
-## v2.4 status
-
-- Chinese API documentation is available in `docs/zh/api.md`
-- Table v2 supports column widths, alignment, padding, `rowspan`, `colspan`, header styling, zebra rows, rounded borders, repeated headers, and row/column/cell style overrides
-- CJK text wraps by measured glyph width across text, table measurement, pagination, and rendering
-- Fonts can be registered from the top-level API with `register_font(...)`, including fallback chains for mixed-language text
-- Chinese runnable examples live in `examples/`, including `examples/zh_table_demo.py`
-- Layout primitives are available through `.flex(...)`, `.grid(...)`, and `.columns(...)`
-- Public API exports and validation behavior are stabilized for 1.0
-- v1.1 adds rich table cells, pagination controls, table footers/subtotals, configurable borders, and image fit/bytes support
-- v1.2 adds conservative rich table-cell pagination: a single unspanned `Frame` cell can split across table slices while repeated headers/footers and logical row styles are preserved
-- v1.3 extends conservative rich table-cell pagination to single unspanned `Text` cells
-- v1.5 extends conservative rich table-cell pagination to rows with multiple unspanned rich `Text` cells
-- v2.0 resolves percentage absolute `top` inside auto-height containers and locks practical `flex`, `grid`, and `columns` semantics with regression coverage
-- v2.1 supports mixed unspanned rich `Text` + `Frame` table rows, keeps rich `Image` cells atomic, and makes `flex("column", gap=...)` honor gaps
-- v2.2 adds `typography("auto")`, `text_direction("rtl")`, and `shape_text(...)` for Arabic-script reshaping and bidi display ordering across text, tables, measurement, pagination, and rendering
-- v2.2.1 updates the typography example to register and use bundled Noto Naskh Arabic fonts so Arabic output does not fall back to Helvetica
-- v2.3 adds font-family registration, fallback-aware HarfBuzz-backed advanced width measurement, and mixed-script typography examples while keeping ReportLab canvas text rendering
-- v2.4 adds named sections with scoped overlays, section page placeholders, PDF metadata, and automatic section outlines
-- v2.6 adds `Table.auto_fit_columns()` for automatic column sizing based on plain-text natural widths, with Fit Then Clamp behavior and optional min/max constraints
-- v2.7 adds `Text.link(url)` for whole-text PDF external URL link annotations, including linked rich `Text` table cells
-- v2.8 adds row-only flex wrapping via `.flex("row", wrap=True)` with uniform gap on both axes
-- v2.9 adds flex `justify`, `align`, `row_gap`, and `column_gap` for finer control over item placement
-- v2.10 adds `save_to_bytes()` for in-memory PDF bytes and async framework integration via `asyncio.to_thread`
-- v2.11 strengthens layered report rendering contracts and adds a fixed-region multi-layer report example
-- v2.11.1 accepts `pathlib.Path` image sources and expands API docs for shapes, tables, colors, fonts, and chainable methods
-- v2.11.2 adds `Text.align(...)` for left, center, and right aligned text within fixed text widths
-- v2.11.3 adds `Text.valign(...)`, `Text.letter_spacing(...)`, and automatic default line height based on font size
-- v2.11.5 adds table row/cell minimum heights and a standalone `RichText` element for styled inline spans without changing `Text`
-- v2.11.6 adds opt-in `Text.text_overflow(...)` for fixed text boxes plus RichText global/per-span letter spacing
-- v2.11.7 adds per-corner `.radius(...)` values for images, rectangles, containers, and tables
-- v2.11.8 fixes image radius clipping so `contain()` / `cover()` radii apply after fit sizing
-
-## Text Overflow and RichText Spacing
-
-```python
-frame.add_text("Long report label that must fit") \
-    .size(96, 18) \
-    .text_overflow("ellipsis")
-
-rich = (
-    RichText()
-    .letter_spacing("4%")
-    .span("Revenue ")
-    .span("+18%", color="#166534", bold=True, letter_spacing="0.08em")
-)
-```
-
-`Text.text_overflow("wrap")` keeps the existing default behavior. `"clip"` and `"ellipsis"` use table-like single-line fixed-box behavior: hard line breaks collapse to spaces, `"clip"` clips at the text box edge, and `"ellipsis"` renders the longest fitting prefix plus `…`. RichText letter spacing follows the same units as `Text.letter_spacing(...)`; span-level spacing overrides the RichText-level default.
-
-`RichText.align(...)` and `.valign(...)` are box-level controls. Inline spans do not have independent left/center/right or top/middle/bottom alignment because they share a line box; use separate `Text` / `RichText` boxes when a fragment needs independent alignment.
-
-## RichText and Table Heights
-
-```python
-from smart_report import RichText, Table
-
-rich = (
-    RichText()
-    .span("Revenue ")
-    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True)
-    .br()
-    .span("Enterprise renewals remained strong", font_size=10, color="#475569")
-    .width(180)
-)
-
-table = Table([["Metric", "Details"], ["Revenue", rich]]) \
-    .row_height(0, 32) \
-    .cell_height(1, 1, 48)
-```
-
-`RichText` is a separate element, so existing `Text` behavior stays unchanged. Use `.span(...)` for inline font/font-family/font-size/color/bold changes and `.br()` for hard line breaks. Table row and cell heights are fixed-point-compatible minimum heights: content taller than the requested height still wins.
-
-## v2.11 layered reports
-
-```python
-from smart_report import Canvas, Frame, document
-
-doc = document()
-page = doc.page("A4")
-
-background = Canvas().size(595, 842).absolute(0, 0).z(-20)
-background.add_rect().absolute(0, 0).size(595, 842).background("#f4f7fb")
-page.add(background)
-
-summary = Frame().size(523, 120).absolute(36, 96).padding(16).background("#ffffff").z(10)
-summary.add_text("Executive Summary").font_size(18)
-page.add(summary)
-```
-
-v2.11 focuses smart-report on rich PDF report composition: users define fixed report regions, then layer backgrounds, decoration, content, annotations, watermarks, headers, and footers with `Canvas`, `Frame`, `.absolute(...)`, and `.z(...)`. The render-order contract is covered by regression tests so container backgrounds paint before descendants, equal z-index keeps tree order, and overlay layers remain predictable.
-
-See `examples/v2_11_layered_report.py` for a complete dashboard-style report with a full-page background, KPI cards, a chart placeholder region, flow content inside a fixed region, table content, watermark, header, and footer.
-
-**Scope**: v2.11 is not a full CSS engine. It does not add flex grow/shrink/basis, stretch, `space-around`, `space-evenly`, reverse directions, or column wrap. For dense PDF reports, prefer predefined region sizes and explicit layering.
-
-## v2.8 flex row wrap
-
-```python
-cards = Frame().flex("row", gap=10, wrap=True).width(480)
-cards.add_text("Card 1").width(140).padding(10).background("#dbeafe")
-cards.add_text("Card 2").width(140).padding(10).background("#dbeafe")
-cards.add_text("Card 3").width(140).padding(10).background("#dbeafe")
-cards.add_text("Card 4").width(140).padding(10).background("#dbeafe")
-```
-
-`flex("row", wrap=True)` lays out children left to right and wraps to the next row when the combined width (including gaps) exceeds the container width. The same `gap` value applies horizontally between items and vertically between wrapped rows. Children with explicit widths keep those widths; text children without widths measure to their natural text width. A single child wider than the container is placed alone on its row and may overflow.
-
-**Limitations**: row-only wrapping; no column wrap. Not a full CSS flexbox implementation. No row-aware pagination guarantee across page breaks.
-
-## v2.9 flex refinements
-
-```python
-row = Frame().flex("row", gap=8, justify="center", align="center").width(400)
-row.add_text("A").width(80).padding(8).background("#dbeafe")
-row.add_text("B").width(80).padding(8).background("#dbeafe")
-
-wrapped = Frame().flex("row", gap=8, wrap=True, row_gap=20, column_gap=8).width(300)
-wrapped.add_text("Item 1").width(80).padding(8).background("#fef3c7")
-wrapped.add_text("Item 2").width(80).padding(8).background("#fef3c7")
-
-col = Frame().flex("column", gap=8, justify="space-between", align="center").width(300).height(200)
-col.add_text("Top").padding(8).background("#ede9fe")
-col.add_text("Bottom").padding(8).background("#ede9fe")
-```
-
-`flex()` gains four new keyword arguments: `justify`, `align`, `row_gap`, and `column_gap`.
-
-`justify` controls main-axis placement. Supported values: `start`, `center`, `end`, `space-between`. Works for both non-wrapped rows and wrapped rows (per-row). Column justify distributes vertical space only when the parent has an explicit content height; auto-height column justify is a no-op.
-
-`align` controls cross-axis placement. Supported values: `start`, `center`, `end`. In row mode, this offsets items vertically within the tallest row height. In column mode, this offsets items horizontally against the content width.
-
-`row_gap` and `column_gap` set axis-specific spacing. Row and wrapped-row horizontal spacing uses `column_gap` (falls back to `gap`). Wrapped-row vertical advancement and column stacking use `row_gap` (falls back to `gap`). Column stacking ignores `column_gap`.
-
-**Limitations**: not full CSS flexbox. No `stretch`, `space-around`, or `space-evenly`. No flex grow/shrink/basis. No reverse directions. No column wrap. No row-aware pagination guarantee.
-
-## save_to_bytes
-
-```python
-from smart_report import document
-
-doc = document()
-page = doc.page("A4")
-page.add_frame().padding(36).add_text("Hello from bytes")
-
-pdf_bytes = doc.save_to_bytes()
-assert isinstance(pdf_bytes, bytes)
-assert pdf_bytes[:5] == b"%PDF-"
-```
-
-`save_to_bytes()` builds and renders the document, returning raw PDF bytes instead of writing to a file. It shares the same 4-pass pipeline as `save()` and is available on both `DocumentBuilder` and the built `Document` object.
-
-### Async integration (FastAPI, Starlette, etc.)
-
-`save_to_bytes()` is synchronous and CPU-bound. To integrate with an async framework without blocking the event loop, offload it with `asyncio.to_thread`:
-
-```python
-import asyncio
-from fastapi import FastAPI
-from fastapi.responses import Response
-from smart_report import document
-
-app = FastAPI()
-
-@app.get("/report")
-async def generate_report():
-    doc = document()
-    page = doc.page("A4")
-    page.add_frame().padding(36).add_text("Async report")
-
-    pdf_bytes = await asyncio.to_thread(doc.save_to_bytes)
-    return Response(content=pdf_bytes, media_type="application/pdf")
-```
-
-`asyncio.to_thread` runs the blocking call in a separate thread, keeping the event loop responsive. It does not make PDF generation faster; it just prevents one slow render from stalling other requests.
-
-For true parallel CPU-bound batch generation (many PDFs at once), use `ProcessPoolExecutor` or a similar process-based worker pool. Threads share the GIL, so thread-based concurrency won't speed up the actual rendering work.
-
-**Limitations**: no native async rendering inside smart-report. `save_to_bytes()` is blocking. `asyncio.to_thread` is an integration pattern, not a performance optimization. `asave_to_bytes` or `asave` do not exist.
-
-## v2.6 table auto-fit
-
-```python
-table = (
-    Table([
-        ["Region", "Revenue", "Growth"],
-        ["APAC", "$1.20M", "+18%"],
-        ["EMEA", "$0.98M", "+11%"],
-        ["North America", "$1.60M", "+23%"],
-    ])
-    .auto_fit_columns()
-    .cell_padding(vertical=7, horizontal=10)
-    .header(background="#1d4ed8", color="#ffffff")
-    .zebra("#f8fafc")
-)
-```
-
-`auto_fit_columns()` sizes each column to its natural plain-text width plus cell padding. Pass a list of column indexes to fit only those columns; the rest keep their explicit widths. Legacy `column_widths(["auto"])` without `.auto_fit_columns()` still uses equal-share distribution.
-
-Natural widths follow Fit Then Clamp behavior: text width is measured first, then `column_min_widths` and `column_max_widths` constraints are applied. Narrow fitted tables are not stretched to fill the available width. Only plain-string cells contribute natural widths; rich `Frame`/`Text`/`Image` cells are excluded.
-
-## v2.7 rich text links
-
-```python
-from smart_report import Text
-
-linked = Text("Visit docs").link("https://example.com/docs").color("#2563eb")
-```
-
-`Text.link(url)` attaches a PDF external URL annotation to the whole text node. Clicking anywhere on the text opens the linked URL in a browser. Links work in both standalone `Text` nodes inside a `Frame` and as rich `Text` table cells.
-
-No automatic link styling is applied. Users can opt into color or other visual cues using the existing Text style APIs. Whole-text links only; there are no inline substring links, no markdown/HTML parsing, and no arbitrary annotation API.
-
-```python
-from smart_report import Table, Text
-
-link_cell = Text("Documentation").link("https://example.com/docs")
-table = Table([["Section", "Link"], [link_cell, "Official docs"]])
-```
-
-Rich `Text` table cells support links through the same `Text.link(url)` API. The entire cell text becomes the clickable area. Plain string table cells do not support links.
-
-## v2.3 advanced typography
-
-```python
-from smart_report import register_font_family
-
-register_font_family(
-    "NotoNaskhArabic",
-    regular="examples/fonts/NotoNaskhArabic-Medium.ttf",
-    bold="examples/fonts/NotoNaskhArabic-Bold.ttf",
-    fallback=True,
-)
-
-frame.add_text("مرحبا smart-report") \
-    .font_family("NotoNaskhArabic") \
-    .typography("advanced") \
-    .text_direction("rtl")
-```
-
-`typography("advanced")` uses HarfBuzz metrics for fallback-aware, shaping-aware width measurement and line wrapping when registered TTF fonts are available. Rendering remains on ReportLab canvas text APIs, so exact glyph positioning, arbitrary glyph-ID rendering, vertical writing, color fonts, and full text-engine behavior remain out of scope.
-
-## v2.4 section templates and document structure
-
-```python
-from smart_report import document
-
-doc = document()
-doc.metadata(title="Report", author="team", subject="Q4 summary")
-
-intro = doc.section("Introduction", page_numbering="restart")
-intro.header().height(28).add_text(
-    "Introduction  {section_page_number}/{section_total_pages}"
-).absolute(36, 8)
-intro.footer().height(24).add_text(
-    "Intro footer  {section_name} {section_page_number}/{section_total_pages}"
-).absolute(36, 6)
-
-page = intro.page("A4")
-frame = page.add_frame().padding(36)
-frame.add_text("Introduction").font_size(18)
-
-body = doc.section("Body", page_numbering="restart")
-body.suppress_watermark()
-body_page = body.page("A4")
-
-doc.save("report.pdf")
-```
-
-Sections control scoped overlays: a section's `header()` / `footer()` / `watermark()` override the corresponding global kind on that section's pages. `suppress_header()`, `suppress_footer()`, and `suppress_watermark()` remove inherited global overlays entirely. `{section_name}`, `{section_page_number}`, and `{section_total_pages}` are section-scoped placeholders, while `{page_number}` and `{total_pages}` remain absolute document-level values. Empty named sections produce no pages and no outline entries. Set `outline=False` to hide a section from the PDF outline.
-
-## v2.2 typography
-
-```python
-from smart_report import Frame, shape_text
-
-text = "مرحبا smart-report"
-
-Frame().add_text(text).typography("auto").text_direction("rtl")
-shape_text(text, "auto", "rtl")
-```
-
-`typography("auto")` applies Arabic-script reshaping and bidi display ordering before width measurement, wrapping, pagination, and final painting. Register an Arabic/Hebrew-capable TTF for production output; the default `Helvetica` font is not suitable for these scripts. The v2.2 typography example registers bundled Noto Naskh Arabic fonts before rendering Arabic text.
-
-## Table spans
-
-```python
-Table([
-    ["Region", "Revenue", "Growth"],
-    ["North", "$120K", "+8%"],
-    ["", "$96K", "+5%"],
-]).span(1, 0, rowspan=2)
-```
-
-## Layout primitives
-
-```python
-cards = Frame().grid(3, gap=10)
-cards.add_text("Revenue").padding(10).background("#f8fafc")
-cards.add_text("Growth").padding(10).background("#f8fafc")
-
-summary = Frame().flex("row", gap=12)
-summary.add_text("A")
-summary.add_text("B")
-
-stack = Frame().flex("column", gap=8)
-stack.add_text("First")
-stack.add_text("Second")
-
-notes = Frame().columns(2, gap=16)
-notes.add_text("Long note one")
-notes.add_text("Long note two")
-```
-
-## v2.0 absolute positioning in auto-height containers
-
-```python
-panel = Frame().padding(12).width(240)
-panel.add_text("Flow content determines the auto height.")
-panel.add_text("Badge").absolute(0, "50%").background("#dbeafe")
-```
-
-Percentage absolute `top` values now resolve against the final auto content height. Values at or above `100%` are rejected for auto-height parents because they cannot produce a finite containing height.
-
-## v1.1 report controls
-
-```python
-from smart_report import Frame, Image, Table
-
-rich_cell = Frame().padding(4)
-rich_cell.add_text("Nested content in a table cell")
-
-table = (
-    Table([["Metric", "Details"], ["Revenue", rich_cell]])
-    .footer([["Total", "$216K"]], repeat=True, background="#e2e8f0")
-    .borders("#94a3b8", width=0.5, inner_width=0.25, outer_width=1.5)
-    .cell_border(1, 0, color="#2563eb", width=2)
-)
-
-Frame().add_text("Section title").keep_with_next()
-Frame().page_break_before()
-Image("chart.png").cover().radius(8)
-Image("hero.png").cover().radius((12, 12, 0, 0))
-Image("avatar.png").cover().radius(top_left=10, bottom_right=10)
-```
-
-`.radius(8)` keeps the existing uniform-corner behavior. Use `.radius((top_left, top_right, bottom_right, bottom_left))` or named corner arguments when images, cards, tables, or rectangles need independent corner radii.
-
-
-## v1.5 rich-cell pagination
-
-```python
-details = Frame().padding(4).background("#f8fafc")
-for index in range(20):
-    details.add_text(f"Nested note {index + 1}").font_size(9).line_height(12)
-
-table = (
-    Table([["Metric", "Details"], ["Revenue", details]])
-    .column_widths([90, "auto"])
-    .header(background="#1d4ed8", color="#ffffff", repeat=True)
-)
-```
-
-Single rich `Frame` or `Text` table cells with no `rowspan` / `colspan` can split across pages. Rows with multiple rich `Text` cells can also split when every rich cell in that row is `Text`. v2.1 also supports mixed unspanned rich `Text` + `Frame` rows. Spanned rows and rows containing rich `Image` cells are intentionally kept atomic so span boundaries remain valid.
-
-## Font registration
-
-```python
-from smart_report import register_font
-
-register_font("SourceHanSansSC-Normal", "examples/fonts/SourceHanSansSC-Normal.ttf", set_default=True, fallback=True)
-```
+- Keep the reliability of PDF-native rendering.
+- Reduce the gap between classic PDF APIs and modern HTML/CSS mental models.
+- Support both flow layout and layered composition.
+- Make text, images, shapes, tables, headers, footers, and watermarks compose predictably.
+
+## Current Capabilities
+
+- Flow containers via `Frame`.
+- Layered containers via `Canvas`.
+- Absolute positioning inside containers.
+- Repeating page overlays via `header()`, `footer()`, and `watermark()`.
+- Automatic pagination for flow content, nested frames, fixed-height blocks, and conservative rich table-cell cases.
+- Practical `flex`, `grid`, and `columns` layout modes.
+- Report-oriented `Table` with column widths, auto-fit columns, row/cell minimum heights, alignment, padding, spans, headers, footers, zebra rows, borders, rounded corners, and repeated headers/footers.
+- `Text`, `RichText`, `Image`, `Rect`, `Line`, and `Spacer` elements.
+- Fixed-box text alignment, vertical alignment, letter spacing, overflow clipping, and ellipsis.
+- Whole-text PDF URL links through `Text.link(url)`.
+- PNG/JPEG/SVG rendering, image bytes/data URLs, `contain()`, `cover()`, and per-corner radii.
+- Public font registration helpers, fallback fonts, font families, and optional Arabic/bidi typography preprocessing.
+- Paint ordering through stacking contexts and `z-index`.
+- In-memory rendering through `save_to_bytes()`.
 
 ## Install
 
@@ -412,14 +40,14 @@ register_font("SourceHanSansSC-Normal", "examples/fonts/SourceHanSansSC-Normal.t
 uv sync
 ```
 
-or
+or:
 
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -e .
 ```
 
-## Quick start
+## Quick Start
 
 ```python
 from smart_report import Canvas, Frame, document
@@ -438,69 +66,67 @@ page.add(content)
 doc.save("output.pdf")
 ```
 
-## Repeating overlays and page numbers
+## Tables and Rich Text
 
 ```python
-from smart_report import Frame, document
+from smart_report import RichText, Table
+
+rich = (
+    RichText()
+    .span("Revenue ")
+    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True)
+    .br()
+    .span("Enterprise renewals remained strong", font_size=10, color="#475569")
+    .width(180)
+)
+
+table = Table([["Metric", "Details"], ["Revenue", rich]]) \
+    .row_height(0, 32) \
+    .cell_height(1, 1, 48) \
+    .header(background="#1d4ed8", color="#ffffff")
+```
+
+## Layered Reports
+
+```python
+from smart_report import Canvas, Frame, document
 
 doc = document()
-
-doc.header().height(40).add_text("Page {page_number} / {total_pages}").absolute("78%", 12)
-doc.footer().height(28).add_text("Confidential").absolute(24, 8)
-doc.watermark().height(200).opacity(0.08).add_text("DRAFT").absolute(170, 280)
-
 page = doc.page("A4")
-frame = Frame().padding(36)
-for _ in range(30):
-    frame.add_text("Long content that will flow onto later pages.")
-page.add(frame)
 
-doc.save("paginated.pdf")
+background = Canvas().size(595, 842).absolute(0, 0).z(-20)
+background.add_rect().absolute(0, 0).size(595, 842).background("#f4f7fb")
+page.add(background)
+
+summary = Frame().size(523, 120).absolute(36, 96).padding(16).background("#ffffff").z(10)
+summary.add_text("Executive Summary").font_size(18)
+page.add(summary)
 ```
 
-## Margin and padding arguments
-
-Prefer named arguments because the coordinate order is explicit:
-
-```python
-Canvas().margin(top=24, right=24, bottom=20, left=24)
-Frame().padding(vertical=24, horizontal=32)
-Text("Title").margin(bottom=16)
-```
-
-Tuple forms are still supported for compatibility:
-
-```python
-margin(24)                  # all sides
-margin((24, 32))            # vertical, horizontal
-margin((24, 24, 20, 24))    # top, right, bottom, left
-```
+See `examples/v2_11_layered_report.py` for a complete dashboard-style report.
 
 ## Architecture
 
-`smart-report` uses four explicit passes:
+smart-report uses four explicit passes:
 
-1. **Build** – produce a `LayoutNode` tree
-2. **Pass 2 / Widths** – resolve widths top-down
-3. **Pass 3 / Heights** – measure content bottom-up and assign local positions
-4. **Pass 4 / Render** – flatten to a render list, sort by stacking context + `z-index`, then paint
+1. **Build**: chainable builders produce a `LayoutNode` tree.
+2. **Pass 2 / Widths**: top-down width resolution.
+3. **Pass 3 / Heights**: bottom-up height measurement and local positioning.
+4. **Pass 4 / Render**: flatten to render items, sort by stacking context and `z-index`, then paint through ReportLab.
 
-## Example scripts
+## Example Scripts
 
-- `examples/flow_layout.py`
-- `examples/layered_canvas.py`
+Run an example with:
+
+```bash
+.venv/bin/python examples/report_demo.py
+```
+
+Useful examples include:
+
 - `examples/report_demo.py`
 - `examples/paginated_report.py`
 - `examples/layout_primitives.py`
-- `examples/v1_1_features.py`
-- `examples/v1_2_features.py`
-- `examples/v1_3_features.py`
-- `examples/v1_5_features.py`
-- `examples/v2_0_features.py`
-- `examples/v2_1_features.py`
-- `examples/v2_2_typography.py`
-- `examples/v2_3_advanced_typography.py`
-- `examples/v2_4_document_structure.py`
 - `examples/v2_6_table_auto_fit.py`
 - `examples/v2_7_rich_text_links.py`
 - `examples/v2_8_flex_wrap.py`
@@ -508,27 +134,72 @@ margin((24, 24, 20, 24))    # top, right, bottom, left
 - `examples/v2_11_layered_report.py`
 - `examples/zh_table_demo.py`
 
-Run one with:
+
+## Release Engineering
+
+Use this checklist before publishing a package release or tagging a documentation/process release:
+
+1. Confirm the worktree scope with `GIT_MASTER=1 git status --short` and `GIT_MASTER=1 git diff --stat`. Do not stage unrelated files.
+2. Run validation:
 
 ```bash
-.venv/bin/python examples/report_demo.py
+.venv/bin/python -m unittest tests.test_table_v2
+.venv/bin/python -m unittest tests.test_document_structure
+npx --yes pyright
 ```
+
+3. Ensure local build tooling is available in the project virtual environment:
+
+```bash
+.venv/bin/python -m build --version
+.venv/bin/python -m pip show build wheel setuptools
+```
+
+If tooling is missing, install it into `.venv` only:
+
+```bash
+.venv/bin/python -m pip install build wheel setuptools
+```
+
+4. Build wheel and sdist locally:
+
+```bash
+.venv/bin/python -m build
+```
+
+5. Smoke-test the artifacts:
+
+```bash
+.venv/bin/python -m pip install --force-reinstall --no-deps dist/smart_report-<version>-py3-none-any.whl
+```
+
+Then import from outside the repository root to confirm the installed wheel is used, not local source:
+
+```bash
+/home/yodew/projects/smart-report/.venv/bin/python -c "import smart_report; print(smart_report.__version__, smart_report.__file__)"
+```
+
+6. Inspect the sdist when README links to documentation or examples. The sdist should include `CHANGELOG.md`, `docs/`, and the example scripts/resources declared in `MANIFEST.in`.
+7. Commit only the intended source/documentation/packaging metadata changes. Do not commit generated `dist/` or `build/` artifacts.
+8. Create a new tag only after the commit is validated. Never move an existing release tag unless explicitly coordinating a release-history correction.
+9. Push the branch and the new tag:
+
+```bash
+GIT_MASTER=1 git push
+GIT_MASTER=1 git push origin <tag>
+```
+
+## Current Limitations
+
+- `rowspan` content is kept together during pagination rather than split across pages.
+- Images and SVG content paginate atomically; oversized images are not sliced.
+- Rich table-cell pagination is conservative. Simple unspanned rich text/frame cases can split; spanned rows, rich images, and multi-frame rows remain atomic.
+- `flex`, `grid`, and `columns` are practical layout primitives, not a complete CSS constraint solver.
+- Flex row wrap is row-only; column wrap and row-aware pagination are not implemented.
+- Advanced typography uses HarfBuzz for measurement when available, but rendering still uses ReportLab text APIs.
+- Table auto-fit works on plain-string cells only.
+- `Text.link(url)` is whole-text only.
 
 ## License
 
 MIT. See [LICENSE](./LICENSE).
-
-## Stability
-
-The v2.11.5 release adds table row/cell minimum heights and a standalone `RichText` element for inline styled spans, while preserving existing `Text` behavior and all prior releases including the v2.10 `save_to_bytes()` API.
-
-## Current limitations
-
-- `rowspan` content is kept together during pagination rather than split across pages
-- Pagination keeps images and SVG content atomic: if the current page lacks space, the whole image moves to the next page; oversized images are not sliced
-- Rich table-cell pagination is conservative: single unspanned rich `Frame`/`Text`/`RichText` cells, rows whose rich cells are all unspanned `Text`/`RichText` cells, and mixed unspanned `Text`/`RichText` + `Frame` rows can split; spanned rows, rich images, and multi-Frame rows remain atomic
-- Flex/grid/columns are practical layout primitives, not a complete CSS constraint solver
-- Flex row wrap is row-only; no column wrap, no row-aware pagination guarantee
-- v2.3 uses HarfBuzz for advanced measurement, but rendering still uses ReportLab text APIs; exact glyph positioning, arbitrary glyph-ID drawing, vertical writing, and color-font support are not guaranteed
-- Table auto-fit (`auto_fit_columns`) works on plain-string cells only; rich `Frame`/`Text`/`RichText`/`Image` cells do not contribute natural widths
-- `Text.link(url)` is whole-text only; no inline substring links, no markdown/HTML parsing, no automatic link styling, no plain string table cell link API, and no arbitrary annotation API

@@ -1,43 +1,83 @@
 # smart-report 中文文档
 
-当前中文文档入口：
+smart-report 是一个基于 ReportLab canvas 的 Python PDF 生成库，提供接近现代布局系统的链式 API。它适合生成报表、表格文档、多图层报告和需要精确位置控制的 PDF。
 
-- [API 文档](./api.md)
-- [中文表格示例](../../examples/zh_table_demo.py)
+## 文档入口
 
-v2.4 已覆盖：
+- [中文 API 参考](./api.md)：按入口、容器、元素、表格、字体、尺寸、颜色和通用链式方法组织。
+- [更新日志](../../CHANGELOG.md)：查看每个版本新增、变更和修复内容。
+- [中文表格示例](../../examples/zh_table_demo.py)：可运行的中文表格 PDF 示例。
 
-- 补齐公开 API 的中文说明
-- 明确参数顺序、尺寸单位、分页和图层语义
-- 为中文用户提供可复制运行的示例
-- 顶层字体注册 API、中文连续文本换行、表格圆角边框
-- 字体 fallback、中文行首/行尾基础禁则
-- 表格 `rowspan` / `colspan`，分页时不切开跨行单元格
-- 嵌套 Frame 与固定高度块的更深分页切分
-- `flex`、`grid`、`columns` 实用布局模式
-- 公开 API 导出、校验行为、测试和文档完成 1.0 稳定化
-- 富表格单元格、分页控制、表格 footer/subtotal、自定义边框、图片 contain/cover/bytes 输入
-- 保守版富表格单元格分页：无 `rowspan` / `colspan` 的单个 `Frame` 富单元格可跨页拆分，同时保留重复表头/表尾和逻辑行样式
-- v1.3 将保守版富表格单元格分页扩展到单个未跨行/跨列的 `Text` 富单元格
-- v1.5 将保守版富表格单元格分页扩展到一行多个未跨行/跨列的 `Text` 富单元格
-- v2.0 修复 auto-height 容器中的百分比 absolute `top`，并明确图片/SVG 仍由用户自行控制尺寸或分页位置
-- v2.1 支持未跨行/跨列的混合 `Text` + `Frame` 富单元格行分页，并让 `flex("column", gap=...)` 生效
-- v2.2 增加 `typography("auto")`、`text_direction("rtl")` 和 `shape_text(...)`，用于阿拉伯文字形变与 bidi 显示顺序预处理，并贯穿测量、换行、分页、表格和绘制路径
-- v2.2.1 更新 typography 示例，注册并使用内置 Noto Naskh Arabic 字体，避免阿拉伯文字回退到 Helvetica 后乱码
-- v2.3 增加字体族注册、fallback-aware HarfBuzz-backed advanced 宽度测量，以及 RTL/mixed-script 示例；渲染仍保持 ReportLab canvas 文本路径
-- v2.4 增加命名 section、section 级别的 header/footer/watermark 覆盖与抑制、section 页码占位符、PDF 元数据和自动 section outline
-- v2.6 增加 `Table.auto_fit_columns()`，根据纯文本自然宽度自动调整列宽，支持 Fit Then Clamp 行为和可选 min/max 约束
-- v2.7 增加 `Text.link(url)`，支持 whole-text PDF 外部 URL 链接注释，包括富 `Text` 表格单元格链接
-- v2.8 增加 `.flex("row", wrap=True)` 行换行布局，单一 gap 同时控制水平和垂直间距
-- v2.9 增加 flex `justify`、`align`、`row_gap`、`column_gap` 精细化控制
-- v2.10 增加 `save_to_bytes()` 用于返回 PDF 原始字节，支持异步框架集成（`asyncio.to_thread`）
-- v2.11 强化多图层报告渲染顺序契约，并增加基于预设区域的复杂报告示例
-- v2.11.1 支持 `pathlib.Path` 图片路径输入，并补充形状、表格、颜色、字体和通用链式方法文档
-- v2.11.2 增加 `Text.align(...)`，支持固定文本宽度内左对齐、居中和右对齐
-- v2.11.3 增加 `Text.valign(...)`、`Text.letter_spacing(...)`，并让默认行高按字号自动计算
-- v2.11.5 增加表格逻辑行/单元格最小高度，以及独立 `RichText` 富文本元素（不改变 `Text` 行为）
-- v2.11.6 增加固定文本框 `Text.text_overflow(...)` 截断/省略号，以及 `RichText` 全局/单 span 字距
-- v2.11.7 增加 `.radius(...)` 四角独立圆角，支持图片、矩形、容器背景和表格外框
-- v2.11.8 修复图片 `contain()` / `cover()` 后的圆角裁剪顺序，让圆角作用于缩放后的实际图片区域
+## 推荐阅读顺序
 
-后续改动应保持向后兼容；破坏性 API 调整应留到下一个主版本。
+1. 先阅读 API 参考中的“快速开始”和“顶层入口”，了解 `document()`、页面、保存和页眉页脚。
+2. 再阅读“容器 API”，选择使用 `Frame` 做流式正文，或使用 `Canvas` 做绝对定位和图层叠加。
+3. 如果报告中有表格，阅读 `Table` 章节，重点关注列宽、内边距、表头、分页和样式优先级。
+4. 如果需要中文、阿拉伯文或混合字体，阅读“字体注册”和“文字排版限制”。
+5. 最后阅读“通用链式样式方法”，了解尺寸、边距、圆角、图层和布局方法怎样组合。
+
+## 常用示例
+
+```python
+from smart_report import Canvas, Frame, Table, document
+
+doc = document()
+page = doc.page("A4")
+
+hero = Canvas().height(120).background("#dbeafe")
+hero.add_text("季度报告").absolute(24, 24).font_size(24).color("#1e3a8a")
+page.add(hero)
+
+body = Frame().padding(24)
+body.add_text("核心指标").font_size(16).margin(bottom=12)
+body.add_table([
+    ["指标", "结果"],
+    ["收入", "+18%"],
+]).header(background="#1d4ed8", color="#ffffff")
+page.add(body)
+
+doc.save("report.pdf")
+```
+
+
+## 发布与工程化流程
+
+发布或打 tag 前按以下顺序检查：
+
+1. 用 `GIT_MASTER=1 git status --short` 和 `GIT_MASTER=1 git diff --stat` 确认工作区，只处理本次发布需要的文件。
+2. 运行回归和类型检查：
+
+```bash
+.venv/bin/python -m unittest tests.test_table_v2
+.venv/bin/python -m unittest tests.test_document_structure
+npx --yes pyright
+```
+
+3. 确认 `.venv` 内有构建工具：
+
+```bash
+.venv/bin/python -m build --version
+.venv/bin/python -m pip show build wheel setuptools
+```
+
+缺失时只安装到项目虚拟环境：
+
+```bash
+.venv/bin/python -m pip install build wheel setuptools
+```
+
+4. 本地构建 wheel 和 sdist：
+
+```bash
+.venv/bin/python -m build
+```
+
+5. 安装 wheel 做冒烟测试，并从项目目录外导入，确认使用的是已安装 wheel 而不是本地源码。
+6. 如果 README 链接了文档、changelog 或示例，检查 sdist 是否包含 `CHANGELOG.md`、`docs/` 和 `MANIFEST.in` 声明的示例资源。
+7. 只提交源码、文档和打包元数据；不要提交 `dist/`、`build/` 等生成物。
+8. 验证通过后再创建新 tag。不要移动已有发布 tag，除非明确要修正发布历史。
+9. 最后推送分支和新 tag。
+
+## 兼容性说明
+
+后续改动应保持向后兼容；破坏性 API 调整应留到下一个主版本。版本新增内容统一记录在根目录 [CHANGELOG.md](../../CHANGELOG.md)，API 文档只描述当前公开 API 的行为。
