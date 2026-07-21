@@ -1,13 +1,18 @@
-# smart-report 中文 API 文档
+# smart-report 中文 API 参考
 
-本文档面向中文使用者，描述当前公开 API 的推荐用法、参数语义和注意事项。
+本文档描述当前公开 API 的推荐用法、参数语义、返回值和注意事项。版本更新信息请查看根目录 [CHANGELOG.md](../../CHANGELOG.md)。
 
 ## 快速开始
 
 ```python
 from smart_report import Canvas, Frame, document, register_font
 
-register_font("SourceHanSansSC-Normal", "examples/fonts/SourceHanSansSC-Normal.ttf", set_default=True, fallback=True)
+register_font(
+    "SourceHanSansSC-Normal",
+    "examples/fonts/SourceHanSansSC-Normal.ttf",
+    set_default=True,
+    fallback=True,
+)
 
 doc = document()
 page = doc.page("A4")
@@ -27,96 +32,113 @@ doc.save("output.pdf")
 
 ### `document()`
 
-创建一个文档构建器。
+创建 `DocumentBuilder`。所有页面、全局页眉页脚、水印、section 和最终保存操作都从它开始。
+
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `document()` | 无 | `DocumentBuilder` | 创建新的文档构建器 |
+
+### `DocumentBuilder.page(size="A4")`
+
+创建页面并返回 `PageBuilder`。页面也是容器，可以继续添加 `Frame`、`Canvas`、`Table` 等内容。
+
+| 参数 | 类型 / 可选值 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `size` | `"A4"`、`"LETTER"` 或 `(width, height)` | `"A4"` | 页面尺寸。元组单位是 pt，宽高必须为正数 |
 
 ```python
-doc = document()
+page = document().page("A4")
+custom = document().page((595.0, 842.0))
 ```
 
-常用方法：
+### 保存和构建
 
-| 方法 | 说明 |
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `doc.save(path)` | `path: str` | `None` | 构建并保存 PDF 文件 |
+| `doc.save_to_bytes()` | 无 | `bytes` | 构建并返回 PDF 原始字节，不写文件 |
+| `doc.build()` | 无 | `Document` | 构建不可变文档对象，可再调用 `save()` 或 `save_to_bytes()` |
+| `doc.pages` | 属性 | `list[LayoutNode]` | 当前已添加页面，主要用于调试或测试 |
+
+```python
+pdf_bytes = doc.save_to_bytes()
+assert pdf_bytes[:5] == b"%PDF-"
+```
+
+`save_to_bytes()` 是同步 CPU 密集操作。在 FastAPI / Starlette 等异步框架中，可用 `asyncio.to_thread(doc.save_to_bytes)` 避免阻塞事件循环；这只是集成方式，不会加速 PDF 生成。
+
+### `doc.metadata(...)`
+
+设置 PDF 元数据。只会覆盖非 `None` 字段，多次调用会合并已有值。
+
+| 参数 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `title` | `str | None` | `None` | 文档标题 |
+| `author` | `str | None` | `None` | 作者 |
+| `subject` | `str | None` | `None` | 主题 |
+| `keywords` | `str | None` | `None` | 关键词，通常用逗号分隔 |
+
+```python
+doc.metadata(title="季度报告", author="数据团队", subject="Q4 总结", keywords="报告, 数据")
+```
+
+### `doc.header()` / `doc.footer()` / `doc.watermark()`
+
+创建全局重复覆盖层，返回 `Canvas`。这些模板会复制到每个页面。
+
+| 方法 | 返回 | 默认定位 / 层级 | 说明 |
+| --- | --- | --- | --- |
+| `doc.header()` | `Canvas` | `absolute(0, 0)`, `z(200)` | 页眉模板 |
+| `doc.footer()` | `Canvas` | `absolute(0, 0)`, `z(210)` | 页脚模板，渲染时锚定到底部 |
+| `doc.watermark()` | `Canvas` | `absolute(0, 0)`, `z(-100)` | 水印模板 |
+
+文本中可使用页码占位符：
+
+| 占位符 | 说明 |
 | --- | --- |
-| `doc.page(size="A4")` | 新建页面，支持 `"A4"`、`"LETTER"` 或 `(width, height)` 点值元组 |
-| `doc.header()` | 创建重复页眉模板 |
-| `doc.footer()` | 创建重复页脚模板 |
-| `doc.watermark()` | 创建重复水印模板 |
-| `doc.save(path)` | 渲染并保存 PDF |
-| `doc.save_to_bytes()` | 渲染并返回 PDF 原始字节；不写入文件 |
-| `doc.build()` | 构建不可变 `Document` 对象；可再调用 `save()` / `save_to_bytes()` |
-| `doc.pages()` | 返回当前已构建的页面节点列表，主要用于调试或测试 |
-
-页码占位符只在文本中生效：
+| `{page_number}` | 文档绝对页码，从 1 开始 |
+| `{total_pages}` | 文档绝对总页数 |
+| `{section_name}` | 当前 section 名称 |
+| `{section_page_number}` | 当前 section 计数组内页码 |
+| `{section_total_pages}` | 当前 section 计数组总页数 |
 
 ```python
 doc.header().height(40).add_text("第 {page_number} / {total_pages} 页").absolute("78%", 12)
 ```
 
-### `doc.metadata(...)` (v2.4)
+### `doc.section(...)`
 
-设置 PDF 文档元数据，支持链式调用：
+创建命名 section，返回 `SectionBuilder`。section 可拥有自己的页眉、页脚、水印和页码计数组。
+
+| 参数 | 类型 / 可选值 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `name` | `str | None` | `None` | section 名称，出现在 outline 和 `{section_name}` 中 |
+| `page_numbering` | `"restart"` 或 `"continue"` | `"restart"` | 是否重启 section 页码计数 |
+| `outline` | `bool` | `True` | 是否写入 PDF outline |
+
+| `SectionBuilder` 方法 | 返回 | 说明 |
+| --- | --- | --- |
+| `section.page(size="A4")` | `PageBuilder` | 在该 section 中新建页面 |
+| `section.header()` | `Canvas` | 创建 section 级页眉，覆盖全局页眉 |
+| `section.footer()` | `Canvas` | 创建 section 级页脚，覆盖全局页脚 |
+| `section.watermark()` | `Canvas` | 创建 section 级水印，覆盖全局水印 |
+| `section.suppress_header()` | `SectionBuilder` | 不继承全局页眉 |
+| `section.suppress_footer()` | `SectionBuilder` | 不继承全局页脚 |
+| `section.suppress_watermark()` | `SectionBuilder` | 不继承全局水印 |
+
+Overlay 优先级：section 抑制 > section 模板 > 全局模板。空 section 不产生页面，也不产生 outline 条目。
 
 ```python
-doc.metadata(title="季度报告", author="团队", subject="Q4 总结", keywords="报告, 数据")
+intro = doc.section("Introduction", page_numbering="restart", outline=True)
+intro.header().height(28).add_text("{section_name} {section_page_number}/{section_total_pages}").absolute(36, 8)
+intro.page("A4").add_frame().padding(36).add_text("Introduction")
 ```
-
-| 参数 | 说明 |
-| --- | --- |
-| `title` | 文档标题 |
-| `author` | 作者 |
-| `subject` | 主题 |
-| `keywords` | 关键词，逗号分隔 |
-
-仅非 `None` 的参数会覆盖已有值；多次调用会合并字段。
-
-### `doc.section(...)` (v2.4)
-
-创建命名 section，返回 `SectionBuilder`：
-
-```python
-section = doc.section("Introduction", page_numbering="restart", outline=True)
-page = section.page("A4")
-```
-
-| 参数 | 说明 |
-| --- | --- |
-| `name` | section 名称，出现在 outline 和 `{section_name}` 占位符中 |
-| `page_numbering` | `"restart"`（默认）重新开始计数，`"continue"` 加入当前计数组 |
-| `outline` | `True`（默认）在 PDF outline 中显示，`False` 则隐藏 |
-
-`SectionBuilder` 方法：
-
-| 方法 | 说明 |
-| --- | --- |
-| `section.page(size="A4")` | 在该 section 中新建页面 |
-| `section.header()` | 创建 section 级别页眉，覆盖同类型全局页眉 |
-| `section.footer()` | 创建 section 级别页脚，覆盖同类型全局页脚 |
-| `section.watermark()` | 创建 section 级别水印，覆盖同类型全局水印 |
-| `section.suppress_header()` | 抑制该 section 的全局页眉回退 |
-| `section.suppress_footer()` | 抑制该 section 的全局页脚回退 |
-| `section.suppress_watermark()` | 抑制该 section 的全局水印回退 |
-
-### Section 占位符 (v2.4)
-
-| 占位符 | 说明 |
-| --- | --- |
-| `{section_name}` | 当前 section 名称 |
-| `{section_page_number}` | 当前 section 内的物理页码（从 1 开始） |
-| `{section_total_pages}` | 当前计数组的总物理页数 |
-| `{page_number}` | 文档绝对页码（不受 section 影响） |
-| `{total_pages}` | 文档绝对总页数 |
-
-`page_numbering="restart"` 开始新的计数组，`"continue"` 加入上一个计数组共享 `{section_total_pages}`。
-
-Overlay 覆盖优先级：section 抑制 > section 模板 > 全局模板。
-
-空 section 不产生页面也不产生 outline 条目。
 
 ## 容器 API
 
 ### `Frame`
 
-`Frame` 是流式容器，子元素按从上到下的顺序排列，适合正文、段落和表格。
+`Frame` 是流式容器，子元素按从上到下的顺序排列，适合正文、段落、表格和普通报告区域。
 
 ```python
 frame = Frame().padding(vertical=24, horizontal=32)
@@ -127,7 +149,7 @@ page.add(frame)
 
 ### `Canvas`
 
-`Canvas` 是混合布局容器，支持绝对定位和 `z-index`，适合背景图、叠加文字、图文重叠等场景。
+`Canvas` 是图层容器，适合绝对定位、背景图、叠加文字、装饰图形和多图层报告。
 
 ```python
 hero = Canvas().height(180).margin(top=24, right=24, bottom=20, left=24)
@@ -138,36 +160,26 @@ page.add(hero)
 
 ### 容器添加方法
 
-`PageBuilder`、`Frame`、`Canvas` 都是容器，可添加子节点：
+`PageBuilder`、`Frame`、`Canvas` 都是容器。
 
-| 方法 | 返回 | 说明 |
-| --- | --- | --- |
-| `.add(child)` | 当前容器 | 添加已经创建好的 `Text` / `Table` / `Frame` / `Canvas` / `Image` / `Rect` / `Line` 等 builder |
-| `.add_text(text)` | `Text` | 添加文本节点 |
-| `.add_rich_text(text="")` | `RichText` | 添加富文本节点，可继续追加不同样式的 span |
-| `.add_image(src)` | `Image` | 添加图片节点，`src` 可为路径、bytes 或 data URL |
-| `.add_rect()` | `Rect` | 添加矩形；常用于背景块、卡片底色、遮罩、边框 |
-| `.add_line()` | `Line` | 添加线段；常用于分隔线、装饰线、坐标轴 |
-| `.add_spacer(height)` | `Spacer` | 添加固定高度空白，占据 flow 布局空间 |
-| `.add_canvas()` | `Canvas` | 添加嵌套图层容器 |
-| `.add_frame()` | `Frame` | 添加嵌套流式容器 |
-| `.add_table(rows)` | `Table` | 添加表格并返回表格 builder |
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `.add(child)` | 已创建的 builder | 当前容器 | 添加已有 `Text` / `Table` / `Frame` / `Canvas` / `Image` 等 |
+| `.add_text(text)` | `text: str` | `Text` | 添加文本节点 |
+| `.add_rich_text(text="")` | `text: str` | `RichText` | 添加富文本节点 |
+| `.add_image(src)` | 路径、`Path`、bytes、data URL | `Image` | 添加图片节点 |
+| `.add_rect()` | 无 | `Rect` | 添加矩形 |
+| `.add_line()` | 无 | `Line` | 添加线段 |
+| `.add_spacer(height)` | 固定尺寸 | `Spacer` | 添加流式空白 |
+| `.add_canvas()` | 无 | `Canvas` | 添加嵌套图层容器 |
+| `.add_frame()` | 无 | `Frame` | 添加嵌套流式容器 |
+| `.add_table(rows)` | 二维数组 | `Table` | 添加表格 |
 
-```python
-page = doc.page("A4")
-page.add_canvas().size(595, 120).absolute(0, 0).background("#eff6ff")
+所有 `add_*` 方法都会把新节点放入当前容器，并返回新节点 builder，方便继续链式设置。
 
-body = page.add_frame().padding(36)
-body.add_text("报告标题").font_size(18)
-body.add_spacer(12)
-body.add_table([["指标", "结果"], ["收入", "+18%"]])
-```
+## `Table`
 
-`PageBuilder` 由 `doc.page(...)` 或 `section.page(...)` 返回。它本身不单独渲染背景，但可以像容器一样添加 frame、canvas、table 等内容。
-
-### `Table`
-
-`Table` 接受二维数组，并提供适合报表场景的列宽、对齐、单元格 padding、表头样式、斑马纹、圆角边框和跨页重复表头能力。
+`Table(rows)` 接收二维数组。单元格可为字符串、数字，或 `Frame`、`Text`、`RichText`、`Image` 等 builder。
 
 ```python
 table = Table([
@@ -182,71 +194,68 @@ table = Table([
     .zebra("#f8fafc") \
     .font_size(11) \
     .line_height(14) \
-    .stroke("#94a3b8", 1) \
+    .borders("#94a3b8", width=1) \
     .radius(10)
-
-frame.add(table)
 ```
 
-表格专用方法：
+### 表格数据和尺寸
 
-| 方法 | 说明 |
-| --- | --- |
-| `.column_widths(values)` | 设置列宽，支持点值、百分比、`"auto"`；未设置时平均分配 |
-| `.row_height(row_index, height)` | 设置指定逻辑行的最小高度；只接受固定点值兼容尺寸，内容更高时内容优先 |
-| `.row_heights(values)` | 按逻辑行索引批量设置最小高度；列表中的 `None` 表示不覆盖该行 |
-| `.cell_height(row_index, column_index, height)` | 设置指定逻辑单元格的最小高度；跨行单元格按总高度分配到覆盖行 |
-| `.column_min_widths(values)` / `.column_max_widths(values)` | 设置列宽约束，配合 `.auto_fit_columns()` 使用 |
-| `.auto_fit_columns(columns=None)` | 启用列宽自动适配；不传参数时适配所有列，传入列索引列表时仅适配选中列。遗留 `column_widths(["auto"])` 不传 `.auto_fit_columns()` 仍保持等分行为 |
-| `.align(value)` | 设置文本水平对齐，可传单个值或按列传列表；支持 `"left"`、`"center"`、`"right"` |
-| `.valign(value)` | 设置单元格垂直对齐，支持 `"top"`、`"middle"`、`"bottom"` |
-| `.text_overflow(value)` | 设置纯文本溢出策略，支持 `"wrap"`、`"clip"`、`"ellipsis"` |
-| `.cell_padding(...)` | 设置单元格内边距，推荐使用 `vertical` / `horizontal` 或方向命名参数 |
-| `.header_padding(...)` | 单独设置表头单元格内边距；未设置时沿用 `.cell_padding(...)` |
-| `.header(rows=1, background=None, color=None, repeat=True)` | 设置表头行数、表头颜色，以及跨页时是否重复表头 |
-| `.header_style(background=None, color=None, font=None, font_size=None, line_height=None, align=None)` | 设置表头颜色、字体与对齐样式 |
-| `.footer(rows, repeat=False, ...)` | 添加 footer 行；`repeat=True` 时跨页重复 footer |
-| `.footer_style(background=None, color=None, font=None, font_size=None, line_height=None, align=None)` | 设置 footer 颜色、字体与对齐样式 |
-| `.subtotal(row, ...)` | 添加单行汇总 footer |
-| `.borders(color, width=1, inner_width=None, outer_width=None)` | 设置表格内外边框宽度 |
-| `.border_collapse(value=True)` | 合并相邻单元格边框，避免双线效果 |
-| `.cell_border(row_index, column_index, ...)` | 覆盖单元格边框 |
-| `.zebra(background="#f8fafc")` | 设置隔行背景色 |
-| `.repeat_header(value=True)` | 单独控制跨页重复表头 |
-| `.row_style(index, ...)` | 覆盖指定逻辑行样式 |
-| `.column_style(index, ...)` | 覆盖指定列样式 |
-| `.cell_style(row_index, column_index, ...)` | 覆盖指定单元格样式 |
-| `.span(row_index, column_index, rowspan=1, colspan=1)` | 设置跨行/跨列 |
-| `.rows(values)` | 替换表格数据 |
-| `.cell(row_index, column_index, value)` | 设置或追加指定单元格内容，`value` 可为字符串或富 builder |
-| `.radius(value)` | 设置表格外边框圆角；支持统一值、`(左上, 右上, 右下, 左下)` 元组或 `top_left=` 等命名角；渲染时会裁剪外角单元格背景 |
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `.rows(values)` | 二维数组 | `Table` | 替换表格数据 |
+| `.cell(row_index, column_index, value)` | 行、列、值 | `Table` | 设置或扩展单元格；索引从 0 开始 |
+| `.column_widths(values)` | `list[SizeInput]` | `Table` | 设置列宽，支持 pt、单位字符串、百分比和 `"auto"` |
+| `.column_min_widths(values)` | `list[SizeInput]` | `Table` | 设置自动适配列宽下限，不支持 `"auto"` |
+| `.column_max_widths(values)` | `list[SizeInput]` | `Table` | 设置自动适配列宽上限，不支持 `"auto"` |
+| `.auto_fit_columns(columns=None)` | `None` 或列索引序列 | `Table` | 根据纯文本自然宽度自动适配列宽 |
+| `.row_height(row_index, height)` | 行索引、固定尺寸 | `Table` | 设置逻辑行最小高度 |
+| `.row_heights(values)` | 高度列表，`None` 表示跳过 | `Table` | 批量设置逻辑行最小高度 |
+| `.cell_height(row_index, column_index, height)` | 行、列、固定尺寸 | `Table` | 设置逻辑单元格最小高度 |
 
-`row_style(...)`、`column_style(...)`、`cell_style(...)` 支持的关键字包括：`background`、`color`、`align`、`font`、`font_size`、`line_height`、`text_overflow`、`valign`。
+行高和单元格高度是“最小高度”：内容更高时内容优先。高度值要求是固定点值兼容尺寸，例如 `36`、`"12mm"`、`"1cm"`；不支持百分比、`"auto"`、负数或无穷值。
 
-> 边框提示：当前表格绘制会在未指定边框颜色时把表格文字色作为默认边框色。如果你只想设置文字颜色但不想显示边框，请显式关闭边框：`.borders("transparent", width=0)`。
+`auto_fit_columns()` 只测量纯字符串单元格。富 `Frame` / `Text` / `RichText` / `Image` 单元格不参与自然宽度计算。自然宽度先测量，再应用 min/max 约束；较窄的适配表格不会被强制拉伸填满可用宽度。
 
-### 列宽自动适配 (v2.6)
+### 表格对齐、内边距和溢出
 
-```python
-table = Table([
-    ["地区", "收入", "增长"],
-    ["APAC", "$1.20M", "+18%"],
-    ["EMEA", "$0.98M", "+11%"],
-    ["North America", "$1.60M", "+23%"],
-]).auto_fit_columns()
-```
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `.align(value)` | `"left"` / `"center"` / `"right"` 或列表 | `Table` | 设置水平对齐，可按列传列表 |
+| `.valign(value)` | `"top"` / `"middle"` / `"bottom"` | `Table` | 设置垂直对齐 |
+| `.text_overflow(value)` | `"wrap"` / `"clip"` / `"ellipsis"` | `Table` | 设置纯文本单元格溢出策略 |
+| `.cell_padding(...)` | 固定尺寸或命名边 | `Table` | 设置默认单元格内边距 |
+| `.header_padding(...)` | 固定尺寸或命名边 | `Table` | 设置表头内边距；未设置时沿用默认内边距 |
 
-`.auto_fit_columns()` 根据每个单元格的纯文本自然宽度（含水平内边距）自动设置列宽。传入列索引列表（如 `.auto_fit_columns([1, 2])`）时仅适配选中列，其余列保持原有宽度。
+### 表头、表尾和边框
 
-**Fit Then Clamp 行为**：先测量自然宽度，再应用 `column_min_widths` 和 `column_max_widths` 约束。较窄的适配表格不会被拉伸填满可用宽度。
+| 方法 | 关键参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `.header(rows=1, background=None, color=None, repeat=True)` | 表头行数、颜色、是否跨页重复 | `Table` | 配置开头若干行为表头 |
+| `.header_style(...)` | `background`, `color`, `font`, `font_size`, `line_height`, `align` | `Table` | 覆盖表头样式 |
+| `.footer(rows, repeat=False, background=None, color=None)` | footer 行、是否重复、颜色 | `Table` | 添加表尾行 |
+| `.footer_style(...)` | `background`, `color`, `font`, `font_size`, `line_height`, `align` | `Table` | 覆盖表尾样式 |
+| `.subtotal(row, repeat=False, background="#f1f5f9", color=None)` | 单行 footer | `Table` | 添加单行汇总 |
+| `.borders(color="#cbd5e1", width=1, inner_width=None, outer_width=None)` | 边框颜色和宽度 | `Table` | 设置内外边框 |
+| `.border_collapse(value=True)` | 布尔值 | `Table` | 合并相邻单元格边框，避免双线效果 |
+| `.cell_border(row_index, column_index, color=None, width=1)` | 行、列、边框样式 | `Table` | 覆盖单元格边框 |
+| `.zebra(background="#f8fafc")` | 背景色 | `Table` | 设置隔行背景 |
+| `.repeat_header(value=True)` | 布尔值 | `Table` | 单独控制表头跨页重复 |
 
-**兼容性**：遗留写法 `column_widths(["auto"])` 在不调用 `.auto_fit_columns()` 时仍保持等分分配，向后兼容。
+如只想设置文字颜色但不想显示边框，请显式关闭边框：`.borders("transparent", width=0)`。
 
-**限制**：v2.6 仅支持纯字符串单元格的自然宽度测量；富 `Frame` / `Text` / `RichText` / `Image` 单元格不参与自动适配计算。连字（hyphenation）、多行省略号、富单元格自然宽度和 Rich Text Links 在 v2.6 中不可用。
+### 行、列、单元格样式和合并
 
-样式覆盖优先级：
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `.row_style(index, ...)` | 行索引和样式关键字 | `Table` | 覆盖指定逻辑行样式 |
+| `.column_style(index, ...)` | 列索引和样式关键字 | `Table` | 覆盖指定列样式 |
+| `.cell_style(row_index, column_index, ...)` | 行、列和样式关键字 | `Table` | 覆盖指定单元格样式 |
+| `.span(row_index, column_index, rowspan=1, colspan=1)` | 行、列、跨行、跨列 | `Table` | 合并单元格 |
+| `.radius(value)` | 统一值、四元组或命名角 | `Table` | 设置表格外边框圆角，并裁剪外角背景 |
 
-`cell_style > row_style > column_style > 表头/斑马纹/表格默认样式`
+`row_style(...)`、`column_style(...)`、`cell_style(...)` 支持：`background`、`color`、`align`、`font`、`font_size`、`line_height`、`text_overflow`、`valign`。
+
+样式优先级：`cell_style > row_style > column_style > 表头/表尾/斑马纹/表格默认样式`。索引基于原始逻辑行列；即使跨页拆分并重复表头，样式也按原始行号生效。
 
 ```python
 table = Table(rows) \
@@ -255,98 +264,46 @@ table = Table(rows) \
     .cell_style(6, 1, background="#dcfce7", color="#166534", align="right")
 ```
 
-> 注意：这些索引基于原始逻辑行列。即使表格跨页拆分并重复表头，样式也会按原始行号继续生效。
-
-表头字体可以通过 `header_style(...)` 单独设置：
-
 ```python
-table = Table(rows) \
-    .header(background="#1d4ed8", color="#ffffff", repeat=True) \
-    .header_padding(vertical=10, horizontal=12) \
-    .header_style(font="SourceHanSansSC-Bold", font_size=11, line_height=14, align="center")
-```
-
-跨行/跨列单元格使用 `span(...)`：
-
-```python
-table = Table([
+Table([
     ["地区", "收入", "增长"],
     ["华北", "¥120K", "+8%"],
     ["", "¥96K", "+5%"],
 ]).span(1, 0, rowspan=2)
 ```
 
-分页遇到 `rowspan` 时会把断点移动到合法行边界，避免把一个跨行单元格拆到两页。
+分页遇到 `rowspan` 时会把断点移动到合法行边界，避免把跨行单元格拆到两页。
 
-表格行高/单元格高度是“最小高度”，不会压缩或裁剪更高的内容。高度值要求是固定点值兼容尺寸，例如 `36`、`"12mm"`、`"1cm"`；不支持 `"auto"`、百分比、负数或无穷值。
+## `Text`
 
-```python
-table = Table([
-    ["项目", "说明"],
-    ["收入", "续约和新增客户共同增长"],
-]) \
-    .row_height(0, 32) \
-    .cell_height(1, 1, 48)
-```
+`Text(text)` 创建普通文本节点。固定宽高后可使用水平/垂直对齐和溢出策略。
 
-v1.1 起，单元格可以放入 `Frame` / `Text` / `Image` 等 builder：
-
-```python
-details = Frame().padding(4)
-details.add_text("嵌套说明").font_size(10)
-
-table = Table([["指标", "详情"], ["收入", details]]) \
-    .footer([["合计", "216K"]], repeat=True, background="#e2e8f0") \
-    .borders("#94a3b8", width=0.5, inner_width=0.25, outer_width=1.5)
-```
-
-v2.1 起，普通富单元格可以更细粒度分页：单个未参与 `rowspan` / `colspan` 的 `Frame`、`Text` 或 `RichText` 富单元格会随表格切片拆分；当某一行有多个富内容且它们全都是未跨行/跨列的 `Text` / `RichText` 时，也可以一起拆分；未跨行/跨列的混合 `Text` / `RichText` + `Frame` 行也可以一起拆分。重复表头/表尾和基于原始逻辑行号的样式仍会保留。含跨行/跨列、图片、多 `Frame`，或其他混合富内容的行仍保持原子分页，以避免破坏 span 边界。
-
-v2.0 起，auto-height 容器中的百分比 absolute `top` 会基于最终内容高度解析；`top >= "100%"` 在 auto-height 父容器中会被拒绝，因为这类布局无法得到有限高度。
-
-## 元素 API
-
-### `Text`
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `.text(value)` | `str` | `Text` | 替换文本内容 |
+| `.font(name)` | 字体名 | `Text` | 设置字体 |
+| `.font_family(name)` | 已注册字体族 | `Text` | 使用字体族 regular face |
+| `.font_size(size)` | pt 数值 | `Text` | 设置字号；若未显式设置行高，行高变为 `size * 1.2` |
+| `.line_height(value)` | pt 数值 | `Text` | 设置固定行高，并关闭自动行高 |
+| `.color(value)` | 颜色值 | `Text` | 设置文字颜色 |
+| `.align(value)` | `"left"` / `"center"` / `"right"` | `Text` | 设置文本框内水平对齐，需给宽度才明显 |
+| `.valign(value)` | `"top"` / `"middle"` / `"bottom"` | `Text` | 设置固定高度文本框内垂直对齐 |
+| `.letter_spacing(value)` | 数值、`"0.05em"`、`"5%"` | `Text` | 设置字距 |
+| `.text_overflow(value)` | `"wrap"` / `"clip"` / `"ellipsis"` | `Text` | 设置固定文本框溢出策略 |
+| `.link(url)` | 非空字符串 | `Text` | 为整个文本节点添加 PDF 外部 URL 链接 |
+| `.typography(value)` | `"plain"` / `"auto"` / `"advanced"` | `Text` | 设置文字预处理/测量模式 |
+| `.text_direction(value)` | `"auto"` / `"ltr"` / `"rtl"` | `Text` | 设置文字方向 |
 
 ```python
-frame.add_text("中文文本").font_size(14).line_height(18).color("#0f172a")
-frame.add_text("مرحبا smart-report").typography("auto").text_direction("rtl")
-```
-
-常用方法：
-
-| 方法 | 说明 |
-| --- | --- |
-| `.font(name)` | 设置字体名 |
-| `.font_size(size)` | 设置字号 |
-| `.line_height(value)` | 设置行高 |
-| `.typography(value)` | 设置文字预处理模式，支持 `"plain"`、`"auto"`、`"advanced"` |
-| `.text_direction(value)` | 设置文字方向，支持 `"auto"`、`"ltr"`、`"rtl"` |
-| `.color(value)` | 设置文字颜色 |
-| `.text(value)` | 替换已有 `Text` 节点的文本内容 |
-| `.align(value)` | 设置文本块内每一行的水平对齐，支持 `"left"`、`"center"`、`"right"` |
-| `.valign(value)` | 设置固定文本高度内的垂直对齐，支持 `"top"`、`"middle"`、`"bottom"` |
-| `.letter_spacing(value)` | 设置字距，支持点值、`"0.05em"` 或 `"5%"`；`0.05em` / `5%` 均表示当前字号的 5% |
-| `.text_overflow(value)` | 设置固定文本框内的溢出处理，支持 `"wrap"`（默认）、`"clip"`、`"ellipsis"` |
-| `.link(url)` | 为整个文字节点添加 PDF 外部 URL 链接注释；`url` 必须为非空字符串 |
-| `.margin(...)` | 设置外边距 |
-
-固定区域内文本居中可给文本节点设置宽高，并调用 `.align("center")` / `.valign("middle")`：
-
-```python
-frame = Frame().size(195, 135).absolute(384, 79)
-frame.add_text("体质辨析：气虚质 + 痰湿质\n五行辨析：土过旺、木金偏弱") \
-    .size("100%", "100%") \
+frame.add_text("体质辨析：气虚质 + 痰湿质") \
+    .size("100%", 32) \
     .font_size(10) \
     .align("center") \
     .valign("middle") \
     .letter_spacing("0.05em")
-page.add(frame)
 ```
 
-未显式调用 `.line_height(...)` 时，行高会随字号自动计算为 `font_size * 1.2`。例如 `.font_size(10)` 默认行高为 `12`；如需旧版固定行高或精确控制，请显式调用 `.line_height(...)`。
-
-固定尺寸文本框可以使用 `.text_overflow("clip")` 或 `.text_overflow("ellipsis")` 做表格单元格类似的单行截断。两种模式都会把硬换行折叠为空格；`"clip"` 直接裁切文本框外的内容，`"ellipsis"` 会绘制可放下的最长前缀并追加 `…`。未调用时仍保持原来的自动换行行为。
+`text_overflow("clip")` 和 `text_overflow("ellipsis")` 使用类似表格单元格的单行固定框行为：硬换行会折叠为空格，`clip` 直接裁切文本框外内容，`ellipsis` 绘制可放下的最长前缀并追加 `…`。默认 `wrap` 保持自动换行。
 
 ```python
 frame.add_text("过长的指标名称需要适配固定区域") \
@@ -354,281 +311,85 @@ frame.add_text("过长的指标名称需要适配固定区域") \
     .text_overflow("ellipsis")
 ```
 
-> 注意：中文字体需要先注册可用字体；当前默认字体为 `Helvetica`，并不适合中文正式输出。中文连续文本会按实际字形宽度换行，表格测量、分页和最终绘制使用同一套换行逻辑。
+`.link(url)` 不会自动改变样式。如需视觉提示，请手动设置颜色、下划线替代样式或背景。当前仅支持 whole-text 链接，不支持行内子字符串链接、Markdown/HTML 解析或任意注解 API。
 
-v2.2 起，`typography("auto")` 会在测量、换行、分页和绘制前对阿拉伯文字做形变，并按 bidi 规则生成显示顺序：
+## `RichText`
 
-```python
-from smart_report import shape_text
+`RichText` 是独立富文本元素，适合同一段文字中混合字体、字号、颜色、加粗、字距和硬换行。它不解析 HTML/Markdown。
 
-text = "مرحبا smart-report"
-frame.add_text(text).typography("auto").text_direction("rtl")
-display_text = shape_text(text, "auto", "rtl")
-```
-
-正式输出请注册支持阿拉伯文/希伯来文的 TTF 字体。`examples/v2_2_typography.py` 会注册内置的 `NotoNaskhArabic-Medium.ttf` / `NotoNaskhArabic-Bold.ttf` 并用于阿拉伯文本渲染，避免回退到 `Helvetica` 后乱码。当前功能是实用预处理层，不承诺完整 HarfBuzz/OpenType glyph positioning、Indic 文字 shaping 或高级字距调整。
-
-### `RichText`
-
-`RichText` 是独立富文本元素，不改变 `Text` 的行为。适合在同一段文字里混合字体、字号、颜色、加粗和硬换行。
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `.text(value)` | `str` | `RichText` | 清空 runs，并设置为一个普通文本 run |
+| `.span(text, font=None, font_family=None, font_size=None, color=None, bold=False, letter_spacing=None)` | 文本和 span 样式 | `RichText` | 追加行内片段 |
+| `.letter_spacing(value)` | 数值、`"0.05em"`、`"5%"` | `RichText` | 设置全局字距；span 级设置会覆盖 |
+| `.br(count=1)` | 正整数 | `RichText` | 追加一个或多个硬换行 |
+| `.clear()` | 无 | `RichText` | 清空所有 runs |
+| `.align(value)` | `"left"` / `"center"` / `"right"` | `RichText` | 设置富文本框整体水平对齐 |
+| `.valign(value)` | `"top"` / `"middle"` / `"bottom"` | `RichText` | 设置富文本框整体垂直对齐 |
 
 ```python
-from smart_report import RichText
-
 rich = (
     RichText()
-    .span("收入 ", font_size=12, color="#0f172a")
     .letter_spacing("4%")
+    .span("收入 ", font_size=12, color="#0f172a")
     .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True, letter_spacing="0.08em")
     .br()
     .span("企业客户续约强劲", font_size=10, color="#475569")
     .width(180)
 )
-
 frame.add(rich)
-frame.add_rich_text("起始文本").span(" 重点", color="#dc2626", bold=True)
 ```
 
-常用方法：
+`RichText.align(...)` / `.valign(...)` 是整个富文本框的对齐方式。行内 span 共享同一个 line box，不提供单个 span 独立左/中/右或上/中/下对齐。如需某段内容独立对齐，请拆成单独的 `Text` / `RichText` 节点。
 
-| 方法 | 说明 |
-| --- | --- |
-| `.text(value)` | 清空已有 runs，并设置为一个普通文本 run |
-| `.span(text, font=None, font_family=None, font_size=None, color=None, bold=False, letter_spacing=None)` | 追加一个行内片段，可覆盖字体、字体族、字号、颜色、加粗和字距 |
-| `.letter_spacing(value)` | 设置全局富文本字距；单个 span 的 `letter_spacing` 会覆盖该值 |
-| `.br(count=1)` | 追加一个或多个硬换行；`count` 必须大于等于 1 |
-| `.clear()` | 清空所有富文本 runs |
-| `.align(value)` | 设置固定宽度内的水平对齐，支持 `"left"`、`"center"`、`"right"` |
-| `.valign(value)` | 设置固定高度内的垂直对齐，支持 `"top"`、`"middle"`、`"bottom"` |
+## `Image`
 
-`RichText` 可作为普通元素放入 `Frame` / `Canvas`，也可以作为表格富单元格。普通 Base14 字体支持 `bold=True` 映射到对应粗体，如 `Helvetica` -> `Helvetica-Bold`；注册字体族时可通过 `font_family` 使用字体族中的 bold face。`RichText.align(...)` / `.valign(...)` 是整个富文本框的对齐方式；行内 span 共享同一个 line box，不提供独立的左/中/右或上/中/下对齐。如需某段内容独立对齐，请拆成单独的 `Text` / `RichText` 节点。
+支持 PNG/JPEG 等位图和 SVG。图片可来自字符串路径、`pathlib.Path`、bytes 或 `data:image/...;base64,...` 字符串。
 
-**限制**：`RichText` 不解析 HTML/Markdown；不支持行内链接、下划线、斜体或复杂 CSS。需要整段链接时仍使用 `Text.link(url)`。
-
-### `Text.link(url)` (v2.7)
-
-```python
-linked = Text("Visit docs").link("https://example.com/docs").color("#2563eb")
-frame.add(linked)
-```
-
-`.link(url)` 为整个文字节点添加 PDF 外部 URL 链接注释。点击文字区域即可在浏览器中打开链接。链接在 `Frame` 内的独立 `Text` 节点和富 `Text` 表格单元格中均可使用。
-
-无自动链接样式。用户可通过现有的 Text 样式 API 手动设置颜色或其他视觉提示。
-
-**限制**：仅支持 whole-text 链接，不支持行内子字符串链接、markdown/HTML 解析或任意注解 API。纯字符串表格单元格不支持链接。
-
-## Flex 行换行布局 (v2.8)
-
-```python
-cards = Frame().flex("row", gap=10, wrap=True).width(480)
-cards.add_text("卡片 1").width(140).padding(10).background("#dbeafe")
-cards.add_text("卡片 2").width(140).padding(10).background("#dbeafe")
-cards.add_text("卡片 3").width(140).padding(10).background("#dbeafe")
-cards.add_text("卡片 4").width(140).padding(10).background("#dbeafe")
-```
-
-`.flex("row", gap=10, wrap=True)` 从左到右排列子元素，当子元素总宽度（含间距）超过容器宽度时自动换行到下一行。同一个 `gap` 值同时用于同行元素之间的水平间距和行与行之间的垂直间距。设置了显式宽度的子元素保持该宽度；没有宽度的文本子元素按自然文本宽度测量。单个子元素宽度超过容器时独占一行，可能水平溢出。
-
-**限制**：仅支持行方向换行（`flex("column", wrap=True)` 会抛出 `ValueError`）；不支持列方向换行。不是完整 CSS flexbox 实现。分页时不保证按行边界切分。
-
-## Flex 精细化控制 (v2.9)
-
-```python
-row = Frame().flex("row", gap=8, justify="center", align="center").width(400)
-row.add_text("A").width(80).padding(8).background("#dbeafe")
-row.add_text("B").width(80).padding(8).background("#dbeafe")
-
-wrapped = Frame().flex("row", gap=8, wrap=True, row_gap=20, column_gap=8).width(300)
-wrapped.add_text("项目 1").width(80).padding(8).background("#fef3c7")
-wrapped.add_text("项目 2").width(80).padding(8).background("#fef3c7")
-
-col = Frame().flex("column", gap=8, justify="space-between", align="center").width(300).height(200)
-col.add_text("顶部").padding(8).background("#ede9fe")
-col.add_text("底部").padding(8).background("#ede9fe")
-```
-
-`flex()` 新增四个关键字参数：`justify`、`align`、`row_gap` 和 `column_gap`。
-
-`justify` 控制主轴放置。支持值：`start`、`center`、`end`、`space-between`。非换行行和换行行（逐行）均有效。Column justify 仅在父容器有显式内容高度时分配垂直空间；auto-height column justify 为 no-op。
-
-`align` 控制交叉轴放置。支持值：`start`、`center`、`end`。行模式下按最高行高偏移各项；列模式下按内容宽度水平偏移各项。
-
-`row_gap` 和 `column_gap` 分别设置轴向间距。行和换行行水平间距使用 `column_gap`（回退到 `gap`）。换行行垂直推进和列堆叠使用 `row_gap`（回退到 `gap`）。列堆叠忽略 `column_gap`。
-
-**限制**：不是完整 CSS flexbox 实现。不支持 `stretch`、`space-around`、`space-evenly`。不支持 flex grow/shrink/basis。不支持反向方向。不支持列方向换行。分页时不保证按行边界切分。
-
-## 多图层报告 (v2.11)
-
-```python
-from smart_report import Canvas, Frame, document
-
-doc = document()
-page = doc.page("A4")
-
-background = Canvas().size(595, 842).absolute(0, 0).z(-20)
-background.add_rect().absolute(0, 0).size(595, 842).background("#f4f7fb")
-page.add(background)
-
-summary = Frame().size(523, 120).absolute(36, 96).padding(16).background("#ffffff").z(10)
-summary.add_text("Executive Summary").font_size(18)
-page.add(summary)
-```
-
-v2.11 的重点是元素丰富的 PDF 报告组合：使用者先预设报告区域大小，再用 `Canvas`、`Frame`、`.absolute(...)` 和 `.z(...)` 叠加背景、装饰、内容、标注、水印、页眉和页脚。渲染顺序已有回归测试覆盖：容器背景先于子元素绘制，相同 z-index 保持树顺序，overlay 图层顺序保持可预测。
-
-完整示例见 `examples/v2_11_layered_report.py`，其中包含全页背景、KPI 卡片、图表占位区域、固定区域内的流式文本、表格内容、水印、页眉和页脚。
-
-**范围**：v2.11 不是完整 CSS 引擎。不新增 flex grow/shrink/basis、stretch、`space-around`、`space-evenly`、反向方向或列方向换行。对于密集 PDF 报告，推荐预设区域尺寸并显式控制图层。
-
-## save_to_bytes (v2.10)
-
-```python
-from smart_report import document
-
-doc = document()
-page = doc.page("A4")
-page.add_frame().padding(36).add_text("Hello from bytes")
-
-pdf_bytes = doc.save_to_bytes()
-assert isinstance(pdf_bytes, bytes)
-assert pdf_bytes[:5] == b"%PDF-"
-```
-
-`save_to_bytes()` 构建并渲染文档，返回 PDF 原始字节而非写入文件。它与 `save()` 共享相同的 4-pass 渲染流程，可在 `DocumentBuilder` 和构建后的 `Document` 对象上调用。
-
-### 异步集成（FastAPI / Starlette 等）
-
-`save_to_bytes()` 是同步且 CPU 密集的。要与异步框架集成而不阻塞事件循环，可使用 `asyncio.to_thread` 卸载到线程池：
-
-```python
-import asyncio
-from fastapi import FastAPI
-from fastapi.responses import Response
-from smart_report import document
-
-app = FastAPI()
-
-@app.get("/report")
-async def generate_report():
-    doc = document()
-    page = doc.page("A4")
-    page.add_frame().padding(36).add_text("异步报告")
-
-    pdf_bytes = await asyncio.to_thread(doc.save_to_bytes)
-    return Response(content=pdf_bytes, media_type="application/pdf")
-```
-
-`asyncio.to_thread` 在单独线程中执行阻塞调用，保持事件循环响应。它不会加速 PDF 生成；只是防止单次慢渲染拖慢其他请求。
-
-要实现真正的并行 CPU 密集型批量生成（同时生成大量 PDF），请使用 `ProcessPoolExecutor` 或类似的基于进程的工作池。线程共享 GIL，基于线程的并发不会加速实际的渲染工作。
-
-**限制**：smart-report 没有原生异步渲染。`save_to_bytes()` 是阻塞的。`asyncio.to_thread` 是集成模式，不是性能优化。不存在 `asave_to_bytes` 或 `asave`。
-
-## 字体注册
-
-推荐从顶层 API 注册字体：
-
-```python
-from smart_report import register_font, set_default_font, set_fallback_fonts
-
-register_font("SourceHanSansSC-Normal", "examples/fonts/SourceHanSansSC-Normal.ttf", set_default=True, fallback=True)
-register_font("SourceHanSansSC-Bold", "examples/fonts/SourceHanSansSC-Bold.ttf")
-set_default_font("SourceHanSansSC-Normal")
-set_fallback_fonts(["SourceHanSansSC-Normal"])
-```
-
-`set_default=True` 只影响后续创建的节点；已经创建的 `Text` / `Table` 仍保留自己的字体设置。
-`fallback=True` 或 `set_fallback_fonts(...)` 用于混合文本：当主字体不支持某个字符时，渲染器会切换到第一个覆盖该字符的 fallback 字体；普通测量和 advanced HarfBuzz 测量都会按 fallback 字体 run 计算，从而让分页和绘制使用一致的换行结果。
-常用字体 helper：
-
-| 方法 / 类型 | 说明 |
-| --- | --- |
-| `register_font(name, path, ...)` | 注册单个 TTF 字体 |
-| `set_default_font(name)` / `get_default_font_name()` | 设置或读取默认字体名 |
-| `set_fallback_fonts(names)` / `get_fallback_fonts()` / `add_fallback_font(name)` | 管理单字体 fallback 链 |
-| `register_font_family(name, regular=..., bold=..., italic=..., bold_italic=..., fallback=False)` | 注册字体族 |
-| `set_default_font_family(name)` / `get_font_family(name)` | 设置默认字体族或读取字体族配置 |
-| `set_fallback_font_families(names)` / `get_fallback_font_families()` / `add_fallback_font_family(name)` | 管理字体族 fallback 链 |
-| `get_font(name)` | 读取已注册字体信息 |
-| `resolve_text_runs(text, font_name)` | 调试混合文本会被拆成哪些 fallback 字体 run |
-| `string_width(text, font_name, size)` | 普通宽度测量 |
-| `shaped_string_width(text, font_name, size)` | advanced typography 宽度测量 |
-| `FontFace` / `FontFamily` / `FontRegistry` / `TextRun` | 字体注册和测量相关值类型，通常只在调试或扩展时直接使用 |
-
-v2.3 起，可以注册字体族并使用 advanced typography 宽度测量：
-
-```python
-from smart_report import register_font_family, shaped_string_width
-
-register_font_family(
-    "NotoNaskhArabic",
-    regular="examples/fonts/NotoNaskhArabic-Medium.ttf",
-    bold="examples/fonts/NotoNaskhArabic-Bold.ttf",
-    fallback=True,
-)
-
-frame.add_text("مرحبا smart-report") \
-    .font_family("NotoNaskhArabic") \
-    .typography("advanced") \
-    .text_direction("rtl")
-
-width = shaped_string_width("مرحبا", "NotoNaskhArabic", 14)
-```
-
-`typography("advanced")` 在注册 TTF 可用时按 fallback 字体 run 使用 HarfBuzz metrics 做 shaping-aware 测量和换行，但最终仍通过 ReportLab canvas 文本 API 绘制；精确 glyph positioning、任意 glyph-id 绘制、竖排和彩色字体仍不保证。
-
-### `Image`
-
-支持 PNG/JPEG 等位图，以及 SVG。
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `Image(src)` | 图片来源 | `Image` | 创建图片节点 |
+| `.src(value)` | 图片来源 | `Image` | 替换图片来源 |
+| `.bytes(value)` | `bytes` | `Image` | 直接设置图片 bytes |
+| `.fit(value)` | `"stretch"` / `"contain"` / `"cover"` | `Image` | 设置适配方式 |
+| `.contain()` | 无 | `Image` | 等同 `.fit("contain")`，保持比例完整显示 |
+| `.cover()` | 无 | `Image` | 等同 `.fit("cover")`，保持比例并裁剪填满 |
+| `.radius(...)` | 统一值、四元组或命名角 | `Image` | 设置圆角；圆角应用在适配后的实际图片区域 |
 
 ```python
 hero.add_image("examples/box.png").absolute(24, 218).size(260, 37)
 hero.add_image("examples/box.svg").absolute(286, 218).size(260, 37)
 hero.add_image(png_bytes).size(120, 80).contain().radius(8)
 hero.add_image("examples/photo.png").size(120, 80).cover().radius((12, 12, 0, 0))
-hero.add_image("examples/photo.png").size(120, 80).cover()
 ```
 
-说明：
+相对路径以运行脚本时的当前工作目录为基准。示例脚本中建议用 `Path(__file__).resolve().parent / "image.png"` 转成绝对路径。
 
-- PNG/JPEG 走 ReportLab `drawImage`
-- SVG 走 `svglib -> ReportLab Drawing -> renderPDF.draw`
-- `.fit("stretch")` 拉伸填满区域；`.contain()` 保持比例完整显示；`.cover()` 保持比例并裁剪填满区域
-- `Image(...)` / `.add_image(...)` 可接受字符串路径、`pathlib.Path`、bytes 或 `data:image/...;base64,...` 字符串
-- `.src(value)` 可替换图片来源；`.bytes(value)` 可直接设置图片 bytes
-- 使用相对路径时，相对的是运行脚本时的当前工作目录；示例脚本推荐用 `Path(__file__).resolve().parent / "image.png"` 转成绝对路径
-- 透明 PNG 建议搭配深色背景测试，以确认白色图案是否可见
+## `Rect` / `Line` / `Spacer`
 
-### `Rect` / `Line` / `Spacer`
+### `Rect`
+
+矩形图形节点，用于背景块、卡片底色、遮罩、边框和装饰形状。
 
 ```python
 canvas.add_rect().absolute(0, 0).size("100%", 120).background("#dbeafe").radius(12)
-canvas.add_line().absolute(0, 64).size("100%", 0).stroke("#94a3b8", 1)
-frame.add_spacer(12)
 ```
 
-`Rect` 是矩形图形节点，用于绘制背景块、卡片底色、遮罩、边框和装饰形状。常用方法：
+常用方法：`.size(...)`、`.absolute(...)`、`.background(...)`、`.stroke(...)`、`.radius(...)`、`.opacity(...)`、`.z(...)`。
 
-| 方法 | 说明 |
-| --- | --- |
-| `.size(width, height)` | 设置矩形宽高 |
-| `.absolute(left, top)` | 设置矩形在父容器中的位置 |
-| `.background(color)` | 设置填充色；支持 `"transparent"`、`rgba(...)`、`#RRGGBBAA` |
-| `.stroke(color, width)` | 设置边框颜色和宽度 |
-| `.radius(value)` | 设置圆角；可传单个值、`(左上, 右上, 右下, 左下)` 元组，或 `top_left=` / `top_right=` / `bottom_right=` / `bottom_left=` 命名参数 |
-| `.opacity(value)` | 设置整体透明度 |
-| `.z(value)` | 设置图层顺序 |
+### `Line`
 
-`Line` 是线段节点，起点为 `.absolute(left, top)`，终点由 `.size(width, height)` 决定：终点坐标等于 `(left + width, top + height)`。
+线段节点。起点为 `.absolute(left, top)`，终点由 `.size(width, height)` 决定，即 `(left + width, top + height)`。
 
 ```python
-canvas.add_line().absolute(36, 120).size(520, 0).stroke("#cbd5e1", 0.8)  # 水平线
-canvas.add_line().absolute(80, 80).size(0, 160).stroke("#94a3b8", 1)      # 垂直线
-canvas.add_line().absolute(80, 80).size(120, 60).stroke("#2563eb", 1)    # 斜线
+canvas.add_line().absolute(36, 120).size(520, 0).stroke("#cbd5e1", 0.8)
+canvas.add_line().absolute(80, 80).size(0, 160).stroke("#94a3b8", 1)
+canvas.add_line().absolute(80, 80).size(120, 60).stroke("#2563eb", 1)
 ```
 
-`Spacer` 是流式空白节点，只占据高度，不绘制内容。`add_spacer(height)` 要求固定点值兼容尺寸（如 `12`、`"10mm"`、`"1cm"`）；不支持百分比或 `"auto"`。
+### `Spacer`
+
+流式空白节点，只占据高度，不绘制内容。`add_spacer(height)` 要求固定点值兼容尺寸，不支持百分比或 `"auto"`。
 
 ```python
 frame.add_text("标题")
@@ -636,61 +397,98 @@ frame.add_spacer(16)
 frame.add_text("正文")
 ```
 
-## 通用链式样式方法
+## 字体注册
 
-所有元素和容器都继承一组通用链式方法。
-
-| 方法 | 说明 |
-| --- | --- |
-| `.width(value)` | 设置宽度，支持点值、百分比字符串、`"auto"` |
-| `.height(value)` | 设置高度，支持点值、百分比字符串、`"auto"` |
-| `.size(width, height)` | 同时设置宽高 |
-| `.name(value)` | 设置节点名称，常用于调试渲染顺序或定位布局问题 |
-| `.absolute(left=0, top=0)` | 绝对定位，常用于 `Canvas` 内 |
-| `.flow()` | 恢复流式布局 |
-| `.z(value)` | 设置层级，值越大越靠上 |
-| `.background(color)` | 设置背景色；可传 `None` 表示不绘制背景 |
-| `.stroke(color, width)` | 设置描边 |
-| `.opacity(value)` | 设置透明度 |
-| `.radius(value)` | 设置圆角半径；可传单个值、`(左上, 右上, 右下, 左下)` 元组，或命名角参数 |
-| `.overflow("hidden")` | 裁剪超出节点边界的子内容；也会形成独立裁剪上下文 |
-| `.margin(...)` | 设置外边距 |
-| `.padding(...)` | 设置内边距 |
-| `.font(name)` | 设置字体名 |
-| `.font_family(name)` | 使用已注册字体族，并根据字体族解析实际字体 |
-| `.font_size(size)` | 设置字号 |
-| `.line_height(value)` | 设置行高 |
-| `.typography(value)` | 设置文字预处理模式，支持 `"plain"`、`"auto"`、`"advanced"` |
-| `.text_direction(value)` | 设置文字方向，支持 `"auto"`、`"ltr"`、`"rtl"` |
-| `.layout(value)` | 设置布局模式，支持 `"flow"`、`"flex"`、`"grid"`、`"columns"`；通常优先使用下面的快捷方法 |
-| `.gap(value)` | 设置布局间距，供 flex/grid/columns 使用 |
-| `.flex(direction="row", gap=None, wrap=False, justify="start", align="start", row_gap=None, column_gap=None)` | 使用 flex 行/列布局；`wrap=True` 启用行换行（仅行方向）；`justify` 控制主轴对齐，`align` 控制交叉轴对齐；`row_gap` / `column_gap` 分别设置纵轴和横轴间距 |
-| `.grid(columns, gap=None)` | 使用固定列数网格布局 |
-| `.columns(count, gap=None)` | 使用多列瀑布流布局 |
-| `.keep_together()` | 分页时尽量整体移动到下一页，不拆分该节点 |
-| `.keep_with_next()` | 分页时尽量和下一个流式节点放在同一页 |
-| `.page_break_before()` | 在节点前强制分页 |
-| `.page_break_after()` | 在节点后强制分页 |
-
-布局示例：
+中文正式输出应注册可用中文字体。默认 `Helvetica` 不适合中文正式输出。
 
 ```python
-cards = Frame().grid(3, gap=10)
-cards.add_text("收入").padding(10).background("#f8fafc")
-cards.add_text("增长").padding(10).background("#f8fafc")
+from smart_report import register_font, register_font_family, set_default_font, set_fallback_fonts
 
-summary = Frame().flex("row", gap=12)
-summary.add_text("A")
-summary.add_text("B")
-
-notes = Frame().columns(2, gap=16)
-notes.add_text("长说明一")
-notes.add_text("长说明二")
+register_font("SourceHanSansSC-Normal", "examples/fonts/SourceHanSansSC-Normal.ttf", set_default=True, fallback=True)
+register_font("SourceHanSansSC-Bold", "examples/fonts/SourceHanSansSC-Bold.ttf")
+set_default_font("SourceHanSansSC-Normal")
+set_fallback_fonts(["SourceHanSansSC-Normal"])
 ```
+
+| 方法 / 类型 | 说明 |
+| --- | --- |
+| `register_font(name, path, set_default=False, fallback=False)` | 注册单个 TTF 字体 |
+| `set_default_font(name)` / `get_default_font_name()` | 设置或读取默认字体名 |
+| `set_fallback_fonts(names)` / `get_fallback_fonts()` / `add_fallback_font(name)` | 管理 fallback 字体链 |
+| `register_font_family(name, regular=..., bold=..., italic=..., bold_italic=..., fallback=False)` | 注册字体族 |
+| `set_default_font_family(name)` / `get_font_family(name)` | 设置默认字体族或读取字体族配置 |
+| `set_fallback_font_families(names)` / `get_fallback_font_families()` / `add_fallback_font_family(name)` | 管理字体族 fallback 链 |
+| `get_font(name)` | 读取已注册字体信息 |
+| `resolve_text_runs(text, font_name)` | 调试混合文本如何拆成 fallback 字体 run |
+| `string_width(text, font_name, size)` | 普通宽度测量 |
+| `shaped_string_width(text, font_name, size)` | advanced typography 宽度测量 |
+
+`typography("auto")` 会在测量、换行、分页和绘制前对阿拉伯文字做形变，并按 bidi 规则生成显示顺序。`typography("advanced")` 在注册 TTF 可用时按 fallback 字体 run 使用 HarfBuzz metrics 做 shaping-aware 测量和换行，但最终仍通过 ReportLab canvas 文本 API 绘制；精确 glyph positioning、任意 glyph-id 绘制、竖排和彩色字体不保证。
+
+## 通用链式样式方法
+
+所有元素和容器都继承一组通用链式方法。除特殊说明外，方法都会返回当前 builder，便于继续链式调用。
+
+### 尺寸、位置和图层
+
+| 方法 | 参数 | 说明 |
+| --- | --- | --- |
+| `.width(value)` | 尺寸值 | 设置宽度 |
+| `.height(value)` | 尺寸值 | 设置高度 |
+| `.size(width, height)` | 尺寸值、尺寸值 | 同时设置宽高 |
+| `.name(value)` | `str` | 设置调试名称 |
+| `.absolute(left=0, top=0)` | 尺寸值 | 在父容器内容盒中绝对定位 |
+| `.flow()` | 无 | 恢复流式布局 |
+| `.z(value)` | `int` | 设置层级，值越大越靠上 |
+| `.overflow("hidden")` | `"visible"` / `"hidden"` | 裁剪超出节点边界的子内容 |
+
+### 外观和文本
+
+| 方法 | 参数 | 说明 |
+| --- | --- | --- |
+| `.background(value)` | 颜色或 `None` | 设置背景色；`None` 表示不绘制背景 |
+| `.stroke(color, width)` | 颜色、pt 宽度 | 设置描边 / 边框 |
+| `.opacity(value)` | `0.0` 到 `1.0` | 设置整体透明度 |
+| `.radius(value)` | 统一值、四元组或命名角 | 设置圆角半径 |
+| `.color(value)` | 颜色 | 设置前景 / 文字颜色 |
+| `.font(name)` | 字体名 | 设置字体 |
+| `.font_family(name)` | 字体族名 | 设置字体族 |
+| `.font_size(size)` | pt 数值 | 设置字号 |
+| `.line_height(value)` | pt 数值 | 设置行高 |
+| `.typography(value)` | `"plain"` / `"auto"` / `"advanced"` | 设置文字预处理模式 |
+| `.text_direction(value)` | `"auto"` / `"ltr"` / `"rtl"` | 设置文字方向 |
+
+### 布局和分页控制
+
+| 方法 | 参数 | 说明 |
+| --- | --- | --- |
+| `.layout(value)` | `"flow"` / `"flex"` / `"grid"` / `"columns"` | 直接设置布局模式；通常优先使用快捷方法 |
+| `.gap(value)` | 固定尺寸 | 设置布局间距 |
+| `.flex(direction="row", gap=None, wrap=False, justify="start", align="start", row_gap=None, column_gap=None)` | 见下文 | 使用 flex 行/列布局 |
+| `.grid(columns, gap=None)` | 列数、间距 | 使用固定列数网格布局 |
+| `.columns(count, gap=None)` | 列数、间距 | 使用多列瀑布流布局 |
+| `.keep_together(value=True)` | 布尔值 | 分页时尽量整体移动到下一页 |
+| `.keep_with_next(value=True)` | 布尔值 | 分页时尽量和下一个流式节点同页 |
+| `.page_break_before(value=True)` | 布尔值 | 在节点前强制分页 |
+| `.page_break_after(value=True)` | 布尔值 | 在节点后强制分页 |
+
+`flex()` 参数：
+
+| 参数 | 可选值 / 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `direction` | `"row"` / `"column"` | `"row"` | 主轴方向 |
+| `gap` | 固定尺寸或 `None` | `None` | 行列间距默认值 |
+| `wrap` | `bool` | `False` | 仅 `direction="row"` 支持换行 |
+| `justify` | `"start"` / `"center"` / `"end"` / `"space-between"` | `"start"` | 主轴对齐 |
+| `align` | `"start"` / `"center"` / `"end"` | `"start"` | 交叉轴对齐 |
+| `row_gap` | 固定尺寸或 `None` | `None` | 纵向间距，回退到 `gap` |
+| `column_gap` | 固定尺寸或 `None` | `None` | 横向间距，回退到 `gap` |
+
+`flex` 不是完整 CSS flexbox：不支持 `stretch`、`space-around`、`space-evenly`、flex grow/shrink/basis、反向方向或列方向换行。分页时不保证按行边界切分。
 
 ## `margin()` / `padding()` 参数语义
 
-推荐使用命名参数，避免误解坐标顺序：
+推荐使用命名参数，避免误解坐标顺序。
 
 ```python
 Canvas().margin(top=24, right=24, bottom=20, left=24)
@@ -698,49 +496,66 @@ Frame().padding(vertical=24, horizontal=32)
 Text("标题").margin(bottom=16)
 ```
 
-兼容旧的元组写法：
+| 写法 | 说明 |
+| --- | --- |
+| `margin(24)` / `padding(24)` | 四边都是 24 |
+| `margin((24, 32))` | `vertical=24`, `horizontal=32` |
+| `margin((24, 24, 20, 24))` | `top, right, bottom, left` |
+| `margin(top=..., right=..., bottom=..., left=...)` | 明确指定方向 |
+| `padding(vertical=..., horizontal=...)` | 同时指定上下和左右 |
 
-```python
-margin(24)                  # 四边都是 24
-margin((24, 32))            # vertical=24, horizontal=32
-margin((24, 24, 20, 24))    # top, right, bottom, left
-```
+位置、内外边距、圆角和表格内边距要求固定点值兼容尺寸；百分比和 `"auto"` 不适用于这些边距类值。
 
 ## 尺寸单位
 
-支持以下尺寸写法：
+| 写法 | 含义 |
+| --- | --- |
+| `240` | 240 pt |
+| `"100%"` | 相对父容器对应方向的百分比 |
+| `"20mm"` | 20 毫米 |
+| `"3cm"` | 3 厘米 |
+| `"auto"` | 内容自适应，通常用于宽高 |
 
 ```python
-width(240)       # 240pt
-width("100%")    # 相对父容器宽度
-width("20mm")    # 毫米
-width("3cm")     # 厘米
-height("auto")   # 内容自适应
+frame.width(240)
+frame.width("100%")
+frame.height("auto")
 ```
+
+## 圆角
+
+`.radius(...)` 支持统一圆角、四角元组和命名角。顺序统一为：左上、右上、右下、左下。
+
+```python
+Image("avatar.png").size(64, 64).cover().radius(8)
+Image("hero.png").size(120, 80).cover().radius((12, 12, 0, 0))
+Frame().background("#fff").radius(top_left=12, bottom_right=12)
+```
+
+圆角值必须是固定点值兼容尺寸且非负。不要同时使用位置参数和命名角参数。
 
 ## 颜色值
 
-支持命名色、十六进制、RGB/RGBA 字符串和 `None`：
+颜色解析用于 `background(...)`、`color(...)`、`stroke(...)`、表格背景和文字颜色等。
 
 ```python
 background("white")
 background("transparent")
 background("#ffffff")
-background("#ffffff80")          # #RRGGBBAA，最后两位是 alpha
+background("#ffffff80")
 background("rgba(255,255,255,0.6)")
-background(None)                 # 不绘制背景
+background(None)
 ```
 
-`stroke(...)`、`color(...)`、表格 `background` / `color` 参数也使用同一套颜色解析规则。
+`None` 表示不绘制背景；`"transparent"` 表示透明色。
 
 ## 当前限制
 
-- 表格支持 `rowspan` / `colspan`；跨行单元格分页时会整体保留在同一页切片中
-- 分页支持嵌套 `Frame` 和固定高度 `Rect` / `Spacer` 的更细粒度切分
-- 图片和 SVG 仍保持原子分页；当前页空间不足时会整体移动到下一页，超出整页高度的图片不会分片
-- 富表格单元格分页是保守实现：单个未跨行/跨列的 `Frame` / `Text` 富单元格可以拆分；一行多个未跨行/跨列且全为 `Text` 的富单元格也可以拆分；未跨行/跨列的混合 `Text` + `Frame` 行也可以拆分；跨行/跨列、图片、多 `Frame` 或其他混合富内容的行仍保持原子分页
-- `flex` / `grid` / `columns` 是实用布局模式，并非完整 CSS 约束求解器
-- Flex 行换行仅支持行方向；不支持列方向换行，无行感知分页保证
-- 字体 fallback 已支持；复杂字体 shaping、bidi 和 OpenType 特性依赖可选 ReportLab 能力，默认路径不保证完整支持
-- 表格自动适配 (`auto_fit_columns`) 仅支持纯字符串单元格；富 `Frame` / `Text` / `Image` 单元格不参与 v2.6 自动宽度计算
-- `Text.link(url)` 仅支持 whole-text 链接；不支持行内子字符串链接、markdown/HTML 解析、自动链接样式、纯字符串表格单元格链接 API 或任意注解 API
+- 表格支持 `rowspan` / `colspan`，但跨行单元格分页时会整体保留在同一页切片中。
+- 图片和 SVG 保持原子分页；当前页空间不足时整体移动到下一页，超出整页高度的图片不会分片。
+- 富表格单元格分页是保守实现：简单未跨行/跨列的 `Frame` / `Text` / `RichText` 情况可以拆分；跨行/跨列、图片、多 `Frame` 或复杂混合富内容保持原子分页。
+- `flex` / `grid` / `columns` 是实用布局模式，并非完整 CSS 约束求解器。
+- Flex 行换行仅支持行方向；不支持列方向换行，也不保证按行分页。
+- 字体 fallback 已支持；复杂 shaping、bidi 和 OpenType 特性依赖可选能力，默认路径不保证完整文本引擎行为。
+- 表格自动适配仅支持纯字符串单元格；富 `Frame` / `Text` / `RichText` / `Image` 单元格不参与自然宽度计算。
+- `Text.link(url)` 仅支持 whole-text 链接；不支持行内子字符串链接、Markdown/HTML 解析、自动链接样式、纯字符串表格单元格链接或任意注解 API。
