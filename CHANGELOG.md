@@ -1,6 +1,12 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.11.8`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.11.9`.
+
+## 2.11.9
+
+- Moved release history into `CHANGELOG.md` and rewrote the README/API documentation as current-reference material.
+- Added `MANIFEST.in` so source distributions include changelog, docs, example scripts, and example resources.
+- Documented the release engineering checklist for validation, local artifact builds, sdist inspection, tagging, and pushing.
 
 ## 2.11.8
 
