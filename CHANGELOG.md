@@ -1,6 +1,10 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.11.10`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.11.11`.
+
+## 2.11.11
+
+- Added text-capable `Rect` labels for badge/tag usage without manual Canvas layering.
 
 ## 2.11.10
 
