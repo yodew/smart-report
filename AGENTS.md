@@ -108,12 +108,14 @@ npx --yes pyright
 
 2. Smoke-test the built wheel by installing it into `.venv`, then import from outside the repository root to confirm the installed artifact is used.
 3. Run the required post-implementation review. If review fails or returns no usable result, fix or perform direct equivalent checks before proceeding.
-4. After validation and review pass, do not stop at "ready". Commit, create a new version tag, and push `main` plus the tag.
+4. After validation and review pass, do not stop at "ready". Commit, create a new version tag, push `main` plus the tag, then create a GitHub Release for the tag.
 5. Never move an existing release tag. If the current version tag already exists, bump to the next patch version, update `pyproject.toml`, `src/smart_report/__init__.py`, `uv.lock`, and `CHANGELOG.md`, then tag the new commit.
-6. Every git command must be prefixed with `GIT_MASTER=1`.
-7. Do not commit generated `dist/` or `build/` artifacts.
+6. Create the GitHub Release with `gh release create <tag> --title <tag> --notes-file <notes-file>` and attach the built wheel/sdist from `dist/` when available. Release notes should match the matching `CHANGELOG.md` section.
+7. Treat PyPI publishing as a separate explicit publishing step unless the user asks for it.
+8. Every git command must be prefixed with `GIT_MASTER=1`.
+9. Do not commit generated `dist/` or `build/` artifacts.
 
-This workflow is agent-facing and supersedes README-only guidance. A completed implementation in this project is not done until commit, tag, and push have completed, unless the user explicitly says not to publish.
+This workflow is agent-facing and supersedes README-only guidance. A completed implementation in this project is not done until commit, tag, push, and GitHub Release creation have completed, unless the user explicitly says not to publish.
 
 ## Dependencies
 
