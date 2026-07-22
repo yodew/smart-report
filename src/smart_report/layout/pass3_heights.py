@@ -323,6 +323,8 @@ def _resolve_leaf_height(node: LayoutNode, explicit_height: float | None) -> flo
 
     if node.node_type == "text":
         return _measure_text_height(node)
+    if node.node_type == "rect" and "text" in node.content:
+        return _measure_text_height(node)
     if node.node_type == "rich_text":
         return rich_text_height(node, node.resolved_width)
     if node.node_type == "image":

@@ -595,12 +595,12 @@ class ContainerBuilder(NodeBuilder):
         _ = self.add(child)
         return child
 
-    def add_rect(self) -> "Rect":
-        """Create and add a rectangle shape child."""
+    def add_rect(self, text: str | None = None) -> "Rect":
+        """Create and add a rectangle shape child, optionally with label text."""
 
         from .elements.shape import Rect
 
-        child = Rect()
+        child = Rect(text)
         _ = self.add(child)
         return child
 

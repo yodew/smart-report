@@ -203,13 +203,50 @@ def paint_image(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
 
 def paint_rect(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     node = item.node
+    bounds = item.absolute_bounds
     adapter.draw_rect(
-        rect=item.absolute_bounds,
+        rect=bounds,
         fill=node.style.background,
         stroke=node.style.stroke_color,
         stroke_width=node.style.stroke_width,
         radius=node.style.border_radius,
     )
+    text_value = node.content.get("text")
+    if not isinstance(text_value, str):
+        return
+
+    padding = node.style.padding
+    content_width = max(1.0, bounds.width - padding.horizontal)
+    content_rect = Rect(
+        x=bounds.x + padding.left,
+        y=bounds.y + padding.top,
+        width=content_width,
+        height=max(0.0, bounds.height - padding.vertical),
+    )
+    text_overflow = normalize_text_overflow(str(node.content.get("text_overflow", "ellipsis")))
+    letter_spacing = _letter_spacing_points(node)
+    rendered_lines = _text_paint_lines(node, text_value, content_width, content_rect.height, text_overflow, letter_spacing)
+    with adapter.isolated_state():
+        if text_overflow in {"clip", "ellipsis"}:
+            adapter.apply_clip_rect(content_rect)
+        adapter.draw_text(
+            x=content_rect.x,
+            y=content_rect.y,
+            width=content_rect.width,
+            text="\n".join(rendered_lines),
+            font_name=node.style.font_name,
+            font_size=node.style.font_size,
+            line_height=node.style.line_height,
+            typography=node.style.typography,
+            text_direction=node.style.text_direction,
+            color=node.style.color,
+            align=str(node.content.get("align", "center")),
+            height=content_rect.height,
+            valign=str(node.content.get("valign", "middle")),
+            letter_spacing=letter_spacing,
+            text_overflow=text_overflow,
+            lines=rendered_lines if text_overflow == "ellipsis" else None,
+        )
 
 
 def paint_line(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:

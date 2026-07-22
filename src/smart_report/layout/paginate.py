@@ -180,6 +180,8 @@ def _split_flow_child(child: LayoutNode, first_content_height: float, following_
         return _split_table_node(child, first_node_height, following_node_height)
     if child.node_type == "frame":
         return split_frame_node(child, first_node_height, following_node_height) or [clone_layout_node(child)]
+    if child.node_type == "rect" and "text" in child.content:
+        return [clone_layout_node(child)]
     if child.node_type in {"spacer", "rect"}:
         return _split_fixed_height_node(child, first_node_height, following_node_height)
 

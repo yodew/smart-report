@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import tempfile
 import unittest
 from contextlib import contextmanager
@@ -28,6 +29,8 @@ from smart_report.style.color import parse_color
 from smart_report.style.typography import shape_text
 import smart_report.layout.table_model as table_model_module
 import smart_report.style.font as font_module
+
+RectBuilder = cast(Any, importlib.import_module("smart_report.elements.shape").Rect)
 
 try:
     from pypdf import PdfReader
@@ -299,6 +302,67 @@ class TableV2ModelTests(unittest.TestCase):
         runs = resolve_text_runs(shaped, "TestNotoNaskhArabic-Support")
 
         self.assertEqual({run.font_name for run in runs}, {"TestNotoNaskhArabic-Support"})
+
+    def test_rect_builder_supports_plain_text_label_api(self) -> None:
+        rect = RectBuilder("Paid").align("right").valign("bottom").letter_spacing("5%").text_overflow("clip")
+
+        self.assertEqual(rect.node.content["text"], "Paid")
+        self.assertEqual(rect.node.content["align"], "right")
+        self.assertEqual(rect.node.content["valign"], "bottom")
+        self.assertEqual(rect.node.content["letter_spacing"], "5%")
+        self.assertEqual(rect.node.content["text_overflow"], "clip")
+        self.assertIs(rect.text(None), rect)
+        self.assertNotIn("text", rect.node.content)
+        with self.assertRaises(ValueError):
+            _ = RectBuilder("Nope").align("justify")
+        with self.assertRaises(ValueError):
+            _ = RectBuilder("Nope").valign("baseline")
+        with self.assertRaises(ValueError):
+            _ = RectBuilder("Nope").text_overflow("fade")
+
+    def test_container_add_rect_accepts_text_label(self) -> None:
+        frame = Frame()
+        add_rect = cast(Any, frame.add_rect)
+        rect = add_rect("New")
+
+        self.assertEqual(rect.node.content["text"], "New")
+        self.assertIs(frame.node.children[0], rect.node)
+
+    def test_text_rect_auto_sizes_to_label_and_padding(self) -> None:
+        rect = RectBuilder("Paid").font("Helvetica").font_size(10).line_height(12).padding(vertical=3, horizontal=8)
+
+        resolve_widths(rect.node, 200)
+        resolve_heights(rect.node)
+
+        self.assertAlmostEqual(rect.node.resolved_width, string_width("Paid", "Helvetica", 10) + 16, places=3)
+        self.assertEqual(rect.node.resolved_height, 18)
+
+    def test_paint_rect_draws_background_before_centered_label(self) -> None:
+        rect = RectBuilder("Paid").size(60, 20).padding(horizontal=6).background("#dcfce7").color("#166534").font("Helvetica").font_size(10).line_height(12).radius(10)
+        rect.node.resolved_width = 60
+        rect.node.resolved_height = 20
+        adapter = _SpyAdapter()
+
+        paint_render_item(cast(ReportLabCanvasAdapter, adapter), RenderItem(rect.node, Rect(5, 7, 60, 20), (), (0,)))
+
+        self.assertEqual(adapter.rects, [Rect(5, 7, 60, 20)])
+        self.assertEqual(adapter.texts, ["Paid"])
+        self.assertEqual(adapter.text_kwargs[0]["align"], "center")
+        self.assertEqual(adapter.text_kwargs[0]["valign"], "middle")
+        self.assertEqual(adapter.text_kwargs[0]["x"], 11)
+        self.assertEqual(adapter.text_kwargs[0]["width"], 48)
+        self.assertEqual(len(adapter.clip_rects), 1)
+
+    def test_text_rect_pagination_is_atomic_but_plain_rect_still_splits(self) -> None:
+        text_rect = RectBuilder("Paid").size(80, 40)
+        text_rect.node.resolved_width = 80
+        text_rect.node.resolved_height = 40
+        plain_rect = RectBuilder().size(80, 40)
+        plain_rect.node.resolved_width = 80
+        plain_rect.node.resolved_height = 40
+
+        self.assertEqual(len(_split_flow_child(text_rect.node, 20, 20)), 1)
+        self.assertGreater(len(_split_flow_child(plain_rect.node, 20, 20)), 1)
 
     def test_rounded_table_painter_clips_cells_and_strokes_outer_radius(self) -> None:
         table = Table([["H1", "H2"], ["A", "B"]]).radius(12).stroke("#94a3b8", 1).background("#ffffff")

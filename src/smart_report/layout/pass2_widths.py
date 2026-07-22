@@ -30,6 +30,9 @@ def _resolve_node_width(node: LayoutNode, available_width: float) -> None:
         if isinstance(node.style.width, Percent):
             width_reference = flow_width
 
+    if node.node_type == "rect" and "text" in node.content and is_auto(node.style.width):
+        auto_width = min(auto_width, _text_natural_width(node))
+
     node.resolved_width = max(0.0, resolve_size(node.style.width, width_reference, auto_width))
 
     child_reference_width = max(0.0, node.resolved_width - node.style.padding.horizontal)
@@ -76,6 +79,9 @@ def _wrapped_flex_child_available_width(child: LayoutNode, content_width: float)
         return min(content_width, natural_width) + child.style.margin.horizontal
     if child.node_type == "rich_text":
         natural_width = rich_text_natural_width(child)
+        return min(content_width, natural_width) + child.style.margin.horizontal
+    if child.node_type == "rect" and "text" in child.content:
+        natural_width = _text_natural_width(child)
         return min(content_width, natural_width) + child.style.margin.horizontal
     return margin_adjusted_width
 
