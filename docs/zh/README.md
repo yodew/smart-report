@@ -76,7 +76,8 @@ npx --yes pyright
 6. 如果 README 链接了文档、changelog 或示例，检查 sdist 是否包含 `CHANGELOG.md`、`docs/` 和 `MANIFEST.in` 声明的示例资源。
 7. 验证和复审通过后，只提交源码、文档和打包元数据；不要提交 `dist/`、`build/` 等生成物。
 8. 为通过验证的提交创建新 tag。不要移动已有发布 tag，除非明确要修正发布历史。
-9. 推送分支和新 tag。在本项目中，提交、打 tag、push 是验证与复审通过后的固定收尾流程。
+9. 推送分支和新 tag，然后创建 GitHub Release。在本项目中，提交、打 tag、push、创建 GitHub Release 是验证与复审通过后的固定收尾流程。
+10. PyPI 发布是独立步骤，只有用户明确要求时才执行。
 
 ## 兼容性说明
 

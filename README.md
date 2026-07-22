@@ -195,12 +195,15 @@ Then import from outside the repository root to confirm the installed wheel is u
 6. Inspect the sdist when README links to documentation or examples. The sdist should include `CHANGELOG.md`, `docs/`, and the example scripts/resources declared in `MANIFEST.in`.
 7. After validation and review pass, commit only the intended source/documentation/packaging metadata changes. Do not commit generated `dist/` or `build/` artifacts.
 8. Create a new tag for that validated commit. Never move an existing release tag unless explicitly coordinating a release-history correction.
-9. Push the branch and the new tag. In this project, commit, tag, and push are the fixed final steps after validation and review pass:
+9. Push the branch and the new tag, then create a GitHub Release. In this project, commit, tag, push, and GitHub Release creation are the fixed final steps after validation and review pass:
 
 ```bash
 GIT_MASTER=1 git push
 GIT_MASTER=1 git push origin <tag>
+gh release create <tag> dist/smart_report-<version>-py3-none-any.whl dist/smart_report-<version>.tar.gz --title <tag> --notes-file <notes-file>
 ```
+
+PyPI publishing is separate and should only be performed when explicitly requested.
 
 ## Current Limitations
 
