@@ -1,6 +1,10 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.11.11`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.11.12`.
+
+## 2.11.12
+
+- Upgraded the fixed release workflow to require GitHub Release creation after tag push.
 
 ## 2.11.11
 
