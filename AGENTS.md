@@ -92,6 +92,29 @@ Pagination (`layout/paginate.py`) splits overflowing content across pages. The f
 
 ---
 
+## Release Workflow for Agents
+
+When implementation work changes public behavior, packaging metadata, or documentation intended for release, the fixed final workflow is:
+
+1. Run validation before publishing:
+
+```bash
+.venv/bin/python -m unittest tests.test_table_v2
+.venv/bin/python -m unittest tests.test_document_structure
+npx --yes pyright
+.venv/bin/python -m compileall src tests examples
+.venv/bin/python -m build
+```
+
+2. Smoke-test the built wheel by installing it into `.venv`, then import from outside the repository root to confirm the installed artifact is used.
+3. Run the required post-implementation review. If review fails or returns no usable result, fix or perform direct equivalent checks before proceeding.
+4. After validation and review pass, do not stop at "ready". Commit, create a new version tag, and push `main` plus the tag.
+5. Never move an existing release tag. If the current version tag already exists, bump to the next patch version, update `pyproject.toml`, `src/smart_report/__init__.py`, `uv.lock`, and `CHANGELOG.md`, then tag the new commit.
+6. Every git command must be prefixed with `GIT_MASTER=1`.
+7. Do not commit generated `dist/` or `build/` artifacts.
+
+This workflow is agent-facing and supersedes README-only guidance. A completed implementation in this project is not done until commit, tag, and push have completed, unless the user explicitly says not to publish.
+
 ## Dependencies
 
 Core runtime: `reportlab>=4.0.0`, `Pillow>=10.0.0`, `svglib>=1.5.1`.
