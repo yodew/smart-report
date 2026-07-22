@@ -168,7 +168,7 @@ page.add(hero)
 | `.add_text(text)` | `text: str` | `Text` | 添加文本节点 |
 | `.add_rich_text(text="")` | `text: str` | `RichText` | 添加富文本节点 |
 | `.add_image(src)` | 路径、`Path`、bytes、data URL | `Image` | 添加图片节点 |
-| `.add_rect()` | 无 | `Rect` | 添加矩形 |
+| `.add_rect(text=None)` | `str | None` | `Rect` | 添加矩形；传入文本时创建标签型矩形 |
 | `.add_line()` | 无 | `Line` | 添加线段 |
 | `.add_spacer(height)` | 固定尺寸 | `Spacer` | 添加流式空白 |
 | `.add_canvas()` | 无 | `Canvas` | 添加嵌套图层容器 |
@@ -372,13 +372,31 @@ hero.add_image("examples/photo.png").size(120, 80).cover().radius((12, 12, 0, 0)
 
 ### `Rect`
 
-矩形图形节点，用于背景块、卡片底色、遮罩、边框和装饰形状。
+矩形图形节点，用于背景块、卡片底色、遮罩、边框、装饰形状，也可以直接承载普通文本，用作标签、状态徽标或 pill。
 
 ```python
 canvas.add_rect().absolute(0, 0).size("100%", 120).background("#dbeafe").radius(12)
+
+frame.add_rect("已完成") \
+    .padding(vertical=3, horizontal=8) \
+    .background("#dcfce7") \
+    .color("#166534") \
+    .font_size(9) \
+    .radius(999)
 ```
 
-常用方法：`.size(...)`、`.absolute(...)`、`.background(...)`、`.stroke(...)`、`.radius(...)`、`.opacity(...)`、`.z(...)`。
+| 方法 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `Rect(text=None)` | `str | None` | `Rect` | 创建矩形；传入文本时启用标签模式 |
+| `.text(value)` | `str | None` | `Rect` | 设置或清除矩形内文本；`None` 清除文本 |
+| `.align(value)` | `"left"` / `"center"` / `"right"` | `Rect` | 设置矩形文本水平对齐 |
+| `.valign(value)` | `"top"` / `"middle"` / `"bottom"` | `Rect` | 设置矩形文本垂直对齐 |
+| `.letter_spacing(value)` | 数值、`"0.05em"`、`"5%"` | `Rect` | 设置矩形文本字距 |
+| `.text_overflow(value)` | `"wrap"` / `"clip"` / `"ellipsis"` | `Rect` | 设置矩形文本溢出策略 |
+
+传入文本后，`Rect` 默认 `align("center")`、`valign("middle")`、`text_overflow("ellipsis")`。未显式设置宽高时，文本型 `Rect` 会按文字和 padding 自动计算尺寸；无文本的 `Rect` 保持原有矩形行为。
+
+常用方法：`.size(...)`、`.absolute(...)`、`.padding(...)`、`.background(...)`、`.color(...)`、`.font_size(...)`、`.stroke(...)`、`.radius(...)`、`.opacity(...)`、`.z(...)`。
 
 ### `Line`
 

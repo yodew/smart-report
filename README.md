@@ -26,7 +26,7 @@ smart-report is designed for report-style PDFs: flow content, tables, fixed regi
 - Automatic pagination for flow content, nested frames, fixed-height blocks, and conservative rich table-cell cases.
 - Practical `flex`, `grid`, and `columns` layout modes.
 - Report-oriented `Table` with column widths, auto-fit columns, row/cell minimum heights, alignment, padding, spans, headers, footers, zebra rows, borders, rounded corners, and repeated headers/footers.
-- `Text`, `RichText`, `Image`, `Rect`, `Line`, and `Spacer` elements.
+- `Text`, `RichText`, `Image`, text-capable `Rect` badges, `Line`, and `Spacer` elements.
 - Fixed-box text alignment, vertical alignment, letter spacing, overflow clipping, and multiline ellipsis.
 - Whole-text PDF URL links through `Text.link(url)`.
 - PNG/JPEG/SVG rendering, image bytes/data URLs, `contain()`, `cover()`, and per-corner radii.
@@ -64,6 +64,19 @@ content.add_text("Flow content below the hero block.").font_size(12)
 page.add(content)
 
 doc.save("output.pdf")
+```
+
+## Text Badges
+
+`Rect` can render plain centered text directly, which is useful for labels, pills, and status badges without layering a separate `Canvas`, `Rect`, and `Text`.
+
+```python
+frame.add_rect("Paid") \
+    .padding(vertical=3, horizontal=8) \
+    .background("#dcfce7") \
+    .color("#166534") \
+    .font_size(9) \
+    .radius(999)
 ```
 
 ## Tables and Rich Text
