@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.11.15`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.11.16`.
+
+## 2.11.16
+
+- Allowed unspanned table rows with multiple simple flow `Frame` rich cells to split across pagination slices.
+- Kept spanned rows, rich images, and complex frame/table cells conservative and atomic during pagination.
 
 ## 2.11.15
 
