@@ -176,6 +176,20 @@ page.add(hero)
 
 所有 `add_*` 方法都会把新节点放入当前容器，并返回新节点 builder，方便继续链式设置。
 
+### 图片与文字组合模式
+
+常见报告卡片不需要新的组件 API，可直接组合已有原语：左右图文卡片适合用 `Canvas` 固定图片和文字区域；上图下文卡片适合用 `Frame` 按流式顺序添加 `Image` 和文本；标题图卡或数据区水印适合用 `.background_image(...)`，让图片位于文字、表格内容和边框之下。
+
+```python
+card = Canvas().size(520, 150).background("#ffffff").radius(18).overflow("hidden")
+card.add_image("photo.jpg").absolute(0, 0).size(205, 150).cover()
+card.add_text("图文报告卡片").absolute(230, 28).width(240).font_size(18)
+
+table = Table(rows).background_image("texture.png", fit="cover", opacity=0.08)
+```
+
+可运行示例见 `examples/v2_12_image_text_composition.py`，展示左右图文、上图下文、背景图标题卡和表格背景图组合。
+
 ## `Table`
 
 `Table(rows)` 接收二维数组。单元格可为字符串、数字，或 `Frame`、`Text`、`RichText`、`Image` 等 builder。

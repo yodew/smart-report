@@ -127,6 +127,20 @@ card = Frame().background("#ffffff").background_image("photo.png", fit="cover", 
 table = Table(rows).background_image("watermark.png", fit="contain", opacity=0.08)
 ```
 
+## Practical Image/Text Composition
+
+Use existing primitives for common report cards instead of introducing custom components. A `Canvas` is best when image and text regions need exact locked positions, a `Frame` is best when a top image should flow into a bottom copy block, and `.background_image(...)` is best for title cards or report blocks where text/table content should remain above a subtle image layer.
+
+```python
+card = Canvas().size(520, 150).background("#ffffff").radius(18).overflow("hidden")
+card.add_image("photo.jpg").absolute(0, 0).size(205, 150).cover()
+card.add_text("Narrative card").absolute(230, 28).width(240).font_size(18)
+
+table = Table(rows).background_image("texture.png", fit="cover", opacity=0.08)
+```
+
+See `examples/v2_12_image_text_composition.py` for a runnable A4 page combining side-by-side cards, stacked cards, image-backed title cards, and a table-over-background report block.
+
 ## Architecture
 
 smart-report uses four explicit passes:
@@ -156,6 +170,7 @@ Useful examples include:
 - `examples/v2_11_layered_report.py`
 - `examples/v2_11_layered_table_region.py`
 - `examples/v2_12_background_images.py`
+- `examples/v2_12_image_text_composition.py`
 - `examples/zh_table_demo.py`
 
 Optional PDF-regression assertions in `tests/test_table_v2.py` use `pypdf` when it is installed; without it, those PDF-only checks are skipped.
