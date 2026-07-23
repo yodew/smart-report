@@ -106,10 +106,12 @@ class Table(NodeBuilder):
         return self
 
     def auto_fit_columns(self, columns: Sequence[int] | None = None) -> "Table":
-        """Auto-fit plain-text columns by natural content width.
+        """Auto-fit columns by supported cell natural content width.
 
         Pass ``None`` to auto-fit all columns, or a sequence of zero-based
-        column indexes to fit only selected columns.
+        column indexes to fit only selected columns. Plain cells plus measurable
+        ``Text``, ``RichText``, and simple flow ``Frame`` cells participate;
+        unsupported rich cells are ignored conservatively.
         """
 
         self.node.content["auto_fit_columns"] = _normalize_auto_fit_columns(columns)

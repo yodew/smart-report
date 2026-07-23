@@ -705,15 +705,23 @@ class TableV2ModelTests(unittest.TestCase):
         self.assertEqual(widths, [24.0])
         self.assertEqual(measured, ["مرحبا"])
 
-    def test_auto_fit_columns_excludes_rich_cells_from_natural_width(self) -> None:
-        rich = Frame().padding(0)
-        rich.add_text("this rich content would be very wide if measured")
-        table = Table([["x", "plain"], [rich.node, "tiny"]]).header(0).cell_padding(vertical=0, horizontal=2).auto_fit_columns()
+    def test_auto_fit_columns_measures_text_rich_text_and_simple_frame_cells(self) -> None:
+        rich_text = RichText().span("small").br().span("rich widest")
+        rich_frame = Frame().padding(2)
+        rich_frame.add_text("frame wide").margin(left=3, right=5)
+        table = (
+            Table([[Text("text widest").padding(left=1, right=2).node, rich_text.node, rich_frame.node], ["x", "y", "z"]])
+            .header(0)
+            .cell_padding(vertical=0, horizontal=4)
+            .auto_fit_columns()
+        )
 
         with _patched_table_string_width(lambda text, font_name, font_size: float(len(text))):
-            widths = table_column_widths(table.node, 300, 2)
+            widths = table_column_widths(table.node, 500, 3)
 
-        self.assertEqual(widths, [5.0, 9.0])
+        self.assertEqual(widths[0], 22.0)
+        self.assertAlmostEqual(widths[1], string_width("rich widest", "Helvetica", 12) + 8.0, places=3)
+        self.assertEqual(widths[2], 30.0)
 
     def test_auto_fit_columns_overflow_modes_keep_same_natural_width(self) -> None:
         text = "one two three four"
@@ -768,22 +776,25 @@ class TableV2ModelTests(unittest.TestCase):
 
         self.assertEqual(widths, [34.0, 10.0])
 
-    def test_auto_fit_columns_excludes_rich_frame_text_and_image_cells(self) -> None:
-        rich_frame = Frame().padding(0)
-        rich_frame.add_text("frame content that would be wide")
-        rich_text = Text("text content that would be wide")
-        rich_image = Image(_png_bytes(16, 16))
+    def test_auto_fit_columns_ignores_unsupported_rich_cells_conservatively(self) -> None:
+        image = Image(_png_bytes(16, 16))
+        frame_with_image = Frame().padding(0)
+        frame_with_image.add_image(_png_bytes(16, 16))
+        absolute_frame = Frame().padding(0)
+        absolute_frame.add_text("absolute wide").absolute(0, 0)
+        flex_frame = Frame().flex("row").padding(0)
+        flex_frame.add_text("flex wide")
         table = (
-            Table([[rich_frame.node, rich_text.node, rich_image.node], ["a", "bb", "ccc"]])
+            Table([[image.node, frame_with_image.node, absolute_frame.node, flex_frame.node], ["a", "bb", "ccc", "dddd"]])
             .header(0)
             .cell_padding(vertical=0, horizontal=1)
             .auto_fit_columns()
         )
 
         with _patched_table_string_width(lambda text, font_name, font_size: float(len(text))):
-            widths = table_column_widths(table.node, 500, 3)
+            widths = table_column_widths(table.node, 500, 4)
 
-        self.assertEqual(widths, [3.0, 4.0, 5.0])
+        self.assertEqual(widths, [3.0, 4.0, 5.0, 6.0])
 
     def test_cell_boxes_apply_alignment_padding_header_and_zebra(self) -> None:
         table = (
@@ -1750,6 +1761,34 @@ class TableV2PaginationTests(unittest.TestCase):
         self.assertTrue(all(cast(list[list[object]], table_slice.content["rows"])[0] == rows[0] for table_slice in slices))
         self.assertEqual(slice_widths, [expected_widths] * len(slices))
         self.assertEqual(slice_second_column_x, [expected_widths[0]] * len(slices))
+
+    def test_auto_fit_pagination_preserves_rich_content_widths(self) -> None:
+        rich = RichText().span("later rich content is widest")
+        rows: list[list[object]] = [["Metric", "Value", "Notes"]]
+        rows.extend([[f"Early {index}", "ok", "short"] for index in range(1, 8)])
+        rows.append(["Later", rich.node, "tail"])
+        rows.extend([[f"Tail {index}", "ok", "short"] for index in range(9, 16)])
+        table = (
+            Table(rows)
+            .header(background="#0f172a", color="#ffffff", repeat=True)
+            .cell_padding(vertical=2, horizontal=3)
+            .font_size(10)
+            .line_height(12)
+            .auto_fit_columns()
+        )
+        table.node.resolved_width = 500
+
+        with _patched_table_string_width(lambda text, font_name, font_size: float(len(text))):
+            expected_widths = table_column_widths(table.node, 500, 3)
+            table.node.resolved_height = table_height(table.node)
+            slices = _split_table_node(table.node, 86, 86)
+            slice_widths = [table_column_widths(table_slice, table_slice.resolved_width, 3) for table_slice in slices]
+
+        self.assertGreater(len(slices), 1)
+        self.assertGreater(expected_widths[1], 12.0)
+        self.assertTrue(any(8 in cast(list[int], table_slice.content["source_row_indices"]) for table_slice in slices[1:]))
+        self.assertEqual(slice_widths, [expected_widths] * len(slices))
+
 
     def test_repeat_header_false_keeps_header_style_only_on_first_slice(self) -> None:
         table = (

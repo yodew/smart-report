@@ -9,10 +9,12 @@ from importlib import import_module
 from typing import Protocol, cast
 
 from .node import Edges, LayoutNode, clone_layout_node
-from .text_wrap import wrap_text
+from .rich_text_layout import rich_text_natural_width
+from .text_wrap import text_width, wrap_text
 from ..style.color import RGBA, parse_color
 from ..style.font import shaped_string_width, string_width as registry_string_width
 from ..style.typography import TextDirection, TypographyMode, shape_text_for_width
+from ..style.letter_spacing import resolve_letter_spacing
 from ..style.units import Auto, Fixed, SizeInput, SizeSpec, parse_size, resolve_size
 
 _WIDTH_EPSILON = 1e-9
@@ -432,7 +434,7 @@ def _table_auto_fit_natural_widths(node: LayoutNode, column_count: int) -> list[
             row_override = _style_override(row_overrides, source_row_index)
             cell_override = _style_override(cell_overrides, f"{source_row_index}:{column_index}")
             cell = row[column_index] if column_index < len(row) else ""
-            natural_width = plain_cell_natural_width(
+            natural_width = table_cell_natural_width(
                 cell,
                 padding,
                 _style_font_name(font_name, column_override, row_override, cell_override),
@@ -1058,11 +1060,28 @@ def plain_cell_natural_width(
     return widest_line + padding.horizontal
 
 
-def table_cell_box_natural_width(box: TableCellBox, string_width: StringWidthFn | None = None) -> float | None:
-    if box.rich_content is not None:
+def table_cell_natural_width(
+    cell: object,
+    padding: Edges,
+    font_name: str,
+    font_size: float,
+    typography: TypographyMode = "plain",
+    text_direction: TextDirection = "auto",
+    string_width: StringWidthFn | None = None,
+) -> float | None:
+    rich_content = _cell_rich_content(cell)
+    if rich_content is None:
+        return plain_cell_natural_width(cell, padding, font_name, font_size, typography, text_direction, string_width)
+    content_width = _rich_cell_content_natural_width(rich_content, string_width)
+    if content_width is None:
         return None
-    return plain_cell_natural_width(
-        box.text,
+    return content_width + padding.horizontal
+
+
+def table_cell_box_natural_width(box: TableCellBox, string_width: StringWidthFn | None = None) -> float | None:
+    cell: object = box.rich_content if box.rich_content is not None else box.text
+    return table_cell_natural_width(
+        cell,
         box.padding,
         box.font_name,
         box.font_size,
@@ -1070,6 +1089,61 @@ def table_cell_box_natural_width(box: TableCellBox, string_width: StringWidthFn 
         box.text_direction,
         string_width,
     )
+
+
+def _rich_cell_content_natural_width(node: LayoutNode, string_width: StringWidthFn | None = None) -> float | None:
+    explicit_width = _fixed_width(node)
+    if explicit_width is not None:
+        return explicit_width
+    if node.node_type in {"text", "rect"} and "text" in node.content:
+        return _text_node_natural_width(node, string_width)
+    if node.node_type == "rich_text":
+        return rich_text_natural_width(node)
+    if node.node_type == "frame":
+        return _simple_frame_natural_width(node, string_width)
+    if node.node_type == "spacer":
+        return 0.0
+    return None
+
+
+def _simple_frame_natural_width(node: LayoutNode, string_width: StringWidthFn | None = None) -> float | None:
+    if node.content.get("layout", "flow") != "flow":
+        return None
+    widest_child = 0.0
+    for child in node.children:
+        if child.style.position.value != "flow":
+            return None
+        child_width = _rich_cell_content_natural_width(child, string_width)
+        if child_width is None:
+            return None
+        widest_child = max(widest_child, child_width + child.style.margin.horizontal)
+    return widest_child + node.style.padding.horizontal
+
+
+def _text_node_natural_width(node: LayoutNode, string_width: StringWidthFn | None = None) -> float:
+    measure = string_width or _string_width_fn()
+    widest_line = max(
+        (
+            text_width(
+                line,
+                node.style.font_name,
+                node.style.font_size,
+                measure,
+                node.style.typography,
+                node.style.text_direction,
+                resolve_letter_spacing(node.content.get("letter_spacing"), node.style.font_size),
+            )
+            for line in _natural_text_lines(str(node.content.get("text", "")))
+        ),
+        default=0.0,
+    )
+    return widest_line + node.style.padding.horizontal
+
+
+def _fixed_width(node: LayoutNode) -> float | None:
+    if isinstance(node.style.width, Fixed):
+        return node.style.width.points
+    return None
 
 
 def _natural_text_lines(text: str) -> list[str]:
