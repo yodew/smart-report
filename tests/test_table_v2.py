@@ -2564,6 +2564,34 @@ class RichTextElementTests(unittest.TestCase):
         self.assertAlmostEqual(spy.links[0][1].y, 0.0, places=3)
         self.assertAlmostEqual(spy.links[1][1].y, 14.4, places=3)
 
+    def test_rich_text_link_annotations_follow_horizontal_alignment(self) -> None:
+        rich = RichText().font("Helvetica").font_size(12).line_height(14).align("center").span("Open", link="https://example.com/center").span(" plain").width(120)
+        resolve_widths(rich.node, 120)
+        resolve_heights(rich.node)
+        item = RenderItem(rich.node, Rect(5, 10, 120, rich.node.resolved_height), (), (0,))
+        spy = _SpyAdapter()
+
+        paint_rich_text(cast(ReportLabCanvasAdapter, spy), item)
+
+        line_width = string_width("Open plain", "Helvetica", 12)
+        self.assertEqual(len(spy.links), 1)
+        self.assertEqual(spy.links[0][0], "https://example.com/center")
+        self.assertAlmostEqual(spy.links[0][1].x, 5 + ((120 - line_width) / 2.0), places=3)
+        self.assertAlmostEqual(spy.links[0][1].width, string_width("Open", "Helvetica", 12), places=3)
+
+    def test_rich_text_link_annotations_follow_vertical_alignment(self) -> None:
+        rich = RichText().font("Helvetica").font_size(12).line_height(14).valign("bottom").span("Open", link="mailto:team@example.com").width(100)
+        resolve_widths(rich.node, 100)
+        resolve_heights(rich.node)
+        item = RenderItem(rich.node, Rect(10, 20, 100, 60), (), (0,))
+        spy = _SpyAdapter()
+
+        paint_rich_text(cast(ReportLabCanvasAdapter, spy), item)
+
+        self.assertEqual(len(spy.links), 1)
+        self.assertEqual(spy.links[0][0], "mailto:team@example.com")
+        self.assertAlmostEqual(spy.links[0][1].y, 20 + (60 - 14.4), places=3)
+
     def test_rich_text_clear_returns_self_and_allows_new_content(self) -> None:
         rich = RichText("Initial").span(" extra").br()
 
@@ -3631,6 +3659,23 @@ class TableV2PdfTests(unittest.TestCase):
             page_uris = _page_link_annotation_uris(PdfReader(str(output)))
 
         self.assertEqual(page_uris, [["https://example.com/rich-span"]])
+
+    def test_rich_text_span_link_preserves_query_url_annotation(self) -> None:
+        assert PdfReader is not None
+        url = "https://example.com/report?id=42&section=growth"
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = Path(tmp_dir) / "rich_text_span_query_link.pdf"
+            doc = document()
+            page = doc.page("A4")
+            frame = Frame().padding(36)
+            frame.add(RichText().span("Open filtered report", link=url).width(180))
+            page.add(frame)
+            doc.save(str(output))
+
+            page_uris = _page_link_annotation_uris(PdfReader(str(output)))
+
+        self.assertEqual(page_uris, [[url]])
 
     def test_table_rich_text_span_link_emits_url_annotation(self) -> None:
         assert PdfReader is not None

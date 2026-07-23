@@ -1,6 +1,10 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.12.0`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.12.1`.
+
+## 2.12.1
+
+- Hardened inline RichText link regression coverage for aligned annotation rectangles and query-string URL preservation.
 
 ## 2.12.0
 
