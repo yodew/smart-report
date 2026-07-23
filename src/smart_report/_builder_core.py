@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass
 from collections.abc import Sequence
 from io import BytesIO
 from importlib import import_module
 from math import isfinite
-from os import PathLike
+from os import PathLike, fspath
 from typing import TYPE_CHECKING, Literal, Protocol, TypeVar, cast
 
 from .layout.node import CornerRadii, Edges, LayoutNode, OverflowMode, PositionMode, Style
@@ -63,6 +64,7 @@ BuilderT = TypeVar("BuilderT", bound="NodeBuilder")
 ContainerT = TypeVar("ContainerT", bound="ContainerBuilder")
 EdgeInput = SizeInput | tuple[SizeInput, ...]
 RadiusInput = SizeInput | tuple[SizeInput, ...]
+BackgroundImageSource = str | bytes | PathLike[str]
 DocumentMetadata = dict[str, str]
 SaveTarget = str | BytesIO
 
@@ -293,6 +295,42 @@ class NodeBuilder:
         """
 
         self.node.style.background = parse_color(value)
+        return self
+
+    def background_image(self: BuilderT, src: BackgroundImageSource, *, fit: str = "cover", opacity: float = 1.0) -> BuilderT:
+        """Set a background image for this node.
+
+        Sources may be string paths, ``pathlib.Path`` values, bytes, or
+        ``data:image/...;base64,...`` strings. Accepted fit values are
+        ``"stretch"``, ``"contain"``, and ``"cover"``.
+        """
+
+        if self.node.node_type not in {"canvas", "frame", "table"}:
+            raise ValueError("Background images are supported on Frame, Canvas, and Table")
+        normalized_fit = fit.lower()
+        if normalized_fit not in {"stretch", "contain", "cover"}:
+            raise ValueError(f"Unsupported background image fit: {fit}")
+        opacity_value = float(opacity)
+        if not isfinite(opacity_value) or opacity_value < 0.0 or opacity_value > 1.0:
+            raise ValueError("Background image opacity must be finite and between 0.0 and 1.0")
+
+        if isinstance(src, bytes):
+            self.node.content["background_image_src_bytes"] = src
+            self.node.content.pop("background_image_src", None)
+        else:
+            try:
+                source = fspath(src)
+            except TypeError as exc:
+                raise TypeError("Background image source must be str, bytes, or PathLike[str]") from exc
+            if source.startswith("data:image/"):
+                _prefix, _separator, payload = source.partition(",")
+                self.node.content["background_image_src_bytes"] = base64.b64decode(payload)
+                self.node.content.pop("background_image_src", None)
+            else:
+                self.node.content["background_image_src"] = source
+                self.node.content.pop("background_image_src_bytes", None)
+        self.node.content["background_image_fit"] = normalized_fit
+        self.node.content["background_image_opacity"] = opacity_value
         return self
 
     def color(self: BuilderT, value: str | None) -> BuilderT:

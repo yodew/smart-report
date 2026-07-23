@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import importlib
 import tempfile
 import unittest
@@ -13,8 +14,11 @@ from typing import Iterator
 from typing import Sequence
 from typing import cast
 
-from smart_report import DEFAULT_FONT_NAME, Frame, Image, RichText, Spacer, Table, Text, document, get_default_font_name, get_fallback_font_families, get_fallback_fonts, get_font, get_font_family, register_font, register_font_family, resolve_text_runs, set_default_font, set_fallback_font_families, set_fallback_fonts, shaped_string_width, string_width
+from smart_report import DEFAULT_FONT_NAME, Image, RichText, Spacer, Text, document, get_default_font_name, get_fallback_font_families, get_fallback_fonts, get_font, get_font_family, register_font, register_font_family, resolve_text_runs, set_default_font, set_fallback_font_families, set_fallback_fonts, shaped_string_width, string_width
 from smart_report.builder import resolve_page_size
+from smart_report.containers.canvas import Canvas
+from smart_report.containers.frame import Frame
+from smart_report.containers.table import Table
 from smart_report.layout.node import CornerRadii, Edges, LayoutNode, Rect, RenderItem, Style, clone_layout_node
 from smart_report.layout.paginate import STARTS_ON_FOLLOWING_PAGE, _split_flow_child, _split_table_node, _split_text_node, paginate_page, split_frame_node
 from smart_report.layout.pass4_render import build_render_list
@@ -23,7 +27,7 @@ from smart_report.layout.pass2_widths import resolve_widths
 from smart_report.layout.rich_text_layout import layout_rich_text, rich_text_runs_for_lines
 from smart_report.layout.table_model import TableCellBox, fit_plain_overflow_text, plain_cell_natural_width, plain_overflow_text_width, table_cell_box_natural_width, table_cell_boxes, table_cell_padding, table_column_widths, table_height, table_row_heights, table_rows
 from smart_report.layout.text_wrap import wrap_text
-from smart_report.render.painters import paint_image, paint_render_item, paint_rich_text, paint_table, paint_text
+from smart_report.render.painters import paint_canvas_background, paint_image, paint_render_item, paint_rich_text, paint_table, paint_text
 from smart_report.render.rl_adapter import DEFAULT_TEXT_COLOR, ReportLabCanvasAdapter
 from smart_report.style.color import parse_color
 from smart_report.style.typography import shape_text
@@ -375,6 +379,66 @@ class TableV2ModelTests(unittest.TestCase):
 
         self.assertEqual(adapter.rounded_clips, [(10, 20, 200, table.node.resolved_height, CornerRadii.all(12))])
         self.assertIn(CornerRadii.all(12), adapter.drawn_radii)
+
+    def test_background_image_builder_stores_sources_and_validates_options(self) -> None:
+        image_bytes = _png_bytes(6, 4)
+        data_url = "data:image/png;base64," + base64.b64encode(image_bytes).decode("ascii")
+
+        path_frame = Frame().background_image(Path("assets/card.png"), fit="contain", opacity=0.25)
+        data_frame = Frame().background_image(data_url)
+        bytes_frame = Frame().background_image(image_bytes, fit="stretch", opacity=1.0)
+
+        self.assertEqual(path_frame.node.content["background_image_src"], "assets/card.png")
+        self.assertEqual(path_frame.node.content["background_image_fit"], "contain")
+        self.assertEqual(path_frame.node.content["background_image_opacity"], 0.25)
+        self.assertEqual(data_frame.node.content["background_image_src_bytes"], image_bytes)
+        self.assertEqual(bytes_frame.node.content["background_image_src_bytes"], image_bytes)
+        self.assertEqual(bytes_frame.node.content["background_image_fit"], "stretch")
+        with self.assertRaises(ValueError):
+            Frame().background_image(image_bytes, fit="scale")
+        with self.assertRaises(ValueError):
+            Frame().background_image(image_bytes, opacity=float("inf"))
+        with self.assertRaises(ValueError):
+            Frame().background_image(image_bytes, opacity=-0.1)
+        with self.assertRaises(TypeError):
+            Frame().background_image(_BadPathLike())
+        with self.assertRaises(ValueError):
+            Text("No background painter").background_image(image_bytes)
+
+    def test_container_background_image_paints_between_fill_and_stroke(self) -> None:
+        image_bytes = _png_bytes(8, 4)
+        bounds = Rect(10, 20, 120, 50)
+
+        for builder in (Canvas(), Frame()):
+            with self.subTest(node_type=builder.node.node_type):
+                builder.background("#ffffff").background_image(image_bytes, fit="cover", opacity=0.5).stroke("#94a3b8", 1).radius(9)
+                adapter = _SpyAdapter()
+
+                paint_canvas_background(cast(ReportLabCanvasAdapter, adapter), RenderItem(builder.node, bounds, (), (0,)))
+
+                self.assertEqual(adapter.operations, ["rect", "rounded_clip", "image", "rect"])
+                self.assertEqual(adapter.image_sources, [image_bytes])
+                self.assertEqual(adapter.images, [(bounds, "cover")])
+                self.assertEqual(adapter.image_opacities, [0.5])
+                self.assertEqual(adapter.rounded_clips, [(10, 20, 120, 50, CornerRadii.all(9))])
+
+    def test_table_background_image_paints_before_cells_and_uses_table_clip(self) -> None:
+        image_bytes = _png_bytes(8, 4)
+        table = Table([["H1", "H2"], ["A", "B"]]).background_image(image_bytes, fit="contain", opacity=0.35).borders("#94a3b8", width=1).radius(12)
+        table.node.resolved_width = 200
+        table.node.resolved_height = table_height(table.node)
+        bounds = Rect(10, 20, 200, table.node.resolved_height)
+        adapter = _SpyAdapter()
+
+        paint_table(cast(ReportLabCanvasAdapter, adapter), RenderItem(table.node, bounds, (), (0,)))
+
+        self.assertEqual(adapter.rounded_clips[0], (10, 20, 200, table.node.resolved_height, CornerRadii.all(12)))
+        self.assertEqual(adapter.images, [(bounds, "contain")])
+        self.assertEqual(adapter.image_sources, [image_bytes])
+        self.assertEqual(adapter.image_opacities, [0.35])
+        self.assertLess(adapter.operations.index("image"), adapter.operations.index("rect"))
+        self.assertLess(adapter.operations.index("image"), adapter.operations.index("text"))
+        self.assertLess(adapter.operations.index("image"), adapter.operations.index("line"))
 
 
     def test_radius_supports_individual_corners_and_clone_preserves_them(self) -> None:
@@ -3741,12 +3805,15 @@ def _patched_table_string_width(string_width: object) -> Iterator[None]:
 
 class _SpyAdapter:
     def __init__(self) -> None:
+        self.operations: list[str] = []
         self.rounded_clips: list[tuple[float, float, float, float, CornerRadii]] = []
         self.clip_rects: list[Rect] = []
         self.links: list[tuple[str, Rect]] = []
         self.drawn_radii: list[CornerRadii] = []
         self.rect_fills: list[object] = []
         self.images: list[tuple[Rect, str]] = []
+        self.image_sources: list[object] = []
+        self.image_opacities: list[float] = []
         self.image_radii: list[CornerRadii | None] = []
         self.line_widths: list[float] = []
         self.line_colors: list[object] = []
@@ -3765,18 +3832,22 @@ class _SpyAdapter:
         yield self
 
     def apply_clip_rounded_rect(self, rect: Rect, radius: CornerRadii) -> None:
+        self.operations.append("rounded_clip")
         self.rounded_clips.append((rect.x, rect.y, rect.width, rect.height, radius))
 
     def apply_clip_rect(self, rect: Rect) -> None:
+        self.operations.append("clip")
         self.clip_rects.append(rect)
 
     def draw_rect(self, rect: Rect, fill: object = None, stroke: object = None, stroke_width: float = 0.0, radius: CornerRadii | None = None) -> None:
         _ = (rect, fill, stroke, stroke_width)
+        self.operations.append("rect")
         self.rects.append(rect)
         self.rect_fills.append(fill)
         self.drawn_radii.append(radius or CornerRadii())
 
     def draw_text(self, **kwargs: object) -> None:
+        self.operations.append("text")
         self.text_kwargs.append(dict(kwargs))
         self.texts.append(str(kwargs.get("text", "")))
 
@@ -3793,17 +3864,25 @@ class _SpyAdapter:
                 self.rich_text_underlines.append(bool(getattr(fragment, "underline", False)))
 
     def draw_line(self, x1: float, y1: float, x2: float, y2: float, color: object, stroke_width: float) -> None:
+        self.operations.append("line")
         self.line_widths.append(float(stroke_width))
         self.line_colors.append(color)
         self.lines.append((float(x1), float(y1), float(x2), float(y2), float(stroke_width)))
 
-    def draw_image(self, _source: object, rect: Rect, opacity: float = 1.0, fit: str = "stretch", radius: CornerRadii | None = None) -> None:
-        _ = opacity
+    def draw_image(self, source: object, rect: Rect, opacity: float = 1.0, fit: str = "stretch", radius: CornerRadii | None = None) -> None:
+        self.operations.append("image")
+        self.image_sources.append(source)
+        self.image_opacities.append(opacity)
         self.images.append((rect, fit))
         self.image_radii.append(radius)
 
     def link_url(self, url: str, rect: Rect) -> None:
         self.links.append((url, rect))
+
+
+class _BadPathLike:
+    def __fspath__(self) -> str:
+        raise TypeError("bad path-like source")
 
 
 def _png_bytes(width: int, height: int) -> bytes:

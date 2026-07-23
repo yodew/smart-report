@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
+from os import PathLike
 
 from .._builder_core import NodeBuilder
 from ..layout.node import Edges, LayoutNode, Style
@@ -41,6 +42,11 @@ class Table(NodeBuilder):
 
         self.node.content["rows"] = _normalize_rows(values)
         return self
+
+    def background_image(self, src: str | bytes | PathLike[str], *, fit: str = "cover", opacity: float = 1.0) -> "Table":
+        """Set a table-level background image under cells and borders."""
+
+        return super().background_image(src, fit=fit, opacity=opacity)
 
     def cell(self, row_index: int, column_index: int, value: object) -> "Table":
         """Set a single cell value, expanding rows/columns as needed."""

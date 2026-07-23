@@ -320,15 +320,24 @@ def paint_line(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
 
 def paint_canvas_background(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     node = item.node
-    if node.style.background is None and node.style.stroke_color is None:
+    image_source = _background_image_source(node.content)
+    if node.style.background is None and node.style.stroke_color is None and image_source is None:
         return
-    adapter.draw_rect(
-        rect=item.absolute_bounds,
-        fill=node.style.background,
-        stroke=node.style.stroke_color,
-        stroke_width=node.style.stroke_width,
-        radius=node.style.border_radius,
-    )
+    bounds = item.absolute_bounds
+    radius = node.style.border_radius
+    if node.style.background is not None:
+        adapter.draw_rect(rect=bounds, fill=node.style.background, radius=radius)
+    if image_source is not None:
+        fit = _background_image_fit(node.content)
+        opacity = _background_image_opacity(node.content)
+        if radius.is_zero:
+            adapter.draw_image(image_source, bounds, opacity=opacity, fit=fit)
+        else:
+            with adapter.isolated_state():
+                adapter.apply_clip_rounded_rect(bounds, radius)
+                adapter.draw_image(image_source, bounds, opacity=opacity, fit=fit)
+    if node.style.stroke_color is not None and node.style.stroke_width > 0:
+        adapter.draw_rect(rect=bounds, stroke=node.style.stroke_color, stroke_width=node.style.stroke_width, radius=radius)
 
 
 def paint_table(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
@@ -342,6 +351,7 @@ def paint_table(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     if not radius.is_zero:
         with adapter.isolated_state():
             adapter.apply_clip_rounded_rect(bounds, radius)
+            _paint_background_image(adapter, item)
             _paint_table_cells(adapter, item, cell_boxes)
         adapter.draw_rect(
             rect=bounds,
@@ -351,7 +361,39 @@ def paint_table(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
         )
         return
 
+    _paint_background_image(adapter, item)
     _paint_table_cells(adapter, item, cell_boxes)
+
+
+def _paint_background_image(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
+    image_source = _background_image_source(item.node.content)
+    if image_source is None:
+        return
+    adapter.draw_image(
+        image_source,
+        item.absolute_bounds,
+        opacity=_background_image_opacity(item.node.content),
+        fit=_background_image_fit(item.node.content),
+    )
+
+
+def _background_image_source(content: dict[str, object]) -> str | bytes | None:
+    image_source = content.get("background_image_src_bytes")
+    if image_source is None:
+        image_source = content.get("background_image_src")
+    if isinstance(image_source, (str, bytes)):
+        return image_source
+    return None
+
+
+def _background_image_fit(content: dict[str, object]) -> str:
+    fit = content.get("background_image_fit", "cover")
+    return fit if isinstance(fit, str) else "cover"
+
+
+def _background_image_opacity(content: dict[str, object]) -> float:
+    opacity = content.get("background_image_opacity", 1.0)
+    return float(opacity) if isinstance(opacity, (int, float)) else 1.0
 
 
 def _paint_table_cells(adapter: ReportLabCanvasAdapter, item: RenderItem, cell_boxes: list[TableCellBox]) -> None:
