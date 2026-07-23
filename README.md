@@ -87,9 +87,9 @@ from smart_report import RichText, Table
 rich = (
     RichText()
     .span("Revenue ")
-    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True)
+    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True, underline=True)
     .br()
-    .span("Enterprise renewals remained strong", font_size=10, color="#475569")
+    .span("Enterprise renewals remained strong", font_size=10, color="#475569", italic=True)
     .width(180)
 )
 
