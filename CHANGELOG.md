@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.12.1`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.12.2`.
+
+## 2.12.2
+
+- Added `.background_image(src, fit="cover", opacity=1.0)` for `Frame`, `Canvas`, and table-level backgrounds using the same practical source shapes as `Image`.
+- Painted container and table background images below content and borders, with rounded clipping where applicable.
 
 ## 2.12.1
 
