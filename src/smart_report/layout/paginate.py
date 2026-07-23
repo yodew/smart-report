@@ -367,10 +367,8 @@ def _rich_row_fragments(table: LayoutNode, row: list[object], column_widths: lis
     rich_cells = [(column_index, cell) for column_index, cell in enumerate(row) if isinstance(cell, LayoutNode)]
     if not rich_cells:
         return [row]
-    if len(rich_cells) > 1:
-        rich_types = [cell.node_type for _column_index, cell in rich_cells]
-        if any(node_type not in {"frame", "text", "rich_text"} for node_type in rich_types) or rich_types.count("frame") > 1:
-            return [row]
+    if not all(_is_splittable_rich_table_cell(cell) for _column_index, cell in rich_cells):
+        return [row]
 
     padding = table_cell_padding(table)
     content_capacity = max(1.0, rich_row_capacity - padding.vertical)
@@ -403,6 +401,14 @@ def _rich_row_fragments(table: LayoutNode, row: list[object], column_widths: lis
                     fragment_row[cell_index] = ""
         rows.append(fragment_row)
     return rows
+
+
+def _is_splittable_rich_table_cell(cell: LayoutNode) -> bool:
+    if cell.node_type in {"text", "rich_text", "spacer"}:
+        return True
+    if cell.node_type != "frame" or cell.content.get("layout", "flow") != "flow":
+        return False
+    return all(child.style.position.value == "flow" and _is_splittable_rich_table_cell(child) for child in cell.children)
 
 
 def _split_rich_cell_node(rich_cell: LayoutNode, content_capacity: float) -> list[LayoutNode]:
