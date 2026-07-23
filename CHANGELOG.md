@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.11.13`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.11.14`.
+
+## 2.11.14
+
+- Surfaced recent RichText span styling, Rect text labels, and layered table-region examples in the main documentation and demo path.
+- Added direct regression coverage for `Frame.add_rich_text(...)` and `RichText.clear()` builder behavior.
 
 ## 2.11.13
 
