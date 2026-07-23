@@ -2367,6 +2367,16 @@ class RichTextElementTests(unittest.TestCase):
             ],
         )
 
+    def test_rich_text_clear_returns_self_and_allows_new_content(self) -> None:
+        rich = RichText("Initial").span(" extra").br()
+
+        result = rich.clear()
+
+        self.assertIs(result, rich)
+        self.assertEqual(rich.node.content["runs"], [])
+        self.assertIs(rich.span("Replacement").br().text("Final"), rich)
+        self.assertEqual(rich.node.content["runs"], [{"kind": "text", "text": "Final"}])
+
     def test_rich_text_layout_wraps_and_preserves_fragment_styles(self) -> None:
         rich = (
             RichText()

@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from typing import Any, cast
 
-from smart_report import Canvas, Frame, Text, document
+from smart_report import Canvas, Frame, RichText, Text, document
 from smart_report.layout.node import LayoutNode, PositionMode, Rect, Style
 from smart_report.layout.pass2_widths import resolve_widths
 from smart_report.layout.pass3_heights import resolve_heights
@@ -342,6 +342,18 @@ class TextLinkApiTests(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaisesRegex(ValueError, "link|url"):
                     Text("Example").link(value)
+
+
+class ContainerRichTextApiTests(unittest.TestCase):
+    def test_frame_add_rich_text_returns_attached_builder_with_initial_runs(self) -> None:
+        frame = Frame()
+
+        rich = frame.add_rich_text("Executive summary")
+
+        self.assertIsInstance(rich, RichText)
+        self.assertIs(frame.node.children[0], rich.node)
+        self.assertEqual(rich.node.node_type, "rich_text")
+        self.assertEqual(rich.node.content["runs"], [{"kind": "text", "text": "Executive summary"}])
 
 
 class DocumentSaveToBytesTests(unittest.TestCase):
