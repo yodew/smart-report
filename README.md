@@ -216,7 +216,7 @@ PyPI publishing is separate and should only be performed when explicitly request
 - `flex`, `grid`, and `columns` are practical layout primitives, not a complete CSS constraint solver.
 - Flex row wrap is row-only; column wrap and row-aware pagination are not implemented.
 - Advanced typography uses HarfBuzz for measurement when available, but rendering still uses ReportLab text APIs.
-- Table auto-fit works on plain-string cells only.
+- Table auto-fit measures plain cells plus supported `Text`, `RichText`, and simple flow `Frame` cells; unsupported rich cells remain conservative.
 - `Text.link(url)` is whole-text only.
 
 ## License

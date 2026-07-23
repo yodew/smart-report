@@ -207,14 +207,14 @@ table = Table([
 | `.column_widths(values)` | `list[SizeInput]` | `Table` | 设置列宽，支持 pt、单位字符串、百分比和 `"auto"` |
 | `.column_min_widths(values)` | `list[SizeInput]` | `Table` | 设置自动适配列宽下限，不支持 `"auto"` |
 | `.column_max_widths(values)` | `list[SizeInput]` | `Table` | 设置自动适配列宽上限，不支持 `"auto"` |
-| `.auto_fit_columns(columns=None)` | `None` 或列索引序列 | `Table` | 根据纯文本自然宽度自动适配列宽 |
+| `.auto_fit_columns(columns=None)` | `None` 或列索引序列 | `Table` | 根据支持的单元格自然宽度自动适配列宽 |
 | `.row_height(row_index, height)` | 行索引、固定尺寸 | `Table` | 设置逻辑行最小高度 |
 | `.row_heights(values)` | 高度列表，`None` 表示跳过 | `Table` | 批量设置逻辑行最小高度 |
 | `.cell_height(row_index, column_index, height)` | 行、列、固定尺寸 | `Table` | 设置逻辑单元格最小高度 |
 
 行高和单元格高度是“最小高度”：内容更高时内容优先。高度值要求是固定点值兼容尺寸，例如 `36`、`"12mm"`、`"1cm"`；不支持百分比、`"auto"`、负数或无穷值。
 
-`auto_fit_columns()` 只测量纯字符串单元格。富 `Frame` / `Text` / `RichText` / `Image` 单元格不参与自然宽度计算。自然宽度先测量，再应用 min/max 约束；较窄的适配表格不会被强制拉伸填满可用宽度。
+`auto_fit_columns()` 会测量普通单元格，以及可安全测量的富 `Text`、`RichText` 和简单 flow `Frame` 单元格；`Image`、绝对定位内容、flex/grid/columns 等复杂富单元格仍会被保守忽略。自然宽度先测量，再应用 min/max 约束；较窄的适配表格不会被强制拉伸填满可用宽度。
 
 ### 表格对齐、内边距和溢出
 
@@ -580,5 +580,5 @@ background(None)
 - `flex` / `grid` / `columns` 是实用布局模式，并非完整 CSS 约束求解器。
 - Flex 行换行仅支持行方向；不支持列方向换行，也不保证按行分页。
 - 字体 fallback 已支持；复杂 shaping、bidi 和 OpenType 特性依赖可选能力，默认路径不保证完整文本引擎行为。
-- 表格自动适配仅支持纯字符串单元格；富 `Frame` / `Text` / `RichText` / `Image` 单元格不参与自然宽度计算。
+- 表格自动适配支持普通单元格、富 `Text`、`RichText` 和简单 flow `Frame` 的自然宽度；复杂富单元格仍保守忽略。
 - `Text.link(url)` 仅支持 whole-text 链接；不支持行内子字符串链接、Markdown/HTML 解析、自动链接样式、纯字符串表格单元格链接或任意注解 API。
