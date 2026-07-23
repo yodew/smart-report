@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.12.2`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.12.3`.
+
+## 2.12.3
+
+- Added a practical image/text composition example showing side-by-side cards, stacked cards, background-image title cards, and table-over-background report blocks using existing primitives.
+- Documented image/text composition patterns in the README and Chinese API reference without adding new runtime API.
 
 ## 2.12.2
 
