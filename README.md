@@ -145,7 +145,10 @@ Useful examples include:
 - `examples/v2_8_flex_wrap.py`
 - `examples/v2_9_flex_refinements.py`
 - `examples/v2_11_layered_report.py`
+- `examples/v2_11_layered_table_region.py`
 - `examples/zh_table_demo.py`
+
+Optional PDF-regression assertions in `tests/test_table_v2.py` use `pypdf` when it is installed; without it, those PDF-only checks are skipped.
 
 
 ## Release Engineering

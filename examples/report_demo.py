@@ -1,6 +1,6 @@
 """Enterprise-style report example for smart-report."""
 
-from smart_report import Canvas, Frame, Table, document
+from smart_report import Canvas, Frame, RichText, Table, document
 
 
 def main() -> None:
@@ -11,8 +11,7 @@ def main() -> None:
     hero.add_rect().absolute(0, 0).size("100%", 180).background("#dbeafe").z(0)
     hero.add_text("Quarterly Revenue Report").absolute(24, 24).font_size(26).color("#1d4ed8").z(2)
     hero.add_text("A layered PDF composition example built on top of ReportLab canvas.").absolute(24, 66).font_size(12).color("#334155").z(2)
-    hero.add_rect().absolute(24, 110).size(180, 42).background("#1d4ed8").radius(12).z(1)
-    hero.add_text("Growth +18% YoY").absolute(42, 122).font_size(16).color("#ffffff").z(3)
+    hero.add_rect("Growth +18% YoY").absolute(24, 110).padding(vertical=8, horizontal=14).background("#1d4ed8").color("#ffffff").font_size(14).radius(12).z(1)
     hero.add_text("PNG image").absolute(24, 198).font_size(10).color("#475569").z(3)
     hero.add_text("SVG image").absolute(286, 198).font_size(10).color("#475569").z(3)
     hero.add_rect().absolute(24, 218).size(260, 37).background("#050505").radius(18).z(2)
@@ -27,6 +26,17 @@ def main() -> None:
         "smart-report combines top-down width resolution, bottom-up measurement, "
         "and z-index aware paint ordering so report-like layouts can mix flow content with layered composition."
     ).font_size(12).color("#334155").margin(bottom=20)
+    rich_note = (
+        RichText()
+        .font_size(11)
+        .span("RichText spans can be ", color="#334155")
+        .span("italic", italic=True, color="#0f172a")
+        .span(" and ", color="#334155")
+        .span("underlined", italic=True, underline=True, color="#0f766e")
+        .span(" inline.", color="#334155")
+        .margin(bottom=18)
+    )
+    content.add(rich_note)
     content.add(Table([
         ["Region", "Revenue", "Growth", "Notes"],
         ["APAC", "$1.20M", "+18%", "Strong partner demand and renewed enterprise contracts."],
