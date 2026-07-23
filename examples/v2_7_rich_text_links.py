@@ -1,8 +1,8 @@
-"""Generate a PDF showcasing v2.7 rich text links: whole-Text URL annotations."""
+"""Generate a PDF showcasing text and RichText URL annotations."""
 
 from __future__ import annotations
 
-from smart_report import Frame, Table, Text, document
+from smart_report import Frame, RichText, Table, Text, document
 
 
 def build_report() -> None:
@@ -10,10 +10,10 @@ def build_report() -> None:
     page = doc.page("A4")
     frame = Frame().padding(36)
 
-    frame.add_text("v2.7 Rich Text Links").font_size(22).line_height(28).margin(bottom=12)
+    frame.add_text("Text and RichText Links").font_size(22).line_height(28).margin(bottom=12)
     frame.add_text(
-        "Text.link(url) attaches a PDF external URL annotation to the whole text node. "
-        "Clicking anywhere on the text opens the link in a browser."
+        "Text.link(url) attaches a PDF external URL annotation to a whole text node. "
+        "RichText.span(..., link=url) attaches links to inline rich-text spans."
     ).font_size(11).line_height(15).margin(bottom=12)
 
     frame.add_text("Linked Text in a Frame").font_size(16).line_height(22).margin(bottom=8)
@@ -25,14 +25,13 @@ def build_report() -> None:
         .font_size(11).line_height(15).color("#2563eb").margin(bottom=12)
     )
 
-    frame.add_text("Linked Rich Text Table Cells").font_size(16).line_height(22).margin(bottom=8)
+    frame.add_text("Inline RichText Links").font_size(16).line_height(22).margin(bottom=8)
     frame.add_text(
-        "Rich Text nodes used as table cells can carry links. "
-        "The entire cell text becomes the clickable area."
+        "Only linked RichText spans become clickable; adjacent spans remain plain text."
     ).font_size(11).line_height(15).margin(bottom=8)
 
-    link_cell_1 = Text("Documentation").link("https://example.com/docs")
-    link_cell_2 = Text("API Reference").link("https://example.com/api")
+    link_cell_1 = RichText().span("Documentation", color="#2563eb", underline=True, link="https://example.com/docs").span(" guide")
+    link_cell_2 = RichText().span("API", color="#2563eb", underline=True, link="https://example.com/api").span(" reference")
     link_cell_3 = Text("No link here").font_size(10)
 
     frame.add(
@@ -55,17 +54,18 @@ def build_report() -> None:
 
     frame.add_text("Manual Link Styling").font_size(16).line_height(22).margin(bottom=8)
     frame.add_text(
-        "Links do not get automatic styling. You can opt into color or other "
-        "visual hints using the existing Text style APIs."
+        "Links do not get automatic styling. You can opt into color, underline, "
+        "or other visual hints using the existing Text and RichText style APIs."
     ).font_size(11).line_height(15).margin(bottom=8)
     frame.add(
-        Text("Styled link text").link("https://example.com/styled")
-        .font_size(11).line_height(15).color("#2563eb")
+        RichText().span("Styled ").span("inline link", color="#2563eb", underline=True, link="https://example.com/styled")
+        .font_size(11).line_height(15)
     )
 
     frame.add_text("Limitations").font_size(16).line_height(22).margin(bottom=8)
     frame.add_text(
-        "- Whole-Text links only; no inline substring links\n"
+        "- Text.link(url) applies to the whole Text node\n"
+        "- RichText.span(..., link=url) supports inline rich-text links\n"
         "- No markdown or HTML link parsing\n"
         "- No automatic underline or color styling\n"
         "- No plain string table cell link API\n"

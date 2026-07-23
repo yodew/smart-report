@@ -28,7 +28,7 @@ smart-report is designed for report-style PDFs: flow content, tables, fixed regi
 - Report-oriented `Table` with column widths, auto-fit columns, row/cell minimum heights, alignment, padding, spans, headers, footers, zebra rows, borders, rounded corners, and repeated headers/footers.
 - `Text`, `RichText`, `Image`, text-capable `Rect` badges, `Line`, and `Spacer` elements.
 - Fixed-box text alignment, vertical alignment, letter spacing, overflow clipping, and multiline ellipsis.
-- Whole-text PDF URL links through `Text.link(url)`.
+- PDF URL links through `Text.link(url)` and inline `RichText.span(..., link=url)` annotations.
 - PNG/JPEG/SVG rendering, image bytes/data URLs, `contain()`, `cover()`, and per-corner radii.
 - Public font registration helpers, fallback fonts, font families, and optional Arabic/bidi typography preprocessing.
 - Paint ordering through stacking contexts and `z-index`.
@@ -87,7 +87,7 @@ from smart_report import RichText, Table
 rich = (
     RichText()
     .span("Revenue ")
-    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True, underline=True)
+    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True, underline=True, link="https://example.com/growth")
     .br()
     .span("Enterprise renewals remained strong", font_size=10, color="#475569", italic=True)
     .width(180)
@@ -217,7 +217,7 @@ PyPI publishing is separate and should only be performed when explicitly request
 - Flex row wrap is row-only; pagination keeps wrapped rows together where practical, but column wrap is not implemented.
 - Advanced typography uses HarfBuzz for measurement when available, but rendering still uses ReportLab text APIs.
 - Table auto-fit measures plain cells plus supported `Text`, `RichText`, and simple flow `Frame` cells; unsupported rich cells remain conservative.
-- `Text.link(url)` is whole-text only.
+- `Text.link(url)` is whole-text; use `RichText.span(..., link=url)` for inline rich-text links.
 
 ## License
 
