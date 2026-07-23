@@ -214,7 +214,7 @@ PyPI publishing is separate and should only be performed when explicitly request
 - Images and SVG content paginate atomically; oversized images are not sliced.
 - Rich table-cell pagination is conservative. Simple unspanned `Text`, `RichText`, and flow `Frame` cells can split, including rows with multiple simple frame cells; spanned rows, rich images, and complex frames remain atomic.
 - `flex`, `grid`, and `columns` are practical layout primitives, not a complete CSS constraint solver.
-- Flex row wrap is row-only; column wrap and row-aware pagination are not implemented.
+- Flex row wrap is row-only; pagination keeps wrapped rows together where practical, but column wrap is not implemented.
 - Advanced typography uses HarfBuzz for measurement when available, but rendering still uses ReportLab text APIs.
 - Table auto-fit measures plain cells plus supported `Text`, `RichText`, and simple flow `Frame` cells; unsupported rich cells remain conservative.
 - `Text.link(url)` is whole-text only.

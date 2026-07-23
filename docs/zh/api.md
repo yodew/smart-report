@@ -578,7 +578,7 @@ background(None)
 - 图片和 SVG 保持原子分页；当前页空间不足时整体移动到下一页，超出整页高度的图片不会分片。
 - 富表格单元格分页是保守实现：简单未跨行/跨列的 `Text`、`RichText` 和 flow `Frame` 可以拆分，包括同一行内多个简单 Frame；跨行/跨列、图片和复杂 Frame 保持原子分页。
 - `flex` / `grid` / `columns` 是实用布局模式，并非完整 CSS 约束求解器。
-- Flex 行换行仅支持行方向；不支持列方向换行，也不保证按行分页。
+- Flex 行换行仅支持行方向；分页会尽量保持已换行的视觉行完整，但不支持列方向换行。
 - 字体 fallback 已支持；复杂 shaping、bidi 和 OpenType 特性依赖可选能力，默认路径不保证完整文本引擎行为。
 - 表格自动适配支持普通单元格、富 `Text`、`RichText` 和简单 flow `Frame` 的自然宽度；复杂富单元格仍保守忽略。
 - `Text.link(url)` 仅支持 whole-text 链接；不支持行内子字符串链接、Markdown/HTML 解析、自动链接样式、纯字符串表格单元格链接或任意注解 API。
