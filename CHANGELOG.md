@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.11.17`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.12.0`.
+
+## 2.12.0
+
+- Added `RichText.span(..., link=url)` for inline PDF external URL annotations on rich-text spans.
+- Preserved RichText span links through wrapping, pagination, and rich table-cell rendering.
 
 ## 2.11.17
 
