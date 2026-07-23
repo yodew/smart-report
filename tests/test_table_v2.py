@@ -16,7 +16,7 @@ from typing import cast
 from smart_report import DEFAULT_FONT_NAME, Frame, Image, RichText, Spacer, Table, Text, document, get_default_font_name, get_fallback_font_families, get_fallback_fonts, get_font, get_font_family, register_font, register_font_family, resolve_text_runs, set_default_font, set_fallback_font_families, set_fallback_fonts, shaped_string_width, string_width
 from smart_report.builder import resolve_page_size
 from smart_report.layout.node import CornerRadii, Edges, LayoutNode, Rect, RenderItem, Style, clone_layout_node
-from smart_report.layout.paginate import _split_flow_child, _split_table_node, _split_text_node, paginate_page, split_frame_node
+from smart_report.layout.paginate import STARTS_ON_FOLLOWING_PAGE, _split_flow_child, _split_table_node, _split_text_node, paginate_page, split_frame_node
 from smart_report.layout.pass4_render import build_render_list
 from smart_report.layout.pass3_heights import resolve_heights
 from smart_report.layout.pass2_widths import resolve_widths
@@ -2324,6 +2324,61 @@ class TableV2PaginationTests(unittest.TestCase):
         self.assertEqual(len(slices), 1)
         self.assertEqual(slices[0].children[0].node_type, "image")
         self.assertEqual(slices[0].children[0].resolved_height, 140)
+
+    def test_flex_row_wrap_pagination_keeps_visual_rows_together(self) -> None:
+        frame = Frame().flex("row", gap=4, wrap=True).padding(0).width(160)
+        labels = [f"row-item-{index}" for index in range(6)]
+        for label in labels:
+            frame.add_text(label).width(68).font_size(8).line_height(10)
+        resolve_widths(frame.node, 160)
+        resolve_heights(frame.node, None)
+
+        slices = split_frame_node(frame.node, 15, 15)
+        slice_labels = [
+            [str(child.content["text"]) for child in frame_slice.children if child.node_type == "text"]
+            for frame_slice in slices
+        ]
+
+        self.assertEqual(slice_labels, [["row-item-0", "row-item-1"], ["row-item-2", "row-item-3"], ["row-item-4", "row-item-5"]])
+
+
+    def test_flex_row_wrap_pagination_moves_first_row_to_following_page_when_it_fits(self) -> None:
+        frame = Frame().flex("row", gap=4, wrap=True).padding(0).width(160)
+        frame.add_text("first").width(68).font_size(8).line_height(10)
+        frame.add_text("second").width(68).font_size(8).line_height(10)
+        resolve_widths(frame.node, 160)
+        resolve_heights(frame.node, None)
+
+        slices = split_frame_node(frame.node, 5, 15)
+
+        self.assertEqual(len(slices), 1)
+        self.assertTrue(slices[0].content.get(STARTS_ON_FOLLOWING_PAGE))
+        self.assertEqual([child.content["text"] for child in slices[0].children], ["first", "second"])
+
+    def test_flex_row_wrap_pagination_preserves_row_gap_within_slice(self) -> None:
+        frame = Frame().flex("row", wrap=True, row_gap=20, column_gap=4).padding(0).width(160)
+        for index in range(4):
+            frame.add_text(f"gap-item-{index}").width(68).font_size(8).line_height(10)
+        resolve_widths(frame.node, 160)
+        resolve_heights(frame.node, None)
+
+        slices = split_frame_node(frame.node, 100, 100)
+
+        self.assertEqual(len(slices), 1)
+        self.assertEqual([child.local_y for child in slices[0].children], [0.0, 0.0, 30.0, 30.0])
+
+    def test_flex_row_wrap_pagination_groups_justified_rows_by_wrap_rules(self) -> None:
+        frame = Frame().flex("row", wrap=True, justify="center", gap=4).padding(0).width(160)
+        for index in range(3):
+            frame.add_text(f"center-item-{index}").width(68).font_size(8).line_height(10)
+        resolve_widths(frame.node, 160)
+        resolve_heights(frame.node, None)
+
+        slices = split_frame_node(frame.node, 15, 15)
+        slice_labels = [[str(child.content["text"]) for child in frame_slice.children] for frame_slice in slices]
+
+        self.assertEqual(slice_labels, [["center-item-0", "center-item-1"], ["center-item-2"]])
+
 
     def test_flex_row_wrap_pagination_preserves_labels_without_duplicates(self) -> None:
         labels = [f"wrap-page-{index}" for index in range(18)]

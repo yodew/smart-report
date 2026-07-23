@@ -105,6 +105,9 @@ def split_frame_node(frame: LayoutNode, first_page_height: float, following_page
     first_content_height = max(1.0, first_available_height - frame.style.padding.vertical)
     following_content_height = max(1.0, following_available_height - frame.style.padding.vertical)
 
+    if _is_flex_row_wrap_frame(frame):
+        return _split_flex_row_wrap_frame_node(frame, first_content_height, following_content_height)
+
     current_frame = _clone_frame_shell(frame)
     current_height = 0.0
     frame_slices: list[LayoutNode] = [current_frame]
@@ -158,6 +161,89 @@ def split_frame_node(frame: LayoutNode, first_page_height: float, following_page
         frame_slice.resolved_height = _frame_slice_height(frame_slice)
     return result
 
+
+def _is_flex_row_wrap_frame(frame: LayoutNode) -> bool:
+    return (
+        frame.node_type == "frame"
+        and frame.content.get("layout") == "flex"
+        and frame.content.get("flex_direction", "row") == "row"
+        and bool(frame.content.get("flex_wrap", False))
+    )
+
+
+def _split_flex_row_wrap_frame_node(frame: LayoutNode, first_content_height: float, following_content_height: float) -> list[LayoutNode]:
+    flow_rows = _flex_row_wrap_groups(frame)
+    if not flow_rows:
+        return [clone_layout_node(frame)] if frame.children else []
+
+    absolute_children = [child for child in frame.children if child.style.position.value == "absolute"]
+    current_frame = _clone_frame_shell(frame)
+    for child in absolute_children:
+        _ = current_frame.add_child(clone_layout_node(child))
+    frame_slices: list[LayoutNode] = [current_frame]
+    current_height = 0.0
+    current_capacity = first_content_height
+    row_gap = _flex_row_gap(frame)
+
+    for row in flow_rows:
+        row_top = min(child.local_y - child.style.margin.top for child in row)
+        row_bottom = max(child.local_y + child.resolved_height + child.style.margin.bottom for child in row)
+        row_height = max(1.0, row_bottom - row_top)
+        gap_before = row_gap if current_frame.flow_children else 0.0
+        required_height = gap_before + row_height
+        if current_height + required_height > current_capacity and (current_frame.flow_children or row_height <= following_content_height):
+            starts_on_following_page = not current_frame.flow_children and current_height == 0.0
+            current_frame = _clone_frame_shell(frame)
+            if starts_on_following_page:
+                current_frame.content[STARTS_ON_FOLLOWING_PAGE] = True
+            frame_slices.append(current_frame)
+            current_height = 0.0
+            current_capacity = following_content_height
+            gap_before = 0.0
+            required_height = row_height
+
+        row_y = current_height + gap_before
+        for child in row:
+            split_node = clone_layout_node(child)
+            split_node.local_x = child.local_x
+            split_node.local_y = row_y + (child.local_y - row_top)
+            _ = current_frame.add_child(split_node)
+        current_height += required_height
+
+    result = [frame_slice for frame_slice in frame_slices if frame_slice.children]
+    for frame_slice in result:
+        frame_slice.resolved_height = _frame_slice_height(frame_slice)
+    return result
+
+
+def _flex_row_wrap_groups(frame: LayoutNode) -> list[list[LayoutNode]]:
+    content_width = max(0.0, frame.resolved_width - frame.style.padding.horizontal)
+    column_gap = _flex_column_gap(frame)
+    rows: list[list[LayoutNode]] = []
+    current_row: list[LayoutNode] = []
+    current_row_width = 0.0
+    for child in frame.flow_children:
+        child_outer_width = child.resolved_width + child.style.margin.horizontal
+        next_row_width = child_outer_width if not current_row else current_row_width + column_gap + child_outer_width
+        if current_row and next_row_width > content_width:
+            rows.append(current_row)
+            current_row = []
+            current_row_width = 0.0
+        current_row.append(child)
+        current_row_width = child_outer_width if len(current_row) == 1 else current_row_width + column_gap + child_outer_width
+    if current_row:
+        rows.append(current_row)
+    return rows
+
+
+def _flex_row_gap(frame: LayoutNode) -> float:
+    value = frame.content.get("row_gap", frame.content.get("gap", 0.0))
+    return float(value) if isinstance(value, (int, float)) else 0.0
+
+
+def _flex_column_gap(frame: LayoutNode) -> float:
+    value = frame.content.get("column_gap", frame.content.get("gap", 0.0))
+    return float(value) if isinstance(value, (int, float)) else 0.0
 
 def _split_flow_child(child: LayoutNode, first_content_height: float, following_content_height: float) -> list[LayoutNode]:
     child_total_height = child.resolved_height + child.style.margin.top + child.style.margin.bottom
