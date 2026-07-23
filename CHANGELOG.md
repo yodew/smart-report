@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.11.14`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.11.15`.
+
+## 2.11.15
+
+- Expanded `Table.auto_fit_columns()` natural-width measurement to supported rich `Text`, `RichText`, and simple flow `Frame` cells.
+- Kept unsupported rich table cells conservative while preserving auto-fit column widths through pagination slices.
 
 ## 2.11.14
 
