@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.11.12`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.11.13`.
+
+## 2.11.13
+
+- Added `RichText.span(..., italic=True, underline=True)` for inline italic and underlined rich text fragments.
+- Preserved RichText italic and underline styling through wrapping and pagination splits.
 
 ## 2.11.12
 
