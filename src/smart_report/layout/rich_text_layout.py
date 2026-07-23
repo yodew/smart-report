@@ -19,6 +19,8 @@ class RichTextFragment:
     font_size: float
     color: RGBA | None
     bold: bool = False
+    italic: bool = False
+    underline: bool = False
     letter_spacing: float = 0.0
 
 
@@ -29,13 +31,22 @@ class RichTextLine:
     height: float
 
 
-BASE14_BOLD_FACES = {
-    "Helvetica": "Helvetica-Bold",
-    "Helvetica-Oblique": "Helvetica-BoldOblique",
-    "Times-Roman": "Times-Bold",
-    "Times-Italic": "Times-BoldItalic",
-    "Courier": "Courier-Bold",
-    "Courier-Oblique": "Courier-BoldOblique",
+BASE14_STYLE_FACES = {
+    ("Helvetica", True, False): "Helvetica-Bold",
+    ("Helvetica", False, True): "Helvetica-Oblique",
+    ("Helvetica", True, True): "Helvetica-BoldOblique",
+    ("Helvetica-Bold", False, True): "Helvetica-BoldOblique",
+    ("Helvetica-Oblique", True, False): "Helvetica-BoldOblique",
+    ("Times-Roman", True, False): "Times-Bold",
+    ("Times-Roman", False, True): "Times-Italic",
+    ("Times-Roman", True, True): "Times-BoldItalic",
+    ("Times-Bold", False, True): "Times-BoldItalic",
+    ("Times-Italic", True, False): "Times-BoldItalic",
+    ("Courier", True, False): "Courier-Bold",
+    ("Courier", False, True): "Courier-Oblique",
+    ("Courier", True, True): "Courier-BoldOblique",
+    ("Courier-Bold", False, True): "Courier-BoldOblique",
+    ("Courier-Oblique", True, False): "Courier-BoldOblique",
 }
 
 
@@ -58,7 +69,9 @@ def normalize_rich_text_runs(node: LayoutNode) -> list[RichTextFragment | None]:
         font_size_value = raw_run.get("font_size")
         font_size = float(font_size_value) if isinstance(font_size_value, (int, float)) else node.style.font_size
         bold = bool(raw_run.get("bold", False))
-        font_name = _run_font_name(node, raw_run, bold)
+        italic = bool(raw_run.get("italic", False))
+        underline = bool(raw_run.get("underline", False))
+        font_name = _run_font_name(node, raw_run, bold, italic)
         normalized.append(
             RichTextFragment(
                 text=text,
@@ -66,6 +79,8 @@ def normalize_rich_text_runs(node: LayoutNode) -> list[RichTextFragment | None]:
                 font_size=font_size,
                 color=_run_color(node, raw_run),
                 bold=bold,
+                italic=italic,
+                underline=underline,
                 letter_spacing=_run_letter_spacing(node, raw_run, font_size),
             )
         )
@@ -139,26 +154,30 @@ def rich_text_runs_for_lines(lines: list[RichTextLine]) -> list[dict[str, object
                 run["color"] = [fragment.color.red, fragment.color.green, fragment.color.blue, fragment.color.alpha]
             if fragment.bold:
                 run["bold"] = True
+            if fragment.italic:
+                run["italic"] = True
+            if fragment.underline:
+                run["underline"] = True
             if fragment.letter_spacing != 0:
                 run["letter_spacing"] = fragment.letter_spacing
             runs.append(run)
     return runs
 
 
-def _run_font_name(node: LayoutNode, run: dict[object, object], bold: bool) -> str:
+def _run_font_name(node: LayoutNode, run: dict[object, object], bold: bool, italic: bool) -> str:
     explicit_font = run.get("font")
     if isinstance(explicit_font, str) and explicit_font:
-        return _bold_font_name(explicit_font) if bold else explicit_font
+        return _styled_font_name(explicit_font, bold=bold, italic=italic)
     family = run.get("font_family")
     if isinstance(family, str) and family:
-        return DEFAULT_FONT_REGISTRY.font_name_for_family(family, bold=bold)
+        return DEFAULT_FONT_REGISTRY.font_name_for_family(family, bold=bold, italic=italic)
     if node.style.font_family is not None:
-        return DEFAULT_FONT_REGISTRY.font_name_for_family(node.style.font_family, bold=bold)
-    return _bold_font_name(node.style.font_name) if bold else node.style.font_name
+        return DEFAULT_FONT_REGISTRY.font_name_for_family(node.style.font_family, bold=bold, italic=italic)
+    return _styled_font_name(node.style.font_name, bold=bold, italic=italic)
 
 
-def _bold_font_name(font_name: str) -> str:
-    return BASE14_BOLD_FACES.get(font_name, font_name)
+def _styled_font_name(font_name: str, *, bold: bool, italic: bool) -> str:
+    return BASE14_STYLE_FACES.get((font_name, bold, italic), font_name)
 
 
 def _run_color(node: LayoutNode, run: dict[object, object]) -> RGBA | None:
@@ -178,7 +197,16 @@ def _run_letter_spacing(node: LayoutNode, run: dict[object, object], font_size: 
 
 
 def _copy_fragment(fragment: RichTextFragment, text: str) -> RichTextFragment:
-    return RichTextFragment(text=text, font_name=fragment.font_name, font_size=fragment.font_size, color=fragment.color, bold=fragment.bold, letter_spacing=fragment.letter_spacing)
+    return RichTextFragment(
+        text=text,
+        font_name=fragment.font_name,
+        font_size=fragment.font_size,
+        color=fragment.color,
+        bold=fragment.bold,
+        italic=fragment.italic,
+        underline=fragment.underline,
+        letter_spacing=fragment.letter_spacing,
+    )
 
 
 def _line(fragments: tuple[RichTextFragment, ...], fallback_height: float) -> RichTextLine:

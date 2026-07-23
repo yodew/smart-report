@@ -34,6 +34,8 @@ class RichText(NodeBuilder):
         font_size: float | None = None,
         color: str | RGBA | None = None,
         bold: bool = False,
+        italic: bool = False,
+        underline: bool = False,
         letter_spacing: LetterSpacingInput | None = None,
     ) -> "RichText":
         """Append a styled inline text span and return this builder."""
@@ -49,6 +51,10 @@ class RichText(NodeBuilder):
             run["color"] = _serializable_color(color)
         if bold:
             run["bold"] = True
+        if italic:
+            run["italic"] = True
+        if underline:
+            run["underline"] = True
         if letter_spacing is not None:
             run["letter_spacing"] = normalize_letter_spacing(letter_spacing)
         _runs(self.node).append(run)

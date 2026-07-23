@@ -284,17 +284,30 @@ class ReportLabCanvasAdapter:
                 offset /= 2.0
             elif align == "left":
                 offset = 0.0
-            text_object.setTextOrigin(x + offset, current_baseline_y)
+            line_x = x + offset
+            text_object.setTextOrigin(line_x, current_baseline_y)
+            fragment_x = line_x
             for fragment in line.fragments:
                 text_object.setFont(fragment.font_name, fragment.font_size, line.height)
                 text_object.setCharSpace(fragment.letter_spacing)
                 text_color = fragment.color or DEFAULT_TEXT_COLOR
                 text_object.setFillColorRGB(text_color.red, text_color.green, text_color.blue)
                 self._canvas.setFillAlpha(text_color.alpha)
+                fragment_width = string_width(fragment.text, fragment.font_name, fragment.font_size) + max(0, len(fragment.text) - 1) * fragment.letter_spacing
+                if fragment.underline and fragment_width > 0:
+                    self._draw_rich_text_underline(fragment_x, current_baseline_y, fragment_width, fragment.font_size, text_color)
                 text_object.textOut(fragment.text)
+                fragment_x += fragment_width
             text_object.textLine()
             current_baseline_y -= max(0.0, line.height - max_font_size)
         self._canvas.drawText(text_object)
+
+    def _draw_rich_text_underline(self, x: float, baseline_y: float, width: float, font_size: float, color: RGBA) -> None:
+        self._canvas.setStrokeColorRGB(color.red, color.green, color.blue)
+        self._canvas.setStrokeAlpha(color.alpha)
+        self._canvas.setLineWidth(max(0.5, font_size / 18.0))
+        underline_y = baseline_y - max(1.0, font_size / 10.0)
+        self._canvas.line(x, underline_y, x + width, underline_y)
 
     def draw_image(self, image_source: str | bytes, rect: Rect, opacity: float = 1.0, fit: str = "stretch", radius: CornerRadii | None = None) -> None:
         if isinstance(image_source, str) and Path(image_source).suffix.lower() == ".svg":

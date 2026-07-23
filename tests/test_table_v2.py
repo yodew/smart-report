@@ -20,7 +20,7 @@ from smart_report.layout.paginate import _split_flow_child, _split_table_node, _
 from smart_report.layout.pass4_render import build_render_list
 from smart_report.layout.pass3_heights import resolve_heights
 from smart_report.layout.pass2_widths import resolve_widths
-from smart_report.layout.rich_text_layout import layout_rich_text
+from smart_report.layout.rich_text_layout import layout_rich_text, rich_text_runs_for_lines
 from smart_report.layout.table_model import TableCellBox, fit_plain_overflow_text, plain_cell_natural_width, plain_overflow_text_width, table_cell_box_natural_width, table_cell_boxes, table_cell_padding, table_column_widths, table_height, table_row_heights, table_rows
 from smart_report.layout.text_wrap import wrap_text
 from smart_report.render.painters import paint_image, paint_render_item, paint_rich_text, paint_table, paint_text
@@ -2353,7 +2353,7 @@ class TextOverflowElementTests(unittest.TestCase):
 class RichTextElementTests(unittest.TestCase):
     def test_rich_text_builder_stores_styled_runs_and_breaks(self) -> None:
         rich = RichText()
-        result = rich.span("Revenue ").span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True).br().span("renewals")
+        result = rich.span("Revenue ").span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True, italic=True, underline=True).br().span("renewals")
 
         self.assertIs(result, rich)
         self.assertEqual(rich.node.node_type, "rich_text")
@@ -2361,7 +2361,7 @@ class RichTextElementTests(unittest.TestCase):
             rich.node.content["runs"],
             [
                 {"kind": "text", "text": "Revenue "},
-                {"kind": "text", "text": "+18%", "font": "Helvetica", "font_size": 14.0, "color": "#166534", "bold": True},
+                {"kind": "text", "text": "+18%", "font": "Helvetica", "font_size": 14.0, "color": "#166534", "bold": True, "italic": True, "underline": True},
                 {"kind": "br"},
                 {"kind": "text", "text": "renewals"},
             ],
@@ -2372,8 +2372,8 @@ class RichTextElementTests(unittest.TestCase):
             RichText()
             .font_size(10)
             .line_height(12)
-            .span("alpha beta gamma", color="#dc2626")
-            .span(" delta", font="Helvetica", font_size=14, bold=True)
+            .span("alpha beta gamma", color="#dc2626", underline=True)
+            .span(" delta", font="Helvetica", font_size=14, bold=True, italic=True)
             .br()
             .span("tail")
         )
@@ -2383,7 +2383,9 @@ class RichTextElementTests(unittest.TestCase):
 
         self.assertGreater(len(lines), 2)
         self.assertTrue(any(fragment.color == parse_color("#dc2626") for fragment in fragments))
-        self.assertIn("Helvetica-Bold", {fragment.font_name for fragment in fragments})
+        self.assertTrue(any(fragment.underline for fragment in fragments))
+        self.assertIn("Helvetica-BoldOblique", {fragment.font_name for fragment in fragments})
+        self.assertTrue(any(fragment.italic for fragment in fragments))
         self.assertEqual(lines[-1].fragments[0].text, "tail")
 
     def test_rich_text_painter_passes_fragment_styles_to_adapter(self) -> None:
@@ -2405,6 +2407,33 @@ class RichTextElementTests(unittest.TestCase):
         self.assertEqual(spy.rich_text_fragments, ["A", "B"])
         self.assertEqual(spy.rich_text_fonts, ["Helvetica", "Courier"])
         self.assertEqual(spy.rich_text_colors, [parse_color("#ff0000"), parse_color("#0000ff")])
+
+    def test_rich_text_italic_uses_registered_family_faces(self) -> None:
+        font_dir = Path(__file__).resolve().parents[1] / "examples" / "fonts"
+        register_font_family(
+            "TestRichTextFamily",
+            regular=font_dir / "NotoNaskhArabic-Medium.ttf",
+            bold=font_dir / "NotoNaskhArabic-Bold.ttf",
+            italic=font_dir / "NotoNaskhArabic-Medium.ttf",
+            bold_italic=font_dir / "NotoNaskhArabic-Bold.ttf",
+        )
+        rich = RichText().span("italic", font_family="TestRichTextFamily", italic=True).span(" bold italic", font_family="TestRichTextFamily", bold=True, italic=True)
+
+        fragments = [fragment for line in layout_rich_text(rich.node, 500) for fragment in line.fragments]
+
+        self.assertEqual(fragments[0].font_name, "TestRichTextFamily-Italic")
+        self.assertEqual(fragments[1].font_name, "TestRichTextFamily-BoldItalic")
+
+    def test_rich_text_line_serialization_preserves_italic_and_underline(self) -> None:
+        rich = RichText().span("alpha beta gamma", font="Helvetica", italic=True, underline=True).width(35)
+        lines = layout_rich_text(rich.node, 35)
+
+        runs = rich_text_runs_for_lines(lines)
+
+        styled_runs = [run for run in runs if run.get("kind") == "text"]
+        self.assertGreater(len(styled_runs), 1)
+        self.assertTrue(all(run.get("italic") is True for run in styled_runs))
+        self.assertTrue(all(run.get("underline") is True for run in styled_runs))
 
 
     def test_rich_text_letter_spacing_resolves_global_and_span_values(self) -> None:
@@ -2453,6 +2482,24 @@ class RichTextElementTests(unittest.TestCase):
         self.assertEqual(fake_canvas.text_object.output, ["A", "B"])
         self.assertEqual(fake_canvas.text_object.font_names, ["Helvetica", "Courier"])
         self.assertEqual(fake_canvas.text_object.fill_colors, [(1.0, 0.0, 0.0), (0.0, 0.0, 1.0)])
+
+    def test_reportlab_adapter_draw_rich_text_draws_underlined_fragments(self) -> None:
+        rich = RichText().span("A", font="Helvetica", color="#ff0000", underline=True).span("B", font="Helvetica")
+        lines = layout_rich_text(rich.node, 100)
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        fake_canvas = _FakeCanvas()
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 200
+
+        adapter.draw_rich_text(10, 20, 100, lines)
+
+        self.assertEqual(len(fake_canvas.lines), 1)
+        line = fake_canvas.lines[0]
+        self.assertAlmostEqual(line[0], 10.0, places=3)
+        self.assertAlmostEqual(line[2], 10.0 + string_width("A", "Helvetica", 12), places=3)
+        self.assertEqual(fake_canvas.stroke_colors, [(1.0, 0.0, 0.0)])
+        self.assertEqual(fake_canvas.stroke_alphas, [1.0])
 
 
 class LayoutPrimitiveTests(unittest.TestCase):
@@ -3403,6 +3450,8 @@ class _SpyAdapter:
         self.rich_text_fragments: list[str] = []
         self.rich_text_fonts: list[str] = []
         self.rich_text_colors: list[object] = []
+        self.rich_text_italics: list[bool] = []
+        self.rich_text_underlines: list[bool] = []
 
     @contextmanager
     def isolated_state(self) -> Iterator["_SpyAdapter"]:
@@ -3433,6 +3482,8 @@ class _SpyAdapter:
                 self.rich_text_fragments.append(str(getattr(fragment, "text", "")))
                 self.rich_text_fonts.append(str(getattr(fragment, "font_name", "")))
                 self.rich_text_colors.append(getattr(fragment, "color", None))
+                self.rich_text_italics.append(bool(getattr(fragment, "italic", False)))
+                self.rich_text_underlines.append(bool(getattr(fragment, "underline", False)))
 
     def draw_line(self, x1: float, y1: float, x2: float, y2: float, color: object, stroke_width: float) -> None:
         self.line_widths.append(float(stroke_width))
@@ -3518,6 +3569,10 @@ class _FakeCanvas:
         self.round_rects: list[tuple[float, float, float, float, float, int, int]] = []
         self.drawn_paths: list[list[tuple[object, ...]]] = []
         self.draw_image_rects: list[tuple[float, float, float, float]] = []
+        self.lines: list[tuple[float, float, float, float]] = []
+        self.stroke_colors: list[tuple[float, float, float]] = []
+        self.stroke_alphas: list[float] = []
+        self.line_widths: list[float] = []
 
     def beginText(self, x: float, y: float) -> _FakeTextObject:
         _ = (x, y)
@@ -3538,19 +3593,16 @@ class _FakeCanvas:
         return
 
     def setStrokeColorRGB(self, r: float, g: float, b: float) -> None:
-        _ = (r, g, b)
-        return
+        self.stroke_colors.append((r, g, b))
 
     def setFillAlpha(self, alpha: float) -> None:
         self.fill_alphas.append(alpha)
 
     def setStrokeAlpha(self, alpha: float) -> None:
-        _ = alpha
-        return
+        self.stroke_alphas.append(alpha)
 
     def setLineWidth(self, width: float) -> None:
-        _ = width
-        return
+        self.line_widths.append(width)
 
     def rect(self, x: float, y: float, width: float, height: float, stroke: int = 1, fill: int = 0) -> None:
         _ = (x, y, width, height, stroke, fill)
@@ -3559,8 +3611,7 @@ class _FakeCanvas:
         self.round_rects.append((x, y, width, height, radius, stroke, fill))
 
     def line(self, x1: float, y1: float, x2: float, y2: float) -> None:
-        _ = (x1, y1, x2, y2)
-        return
+        self.lines.append((x1, y1, x2, y2))
 
     def drawPath(self, path: object, stroke: int = 1, fill: int = 0) -> None:
         _ = (stroke, fill)
