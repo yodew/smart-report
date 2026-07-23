@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.11.16`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.11.17`.
+
+## 2.11.17
+
+- Added row-boundary pagination for `Frame().flex("row", wrap=True)` so wrapped visual rows stay together where practical.
+- Updated flex wrap documentation and examples to describe the row-aware pagination behavior.
 
 ## 2.11.16
 
