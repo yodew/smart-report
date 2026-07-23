@@ -36,6 +36,7 @@ class RichText(NodeBuilder):
         bold: bool = False,
         italic: bool = False,
         underline: bool = False,
+        link: object | None = None,
         letter_spacing: LetterSpacingInput | None = None,
     ) -> "RichText":
         """Append a styled inline text span and return this builder."""
@@ -55,6 +56,12 @@ class RichText(NodeBuilder):
             run["italic"] = True
         if underline:
             run["underline"] = True
+        if link is not None:
+            if not isinstance(link, str):
+                raise TypeError("RichText.span link must be a string")
+            if not link.strip():
+                raise ValueError("RichText.span link must not be empty")
+            run["link_url"] = link
         if letter_spacing is not None:
             run["letter_spacing"] = normalize_letter_spacing(letter_spacing)
         _runs(self.node).append(run)

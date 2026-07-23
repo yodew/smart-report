@@ -21,6 +21,7 @@ class RichTextFragment:
     bold: bool = False
     italic: bool = False
     underline: bool = False
+    link_url: str | None = None
     letter_spacing: float = 0.0
 
 
@@ -72,6 +73,8 @@ def normalize_rich_text_runs(node: LayoutNode) -> list[RichTextFragment | None]:
         italic = bool(raw_run.get("italic", False))
         underline = bool(raw_run.get("underline", False))
         font_name = _run_font_name(node, raw_run, bold, italic)
+        link_value = raw_run.get("link_url")
+        link_url = link_value if isinstance(link_value, str) else None
         normalized.append(
             RichTextFragment(
                 text=text,
@@ -81,6 +84,7 @@ def normalize_rich_text_runs(node: LayoutNode) -> list[RichTextFragment | None]:
                 bold=bold,
                 italic=italic,
                 underline=underline,
+                link_url=link_url,
                 letter_spacing=_run_letter_spacing(node, raw_run, font_size),
             )
         )
@@ -158,6 +162,8 @@ def rich_text_runs_for_lines(lines: list[RichTextLine]) -> list[dict[str, object
                 run["italic"] = True
             if fragment.underline:
                 run["underline"] = True
+            if fragment.link_url is not None:
+                run["link_url"] = fragment.link_url
             if fragment.letter_spacing != 0:
                 run["letter_spacing"] = fragment.letter_spacing
             runs.append(run)
@@ -205,6 +211,7 @@ def _copy_fragment(fragment: RichTextFragment, text: str) -> RichTextFragment:
         bold=fragment.bold,
         italic=fragment.italic,
         underline=fragment.underline,
+        link_url=fragment.link_url,
         letter_spacing=fragment.letter_spacing,
     )
 

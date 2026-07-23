@@ -2501,7 +2501,7 @@ class TextOverflowElementTests(unittest.TestCase):
 class RichTextElementTests(unittest.TestCase):
     def test_rich_text_builder_stores_styled_runs_and_breaks(self) -> None:
         rich = RichText()
-        result = rich.span("Revenue ").span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True, italic=True, underline=True).br().span("renewals")
+        result = rich.span("Revenue ").span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True, italic=True, underline=True, link="https://example.com/growth").br().span("renewals")
 
         self.assertIs(result, rich)
         self.assertEqual(rich.node.node_type, "rich_text")
@@ -2509,11 +2509,60 @@ class RichTextElementTests(unittest.TestCase):
             rich.node.content["runs"],
             [
                 {"kind": "text", "text": "Revenue "},
-                {"kind": "text", "text": "+18%", "font": "Helvetica", "font_size": 14.0, "color": "#166534", "bold": True, "italic": True, "underline": True},
+                {"kind": "text", "text": "+18%", "font": "Helvetica", "font_size": 14.0, "color": "#166534", "bold": True, "italic": True, "underline": True, "link_url": "https://example.com/growth"},
                 {"kind": "br"},
                 {"kind": "text", "text": "renewals"},
             ],
         )
+
+    def test_rich_text_builder_rejects_invalid_span_links(self) -> None:
+        rich = RichText()
+
+        with self.assertRaises(TypeError):
+            _ = rich.span("bad", link=123)  # type: ignore[arg-type]
+        with self.assertRaises(ValueError):
+            _ = rich.span("bad", link="   ")
+
+    def test_rich_text_layout_and_serialization_preserve_links(self) -> None:
+        rich = RichText().span("alpha beta gamma", link="https://example.com/rich").width(35)
+        lines = layout_rich_text(rich.node, 35)
+        fragments = [fragment for line in lines for fragment in line.fragments]
+
+        runs = rich_text_runs_for_lines(lines)
+
+        self.assertGreater(len(fragments), 1)
+        self.assertTrue(all(fragment.link_url == "https://example.com/rich" for fragment in fragments))
+        self.assertTrue(all(run.get("link_url") == "https://example.com/rich" for run in runs if run.get("kind") == "text"))
+
+    def test_rich_text_painter_emits_fragment_link_annotations(self) -> None:
+        rich = RichText().font("Helvetica").font_size(12).line_height(14).span("Open", link="https://example.com/open").span(" plain").width(100)
+        resolve_widths(rich.node, 100)
+        resolve_heights(rich.node)
+        item = RenderItem(rich.node, Rect(10, 20, 100, rich.node.resolved_height), (), (0,))
+        spy = _SpyAdapter()
+
+        paint_rich_text(cast(ReportLabCanvasAdapter, spy), item)
+
+        self.assertEqual(len(spy.links), 1)
+        self.assertEqual(spy.links[0][0], "https://example.com/open")
+        self.assertAlmostEqual(spy.links[0][1].x, 10.0, places=3)
+        self.assertAlmostEqual(spy.links[0][1].y, 20.0, places=3)
+        self.assertAlmostEqual(spy.links[0][1].width, string_width("Open", "Helvetica", 12), places=3)
+        self.assertAlmostEqual(spy.links[0][1].height, 14.4, places=3)
+
+    def test_rich_text_painter_emits_wrapped_link_annotations(self) -> None:
+        rich = RichText().font("Helvetica").font_size(12).line_height(14).span("alpha beta", link="https://example.com/wrapped").width(40)
+        resolve_widths(rich.node, 40)
+        resolve_heights(rich.node)
+        item = RenderItem(rich.node, Rect(0, 0, 40, rich.node.resolved_height), (), (0,))
+        spy = _SpyAdapter()
+
+        paint_rich_text(cast(ReportLabCanvasAdapter, spy), item)
+
+        self.assertEqual([url for url, _rect in spy.links], ["https://example.com/wrapped", "https://example.com/wrapped"])
+        self.assertEqual(len(spy.links), 2)
+        self.assertAlmostEqual(spy.links[0][1].y, 0.0, places=3)
+        self.assertAlmostEqual(spy.links[1][1].y, 14.4, places=3)
 
     def test_rich_text_clear_returns_self_and_allows_new_content(self) -> None:
         rich = RichText("Initial").span(" extra").br()
@@ -2592,6 +2641,28 @@ class RichTextElementTests(unittest.TestCase):
         self.assertGreater(len(styled_runs), 1)
         self.assertTrue(all(run.get("italic") is True for run in styled_runs))
         self.assertTrue(all(run.get("underline") is True for run in styled_runs))
+
+
+    def test_paginated_rich_text_preserves_span_links_in_slices(self) -> None:
+        rich = RichText().font("Helvetica").font_size(10).line_height(12).span(" ".join(f"linked-{index}" for index in range(30)), link="https://example.com/paginated-rich")
+        frame = Frame().padding(0).width(120)
+        frame.add(rich)
+        resolve_widths(frame.node, 120)
+        resolve_heights(frame.node, None)
+
+        slices = split_frame_node(frame.node, 30, 30)
+        linked_runs = [
+            run
+            for frame_slice in slices
+            for child in frame_slice.children
+            if child.node_type == "rich_text"
+            for run in cast(list[dict[str, object]], child.content["runs"])
+            if run.get("kind") == "text"
+        ]
+
+        self.assertGreater(len(slices), 1)
+        self.assertTrue(linked_runs)
+        self.assertTrue(all(run.get("link_url") == "https://example.com/paginated-rich" for run in linked_runs))
 
 
     def test_rich_text_letter_spacing_resolves_global_and_span_values(self) -> None:
@@ -3544,6 +3615,39 @@ class TableV2PdfTests(unittest.TestCase):
             page_uris = _page_link_annotation_uris(PdfReader(str(output)))
 
         self.assertEqual(page_uris, [["https://example.com/table-rich"]])
+
+    def test_rich_text_span_link_emits_url_annotation(self) -> None:
+        assert PdfReader is not None
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = Path(tmp_dir) / "rich_text_span_link.pdf"
+            doc = document()
+            page = doc.page("A4")
+            frame = Frame().padding(36)
+            frame.add(RichText().span("Open details", link="https://example.com/rich-span").span(" plain").width(180))
+            page.add(frame)
+            doc.save(str(output))
+
+            page_uris = _page_link_annotation_uris(PdfReader(str(output)))
+
+        self.assertEqual(page_uris, [["https://example.com/rich-span"]])
+
+    def test_table_rich_text_span_link_emits_url_annotation(self) -> None:
+        assert PdfReader is not None
+        rich_text = RichText().span("Open report details", link="https://example.com/table-rich-span")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = Path(tmp_dir) / "table_rich_text_span_link.pdf"
+            doc = document()
+            page = doc.page("A4")
+            frame = Frame().padding(36)
+            frame.add(Table([["Metric", "Details"], ["Revenue", rich_text]]).column_widths([100, 180]).cell_padding(vertical=6, horizontal=8).font_size(10).line_height(12))
+            page.add(frame)
+            doc.save(str(output))
+
+            page_uris = _page_link_annotation_uris(PdfReader(str(output)))
+
+        self.assertEqual(page_uris, [["https://example.com/table-rich-span"]])
 
     def test_plain_string_table_cells_emit_no_url_annotations(self) -> None:
         assert PdfReader is not None

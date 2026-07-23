@@ -7,7 +7,7 @@ from typing import Callable, Literal
 
 from ..layout.node import Rect, RenderItem
 from ..layout.pass4_render import build_render_list
-from ..layout.rich_text_layout import layout_rich_text
+from ..layout.rich_text_layout import RichTextLine, layout_rich_text
 from ..layout.table_model import TableCellBox, layout_rich_cell_content, table_cell_boxes
 from ..layout.text_overflow import fit_multiline_overflow_text, fit_plain_overflow_text, normalize_plain_overflow_text, normalize_text_overflow
 from ..layout.text_wrap import text_width, wrap_text
@@ -100,15 +100,75 @@ def paint_rich_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
     padding = node.style.padding
     content_width = max(1.0, bounds.width - padding.horizontal)
     lines = layout_rich_text(node, content_width)
+    content_height = max(0.0, bounds.height - padding.vertical)
+    align = str(node.content.get("align", "left"))
+    valign = str(node.content.get("valign", "top"))
     adapter.draw_rich_text(
         x=bounds.x + padding.left,
         y=bounds.y + padding.top,
         width=content_width,
         lines=lines,
-        align=str(node.content.get("align", "left")),
-        height=max(0.0, bounds.height - padding.vertical),
-        valign=str(node.content.get("valign", "top")),
+        align=align,
+        height=content_height,
+        valign=valign,
     )
+    _paint_rich_text_link_annotations(
+        adapter,
+        bounds.x + padding.left,
+        bounds.y + padding.top,
+        content_width,
+        content_height,
+        lines,
+        align,
+        valign,
+    )
+
+
+def _paint_rich_text_link_annotations(
+    adapter: ReportLabCanvasAdapter,
+    x: float,
+    y: float,
+    width: float,
+    height: float,
+    lines: list[RichTextLine],
+    align: str,
+    valign: str,
+) -> None:
+    text_height = sum(float(getattr(line, "height", 0.0)) for line in lines)
+    vertical_offset = 0.0
+    extra_height = max(0.0, height - text_height)
+    if valign == "middle":
+        vertical_offset = extra_height / 2.0
+    elif valign == "bottom":
+        vertical_offset = extra_height
+
+    line_y = y + vertical_offset
+    for line in lines:
+        line_width = float(getattr(line, "width", 0.0))
+        line_height = float(getattr(line, "height", 0.0))
+        offset = max(0.0, width - line_width)
+        if align == "center":
+            offset /= 2.0
+        elif align == "left":
+            offset = 0.0
+        fragment_x = x + offset
+        active_url: str | None = None
+        active_x = fragment_x
+        active_width = 0.0
+        for fragment in getattr(line, "fragments", ()):
+            fragment_width = string_width(fragment.text, fragment.font_name, fragment.font_size) + max(0, len(fragment.text) - 1) * fragment.letter_spacing
+            if fragment.link_url != active_url:
+                if active_url is not None and active_width > 0:
+                    adapter.link_url(active_url, Rect(active_x, line_y, active_width, line_height))
+                active_url = fragment.link_url
+                active_x = fragment_x
+                active_width = 0.0
+            if active_url is not None:
+                active_width += fragment_width
+            fragment_x += fragment_width
+        if active_url is not None and active_width > 0:
+            adapter.link_url(active_url, Rect(active_x, line_y, active_width, line_height))
+        line_y += line_height
 
 
 def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderItem, rendered_lines: list[str], link_url: str) -> None:
