@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from smart_report import Frame, Table, document
+from smart_report import Frame, RichText, Table, Text, document
 
 
 def build_report() -> None:
@@ -106,26 +106,27 @@ def build_report() -> None:
         .margin((0, 0, 16, 0))
     )
 
-    frame.add_text("Rich-Cell Exclusion Note").font_size(22).line_height(28).margin(bottom=12)
+    frame.add_text("Rich-Cell Auto-fit").font_size(22).line_height(28).margin(bottom=12)
     frame.add_text(
-        "Auto-fit natural-width measurement works on plain text only. Rich cells "
-        "(Frame, Text, Image) do not contribute to auto-fit sizing and are excluded "
-        "from width calculation. Only plain-string cells affect the measured column width."
+        "Auto-fit also measures supported rich Text, RichText, and simple flow Frame cells. "
+        "Complex rich cells such as images or absolute/flex layouts remain conservative."
     ).font_size(11).line_height(15).margin(bottom=12)
+
+    rich_note = RichText().span("Enterprise ").span("renewals", bold=True, underline=True).br().span("remained strong", italic=True)
+    frame_cell = Frame().padding(vertical=2, horizontal=4)
+    frame_cell.add_text("Framed total").font_size(10)
 
     frame.add(
         Table([
-            ["Region", "Revenue"],
-            ["APAC", "$1.20M"],
-            ["EMEA", "$0.98M"],
-            ["North America", "$1.60M"],
-            ["Grand Total", "$3.78M"],
+            ["Region", "Revenue", "Note"],
+            [Text("North America premium plans"), "$1.60M", rich_note],
+            [frame_cell, "$3.78M", "Grand Total"],
         ])
         .auto_fit_columns()
         .cell_padding(vertical=7, horizontal=10)
         .header(background="#1d4ed8", color="#ffffff")
         .zebra("#f8fafc")
-        .row_style(4, background="#e2e8f0")
+        .row_style(2, background="#e2e8f0")
         .font_size(10)
         .line_height(13)
         .stroke("#94a3b8", 1)
