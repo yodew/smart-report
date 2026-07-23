@@ -113,7 +113,7 @@ def build_report() -> None:
         "- No flex grow, shrink, or basis\n"
         "- No reverse directions\n"
         "- Column wrap is not supported\n"
-        "- No row-aware pagination guarantee"
+        "- Wrapped rows stay together across page breaks where practical"
     ).font_size(10).line_height(14)
 
     page.add(frame)

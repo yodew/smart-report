@@ -89,7 +89,7 @@ def build_report() -> None:
         "- No justify-content or align-items APIs\n"
         "- No row_gap / column_gap separation; a single gap applies to both axes\n"
         "- Not a full CSS flexbox implementation\n"
-        "- No row-aware pagination guarantee across page breaks"
+        "- Wrapped rows stay together across page breaks where practical"
     ).font_size(10).line_height(14)
 
     page.add(frame)
