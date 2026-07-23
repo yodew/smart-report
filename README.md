@@ -25,11 +25,11 @@ smart-report is designed for report-style PDFs: flow content, tables, fixed regi
 - Repeating page overlays via `header()`, `footer()`, and `watermark()`.
 - Automatic pagination for flow content, nested frames, fixed-height blocks, and conservative rich table-cell cases.
 - Practical `flex`, `grid`, and `columns` layout modes.
-- Report-oriented `Table` with column widths, auto-fit columns, row/cell minimum heights, alignment, padding, spans, headers, footers, zebra rows, borders, rounded corners, and repeated headers/footers.
+- Report-oriented `Table` with column widths, auto-fit columns, row/cell minimum heights, alignment, padding, spans, headers, footers, zebra rows, borders, rounded corners, table-level background images, and repeated headers/footers.
 - `Text`, `RichText`, `Image`, text-capable `Rect` badges, `Line`, and `Spacer` elements.
 - Fixed-box text alignment, vertical alignment, letter spacing, overflow clipping, and multiline ellipsis.
 - PDF URL links through `Text.link(url)` and inline `RichText.span(..., link=url)` annotations.
-- PNG/JPEG/SVG rendering, image bytes/data URLs, `contain()`, `cover()`, and per-corner radii.
+- PNG/JPEG/SVG rendering, image bytes/data URLs, `contain()`, `cover()`, background images, and per-corner radii.
 - Public font registration helpers, fallback fonts, font families, and optional Arabic/bidi typography preprocessing.
 - Paint ordering through stacking contexts and `z-index`.
 - In-memory rendering through `save_to_bytes()`.
@@ -118,6 +118,15 @@ page.add(summary)
 
 See `examples/v2_11_layered_report.py` for a complete dashboard-style report.
 
+## Background Images
+
+`Frame`, `Canvas`, and `Table` support `.background_image(src, fit="cover", opacity=1.0)`. Sources match `Image`: local path strings, `pathlib.Path`, raw bytes, or `data:image/...;base64,...` strings. `fit` accepts `"stretch"`, `"contain"`, or `"cover"`; the image paints above the color background and below text, table cells, and borders.
+
+```python
+card = Frame().background("#ffffff").background_image("photo.png", fit="cover", opacity=0.12).radius(16)
+table = Table(rows).background_image("watermark.png", fit="contain", opacity=0.08)
+```
+
 ## Architecture
 
 smart-report uses four explicit passes:
@@ -146,6 +155,7 @@ Useful examples include:
 - `examples/v2_9_flex_refinements.py`
 - `examples/v2_11_layered_report.py`
 - `examples/v2_11_layered_table_region.py`
+- `examples/v2_12_background_images.py`
 - `examples/zh_table_demo.py`
 
 Optional PDF-regression assertions in `tests/test_table_v2.py` use `pypdf` when it is installed; without it, those PDF-only checks are skipped.

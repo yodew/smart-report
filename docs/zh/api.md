@@ -152,8 +152,7 @@ page.add(frame)
 `Canvas` 是图层容器，适合绝对定位、背景图、叠加文字、装饰图形和多图层报告。
 
 ```python
-hero = Canvas().height(180).margin(top=24, right=24, bottom=20, left=24)
-hero.add_rect().absolute(0, 0).size("100%", 180).background("#dbeafe").z(0)
+hero = Canvas().height(180).margin(top=24, right=24, bottom=20, left=24).background("#dbeafe").background_image("hero.png", opacity=0.35)
 hero.add_text("季度报告").absolute(24, 24).font_size(26).z(2)
 page.add(hero)
 ```
@@ -252,6 +251,7 @@ table = Table([
 | `.cell_style(row_index, column_index, ...)` | 行、列和样式关键字 | `Table` | 覆盖指定单元格样式 |
 | `.span(row_index, column_index, rowspan=1, colspan=1)` | 行、列、跨行、跨列 | `Table` | 合并单元格 |
 | `.radius(value)` | 统一值、四元组或命名角 | `Table` | 设置表格外边框圆角，并裁剪外角背景 |
+| `.background_image(src, fit="cover", opacity=1.0)` | 图片来源、适配、透明度 | `Table` | 绘制一次表格级背景图，位于单元格背景、内容和边框之下 |
 
 `row_style(...)`、`column_style(...)`、`cell_style(...)` 支持：`background`、`color`、`align`、`font`、`font_size`、`line_height`、`text_overflow`、`valign`。
 
@@ -398,7 +398,7 @@ frame.add_rect("已完成") \
 
 传入文本后，`Rect` 默认 `align("center")`、`valign("middle")`、`text_overflow("ellipsis")`。未显式设置宽高时，文本型 `Rect` 会按文字和 padding 自动计算尺寸；无文本的 `Rect` 保持原有矩形行为。
 
-常用方法：`.size(...)`、`.absolute(...)`、`.padding(...)`、`.background(...)`、`.color(...)`、`.font_size(...)`、`.stroke(...)`、`.radius(...)`、`.opacity(...)`、`.z(...)`。
+常用方法：`.size(...)`、`.absolute(...)`、`.padding(...)`、`.background(...)`、`.color(...)`、`.font_size(...)`、`.stroke(...)`、`.radius(...)`、`.opacity(...)`、`.z(...)`。`Frame`、`Canvas` 和 `Table` 还支持 `.background_image(...)`。
 
 ### `Line`
 
@@ -470,6 +470,7 @@ set_fallback_fonts(["SourceHanSansSC-Normal"])
 | 方法 | 参数 | 说明 |
 | --- | --- | --- |
 | `.background(value)` | 颜色或 `None` | 设置背景色；`None` 表示不绘制背景 |
+| `.background_image(src, fit="cover", opacity=1.0)` | 路径、`Path`、bytes 或 data URL；`fit` 为 `"stretch"` / `"contain"` / `"cover"`；透明度 `0.0` 到 `1.0` | 设置背景图片。`Frame` / `Canvas` 中位于背景色之上、边框和内容之下；`Table` 中作为表格级背景，位于单元格背景、内容和边框之下 |
 | `.stroke(color, width)` | 颜色、pt 宽度 | 设置描边 / 边框 |
 | `.opacity(value)` | `0.0` 到 `1.0` | 设置整体透明度 |
 | `.radius(value)` | 统一值、四元组或命名角 | 设置圆角半径 |
@@ -553,6 +554,7 @@ frame.height("auto")
 Image("avatar.png").size(64, 64).cover().radius(8)
 Image("hero.png").size(120, 80).cover().radius((12, 12, 0, 0))
 Frame().background("#fff").radius(top_left=12, bottom_right=12)
+Frame().background_image("photo.png", fit="cover", opacity=0.12).radius(12)
 ```
 
 圆角值必须是固定点值兼容尺寸且非负。不要同时使用位置参数和命名角参数。
