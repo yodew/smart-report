@@ -141,6 +141,21 @@ table = Table(rows).background_image("texture.png", fit="cover", opacity=0.08)
 
 See `examples/v2_12_image_text_composition.py` for a runnable A4 page combining side-by-side cards, stacked cards, image-backed title cards, and a table-over-background report block.
 
+## Report Pattern Recipes
+
+Business reports can be assembled as reusable section/card recipes without adding a new DSL. Use a background-image `Canvas` for the title/hero block, compact fixed `Canvas` or `Frame` cards for KPIs, an image/text `Canvas` for the executive summary, and a styled `Table` beside explanatory copy for data sections. Keep these recipes local to the report or example so the public API remains the existing primitives.
+
+```python
+hero = Canvas().height(144).background("#10243f").background_image("cover.jpg", fit="cover", opacity=0.48)
+hero.add_text("Operating Review").absolute(24, 52).font_size(27).color("#ffffff")
+
+kpi = Frame().width(162).padding(vertical=12, horizontal=16).background("#ffffff").radius(16)
+kpi.add_text("Net revenue").font_size(9).color("#64748b")
+kpi.add_text("$4.82M").font_size(22).color("#0f172a")
+```
+
+See `examples/v2_13_report_patterns.py` for a polished runnable A4 page demonstrating a background-image hero, KPI metric cards, an image/text executive summary, an annotated data table, and a multi-card dashboard/report section layout.
+
 ## Architecture
 
 smart-report uses four explicit passes:
@@ -171,6 +186,7 @@ Useful examples include:
 - `examples/v2_11_layered_table_region.py`
 - `examples/v2_12_background_images.py`
 - `examples/v2_12_image_text_composition.py`
+- `examples/v2_13_report_patterns.py`
 - `examples/zh_table_demo.py`
 
 Optional PDF-regression assertions in `tests/test_table_v2.py` use `pypdf` when it is installed; without it, those PDF-only checks are skipped.

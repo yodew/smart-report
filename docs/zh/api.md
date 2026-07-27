@@ -190,6 +190,21 @@ table = Table(rows).background_image("texture.png", fit="cover", opacity=0.08)
 
 可运行示例见 `examples/v2_12_image_text_composition.py`，展示左右图文、上图下文、背景图标题卡和表格背景图组合。
 
+### 报告 section / card 组合配方
+
+业务报告页面可以把现有原语组合成局部配方，而不需要新增运行时 helper API 或 DSL：用带 `.background_image(...)` 的 `Canvas` 做报告标题 / hero 区；用固定尺寸 `Canvas` 或 `Frame` 做 KPI 指标卡；用 `Canvas` 固定图片、标签和正文位置来做高管摘要图文卡；表格区则把解释文案和 `Table` 放在同一个报告 section 中，让读者先理解结论再看数字。
+
+```python
+hero = Canvas().height(144).background("#10243f").background_image("cover.jpg", fit="cover", opacity=0.48)
+hero.add_text("经营复盘").absolute(24, 52).font_size(27).color("#ffffff")
+
+kpi = Frame().width(162).padding(vertical=12, horizontal=16).background("#ffffff").radius(16)
+kpi.add_text("净收入").font_size(9).color("#64748b")
+kpi.add_text("$4.82M").font_size(22).color("#0f172a")
+```
+
+建议把这些 helper 函数保留在示例或业务项目内部，例如 `add_kpi_card(...)`、`add_summary_card(...)`，它们仍然只返回或添加 `Canvas`、`Frame`、`Table`、`Text`、`RichText`、`Image`、`Rect`、`Line`、`Spacer` 等已有 builder。可运行示例见 `examples/v2_13_report_patterns.py`，包含背景图 hero、KPI 卡、图文摘要卡、解释型数据表和多卡片报告 section。
+
 ## `Table`
 
 `Table(rows)` 接收二维数组。单元格可为字符串、数字，或 `Frame`、`Text`、`RichText`、`Image` 等 builder。
