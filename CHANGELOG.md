@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.13.0`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.1`.
+
+## 2.13.1
+
+- Hardened background-image regression coverage for JPEG/SVG/data URL source rendering and paginated table slices.
+- Added focused checks that table background-image settings survive pagination and still paint on each slice.
 
 ## 2.13.0
 

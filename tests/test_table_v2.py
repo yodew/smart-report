@@ -383,14 +383,19 @@ class TableV2ModelTests(unittest.TestCase):
     def test_background_image_builder_stores_sources_and_validates_options(self) -> None:
         image_bytes = _png_bytes(6, 4)
         data_url = "data:image/png;base64," + base64.b64encode(image_bytes).decode("ascii")
+        examples_dir = Path(__file__).resolve().parents[1] / "examples"
 
         path_frame = Frame().background_image(Path("assets/card.png"), fit="contain", opacity=0.25)
+        jpeg_frame = Frame().background_image(examples_dir / "cover.jpg", fit="cover")
+        svg_table = Table([["A"]]).background_image(examples_dir / "box.svg", fit="contain")
         data_frame = Frame().background_image(data_url)
         bytes_frame = Frame().background_image(image_bytes, fit="stretch", opacity=1.0)
 
         self.assertEqual(path_frame.node.content["background_image_src"], "assets/card.png")
         self.assertEqual(path_frame.node.content["background_image_fit"], "contain")
         self.assertEqual(path_frame.node.content["background_image_opacity"], 0.25)
+        self.assertEqual(jpeg_frame.node.content["background_image_src"], str(examples_dir / "cover.jpg"))
+        self.assertEqual(svg_table.node.content["background_image_src"], str(examples_dir / "box.svg"))
         self.assertEqual(data_frame.node.content["background_image_src_bytes"], image_bytes)
         self.assertEqual(bytes_frame.node.content["background_image_src_bytes"], image_bytes)
         self.assertEqual(bytes_frame.node.content["background_image_fit"], "stretch")
@@ -439,6 +444,47 @@ class TableV2ModelTests(unittest.TestCase):
         self.assertLess(adapter.operations.index("image"), adapter.operations.index("rect"))
         self.assertLess(adapter.operations.index("image"), adapter.operations.index("text"))
         self.assertLess(adapter.operations.index("image"), adapter.operations.index("line"))
+
+    def test_background_image_pdf_smoke_supports_jpeg_svg_and_data_url_sources(self) -> None:
+        examples_dir = Path(__file__).resolve().parents[1] / "examples"
+        data_url = "data:image/png;base64," + base64.b64encode(_png_bytes(8, 4)).decode("ascii")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output = Path(tmp_dir) / "background_image_sources.pdf"
+            doc = document()
+            page = doc.page("A4")
+            page.add(Canvas().height(80).margin(24).background_image(examples_dir / "cover.jpg", fit="cover", opacity=0.20))
+            page.add(Frame().height(70).margin(right=24, bottom=12, left=24).background_image(examples_dir / "box.svg", fit="contain", opacity=0.35))
+            page.add(Table([["Data URL", "PNG"], ["OK", "Rendered"]]).margin(right=24, left=24).background_image(data_url, fit="cover", opacity=0.18).borders("#cbd5e1", width=0.8))
+            doc.save(str(output))
+
+            self.assertGreater(output.stat().st_size, 1000)
+
+    def test_paginated_table_slices_preserve_background_image_settings(self) -> None:
+        image_bytes = _png_bytes(8, 4)
+        table = (
+            Table([["Region", "Revenue"]] + [[f"R{index}", f"${index}00K"] for index in range(1, 12)])
+            .column_widths([120, 120])
+            .header(background="#0f172a", color="#ffffff", repeat=True)
+            .cell_padding(vertical=7, horizontal=8)
+            .background_image(image_bytes, fit="cover", opacity=0.22)
+            .borders("#cbd5e1", width=0.7)
+        )
+        table.node.resolved_width = 240
+        table.node.resolved_height = table_height(table.node)
+
+        slices = _split_table_node(table.node, 88, 88)
+
+        self.assertGreater(len(slices), 1)
+        for table_slice in slices:
+            self.assertEqual(table_slice.content["background_image_src_bytes"], image_bytes)
+            self.assertEqual(table_slice.content["background_image_fit"], "cover")
+            self.assertEqual(table_slice.content["background_image_opacity"], 0.22)
+
+            adapter = _SpyAdapter()
+            paint_table(cast(ReportLabCanvasAdapter, adapter), RenderItem(table_slice, Rect(0, 0, table_slice.resolved_width, table_slice.resolved_height), (), (0,)))
+            self.assertEqual(adapter.image_sources, [image_bytes])
+            self.assertEqual(adapter.images, [(Rect(0, 0, table_slice.resolved_width, table_slice.resolved_height), "cover")])
 
 
     def test_radius_supports_individual_corners_and_clone_preserves_them(self) -> None:
