@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.13.1`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.2`.
+
+## 2.13.2
+
+- Documented the section/card helper assessment from the `2.12.3` and `2.13.0` recipes.
+- Kept helper functions as local recipe/application patterns instead of adding a built-in card or section DSL.
 
 ## 2.13.1
 
