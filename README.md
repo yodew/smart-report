@@ -156,6 +156,12 @@ kpi.add_text("$4.82M").font_size(22).color("#0f172a")
 
 See `examples/v2_13_report_patterns.py` for a polished runnable A4 page demonstrating a background-image hero, KPI metric cards, an image/text executive summary, an annotated data table, and a multi-card dashboard/report section layout.
 
+### Helper API Guidance
+
+The current recipes intentionally keep helper functions local to examples or application code. Patterns like `kpi_card(...)`, `insight_card(...)`, or `add_summary_card(...)` tend to encode business copy, spacing, and visual hierarchy, so they are better maintained close to the report that owns them. Promote a helper into your own project only after two or three reports share the same structure; keep the helper returning ordinary `Canvas`, `Frame`, `Table`, or element builders so the underlying layout remains explicit.
+
+smart-report does not add a built-in card/section DSL in `2.13.2`; the stable public API remains the existing primitives plus recipes that show how to combine them.
+
 ## Architecture
 
 smart-report uses four explicit passes:

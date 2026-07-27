@@ -205,6 +205,10 @@ kpi.add_text("$4.82M").font_size(22).color("#0f172a")
 
 建议把这些 helper 函数保留在示例或业务项目内部，例如 `add_kpi_card(...)`、`add_summary_card(...)`，它们仍然只返回或添加 `Canvas`、`Frame`、`Table`、`Text`、`RichText`、`Image`、`Rect`、`Line`、`Spacer` 等已有 builder。可运行示例见 `examples/v2_13_report_patterns.py`，包含背景图 hero、KPI 卡、图文摘要卡、解释型数据表和多卡片报告 section。
 
+#### Helper API 取舍
+
+`2.13.2` 对 `v2_12_image_text_composition.py` 和 `v2_13_report_patterns.py` 的重复模式做了评估：当前重复主要来自业务文案、视觉间距和局部 report section 结构，还不适合沉淀为内置 DSL。推荐先在业务项目内部保留小函数，例如 `kpi_card(...)`、`insight_card(...)`，并让它们返回普通的 `Canvas`、`Frame` 或 `Table` builder；只有当多个真实报表共享完全相同结构时，再在业务代码中抽象。smart-report 暂不新增内置 card/section helper API，以保持公共 API 简洁透明。
+
 ## `Table`
 
 `Table(rows)` 接收二维数组。单元格可为字符串、数字，或 `Frame`、`Text`、`RichText`、`Image` 等 builder。
