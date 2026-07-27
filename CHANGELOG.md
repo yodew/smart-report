@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.12.3`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.0`.
+
+## 2.13.0
+
+- Added a polished report section/card pattern recipe example showing a background-image hero, KPI cards, an image/text executive summary, an annotated data table, and a multi-card report section layout using existing primitives only.
+- Documented report pattern recipes in the README and Chinese API reference without adding runtime helper API.
 
 ## 2.12.3
 
