@@ -351,12 +351,12 @@ frame.add_text("过长的指标名称需要适配固定区域，并在固定高�
 
 ## `RichText`
 
-`RichText` 是独立富文本元素，适合同一段文字中混合字体、字号、颜色、加粗、斜体、下划线、链接、字距和硬换行。它不解析 HTML/Markdown。
+`RichText` 是独立富文本元素，适合同一段文字中混合字体、字号、颜色、加粗、斜体、下划线、链接、字距、span 级行高和硬换行。它不解析 HTML/Markdown。
 
 | 方法 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
 | `.text(value)` | `str` | `RichText` | 清空 runs，并设置为一个普通文本 run |
-| `.span(text, font=None, font_family=None, font_size=None, color=None, bold=False, italic=False, underline=False, link=None, letter_spacing=None)` | 文本和 span 样式 | `RichText` | 追加行内片段 |
+| `.span(text, font=None, font_family=None, font_size=None, color=None, bold=False, italic=False, underline=False, link=None, letter_spacing=None, line_height=None)` | 文本和 span 样式 | `RichText` | 追加行内片段 |
 | `.letter_spacing(value)` | 数值、`"0.05em"`、`"5%"` | `RichText` | 设置全局字距；span 级设置会覆盖 |
 | `.br(count=1)` | 正整数 | `RichText` | 追加一个或多个硬换行 |
 | `.clear()` | 无 | `RichText` | 清空所有 runs |
@@ -368,7 +368,7 @@ rich = (
     RichText()
     .letter_spacing("4%")
     .span("收入 ", font_size=12, color="#0f172a")
-    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True, underline=True, link="https://example.com/growth", letter_spacing="0.08em")
+    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True, underline=True, link="https://example.com/growth", letter_spacing="0.08em", line_height=18)
     .br()
     .span("企业客户续约强劲", font_size=10, color="#475569", italic=True)
     .width(180)
@@ -376,7 +376,7 @@ rich = (
 frame.add(rich)
 ```
 
-`italic=True` 会优先使用注册字体族的 italic / bold_italic face；Base14 字体会映射到对应的 Oblique / Italic face。`underline=True` 会按 span 绘制下划线，并在富文本换行和分页切片后保留。`link=url` 会为该 span 渲染 PDF 外部 URL 注解，换行或分页后会按可见片段生成链接矩形；不会自动改变颜色或下划线。
+`italic=True` 会优先使用注册字体族的 italic / bold_italic face；Base14 字体会映射到对应的 Oblique / Italic face。`underline=True` 会按 span 绘制下划线，并在富文本换行和分页切片后保留。`link=url` 会为该 span 渲染 PDF 外部 URL 注解，换行或分页后会按可见片段生成链接矩形；不会自动改变颜色或下划线。`line_height` 必须是有限且大于 0 的数值；显式 span 行高会参与该行 line box 高度计算，并在换行、序列化和分页切片后保留。
 
 `RichText.align(...)` / `.valign(...)` 是整个富文本框的对齐方式。行内 span 共享同一个 line box，不提供单个 span 独立左/中/右或上/中/下对齐。如需某段内容独立对齐，请拆成单独的 `Text` / `RichText` 节点。
 

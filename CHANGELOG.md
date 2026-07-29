@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.13.2`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.3`.
+
+## 2.13.3
+
+- Added `RichText.span(..., line_height=...)` for span-level line height control in mixed rich-text lines.
+- Preserved explicit RichText span line heights through wrapping, serialization, pagination splits, and inline link annotation rectangles.
 
 ## 2.13.2
 

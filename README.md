@@ -27,7 +27,7 @@ smart-report is designed for report-style PDFs: flow content, tables, fixed regi
 - Practical `flex`, `grid`, and `columns` layout modes.
 - Report-oriented `Table` with column widths, auto-fit columns, row/cell minimum heights, alignment, padding, spans, headers, footers, zebra rows, borders, rounded corners, table-level background images, and repeated headers/footers.
 - `Text`, `RichText`, `Image`, text-capable `Rect` badges, `Line`, and `Spacer` elements.
-- Fixed-box text alignment, vertical alignment, letter spacing, overflow clipping, and multiline ellipsis.
+- Fixed-box text alignment, vertical alignment, letter spacing, RichText span-level line height, overflow clipping, and multiline ellipsis.
 - PDF URL links through `Text.link(url)` and inline `RichText.span(..., link=url)` annotations.
 - PNG/JPEG/SVG rendering, image bytes/data URLs, `contain()`, `cover()`, background images, and per-corner radii.
 - Public font registration helpers, fallback fonts, font families, and optional Arabic/bidi typography preprocessing.
@@ -87,7 +87,7 @@ from smart_report import RichText, Table
 rich = (
     RichText()
     .span("Revenue ")
-    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True, underline=True, link="https://example.com/growth")
+    .span("+18%", font="Helvetica", font_size=14, color="#166534", bold=True, underline=True, link="https://example.com/growth", line_height=18)
     .br()
     .span("Enterprise renewals remained strong", font_size=10, color="#475569", italic=True)
     .width(180)
@@ -160,7 +160,7 @@ See `examples/v2_13_report_patterns.py` for a polished runnable A4 page demonstr
 
 The current recipes intentionally keep helper functions local to examples or application code. Patterns like `kpi_card(...)`, `insight_card(...)`, or `add_summary_card(...)` tend to encode business copy, spacing, and visual hierarchy, so they are better maintained close to the report that owns them. Promote a helper into your own project only after two or three reports share the same structure; keep the helper returning ordinary `Canvas`, `Frame`, `Table`, or element builders so the underlying layout remains explicit.
 
-smart-report does not add a built-in card/section DSL in `2.13.2`; the stable public API remains the existing primitives plus recipes that show how to combine them.
+smart-report does not add a built-in card/section DSL in `2.13.3`; the stable public API remains the existing primitives plus recipes that show how to combine them. For mixed inline typography, `RichText.span(..., line_height=...)` can raise an individual rich-text line box without changing plain `Text` behavior.
 
 ## Architecture
 
