@@ -14,11 +14,12 @@ from typing import Iterator
 from typing import Sequence
 from typing import cast
 
-from smart_report import DEFAULT_FONT_NAME, Image, RichText, Spacer, Text, document, get_default_font_name, get_fallback_font_families, get_fallback_fonts, get_font, get_font_family, register_font, register_font_family, resolve_text_runs, set_default_font, set_fallback_font_families, set_fallback_fonts, shaped_string_width, string_width
+from smart_report import DEFAULT_FONT_NAME, Image, Spacer, Text, document, get_default_font_name, get_fallback_font_families, get_fallback_fonts, get_font, get_font_family, register_font, register_font_family, resolve_text_runs, set_default_font, set_fallback_font_families, set_fallback_fonts, shaped_string_width, string_width
 from smart_report.builder import resolve_page_size
 from smart_report.containers.canvas import Canvas
 from smart_report.containers.frame import Frame
 from smart_report.containers.table import Table
+from smart_report.elements.rich_text import RichText
 from smart_report.layout.node import CornerRadii, Edges, LayoutNode, Rect, RenderItem, Style, clone_layout_node
 from smart_report.layout.paginate import STARTS_ON_FOLLOWING_PAGE, _split_flow_child, _split_table_node, _split_text_node, paginate_page, split_frame_node
 from smart_report.layout.pass4_render import build_render_list
@@ -2633,6 +2634,16 @@ class RichTextElementTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             _ = rich.span("bad", link="   ")
 
+    def test_rich_text_builder_stores_span_line_height_and_rejects_invalid_values(self) -> None:
+        rich = RichText().span("tall", line_height=24)
+
+        self.assertEqual(rich.node.content["runs"], [{"kind": "text", "text": "tall", "line_height": 24.0}])
+        with self.assertRaisesRegex(TypeError, "line_height"):
+            _ = RichText().span("bad", line_height="tall")  # type: ignore[arg-type]
+        for invalid in (0, -1, float("nan"), float("inf"), float("-inf")):
+            with self.assertRaisesRegex(ValueError, "line_height"):
+                _ = RichText().span("bad", line_height=invalid)
+
     def test_rich_text_layout_and_serialization_preserve_links(self) -> None:
         rich = RichText().span("alpha beta gamma", link="https://example.com/rich").width(35)
         lines = layout_rich_text(rich.node, 35)
@@ -2643,6 +2654,23 @@ class RichTextElementTests(unittest.TestCase):
         self.assertGreater(len(fragments), 1)
         self.assertTrue(all(fragment.link_url == "https://example.com/rich" for fragment in fragments))
         self.assertTrue(all(run.get("link_url") == "https://example.com/rich" for run in runs if run.get("kind") == "text"))
+
+    def test_rich_text_layout_uses_span_line_height(self) -> None:
+        rich = RichText().font("Helvetica").font_size(10).line_height(12).span("short", line_height=30)
+
+        lines = layout_rich_text(rich.node, 100)
+
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0].height, 30.0)
+
+    def test_rich_text_wrapped_and_split_fragments_preserve_span_line_height(self) -> None:
+        rich = RichText().font("Helvetica").font_size(12).span("alphabetagamma", line_height=26)
+
+        lines = layout_rich_text(rich.node, 20)
+        runs = [run for run in rich_text_runs_for_lines(lines) if run.get("kind") == "text"]
+
+        self.assertGreater(len(runs), 1)
+        self.assertTrue(all(run.get("line_height") == 26.0 for run in runs))
 
     def test_rich_text_painter_emits_fragment_link_annotations(self) -> None:
         rich = RichText().font("Helvetica").font_size(12).line_height(14).span("Open", link="https://example.com/open").span(" plain").width(100)
@@ -2659,6 +2687,18 @@ class RichTextElementTests(unittest.TestCase):
         self.assertAlmostEqual(spy.links[0][1].y, 20.0, places=3)
         self.assertAlmostEqual(spy.links[0][1].width, string_width("Open", "Helvetica", 12), places=3)
         self.assertAlmostEqual(spy.links[0][1].height, 14.4, places=3)
+
+    def test_rich_text_link_annotation_height_follows_span_line_height(self) -> None:
+        rich = RichText().font("Helvetica").font_size(12).line_height(14).span("Open", link="https://example.com/open", line_height=28).width(100)
+        resolve_widths(rich.node, 100)
+        resolve_heights(rich.node)
+        item = RenderItem(rich.node, Rect(10, 20, 100, rich.node.resolved_height), (), (0,))
+        spy = _SpyAdapter()
+
+        paint_rich_text(cast(ReportLabCanvasAdapter, spy), item)
+
+        self.assertEqual(len(spy.links), 1)
+        self.assertAlmostEqual(spy.links[0][1].height, 28.0, places=3)
 
     def test_rich_text_painter_emits_wrapped_link_annotations(self) -> None:
         rich = RichText().font("Helvetica").font_size(12).line_height(14).span("alpha beta", link="https://example.com/wrapped").width(40)
@@ -2801,6 +2841,27 @@ class RichTextElementTests(unittest.TestCase):
         self.assertGreater(len(slices), 1)
         self.assertTrue(linked_runs)
         self.assertTrue(all(run.get("link_url") == "https://example.com/paginated-rich" for run in linked_runs))
+
+    def test_paginated_rich_text_preserves_span_line_height_in_slices(self) -> None:
+        rich = RichText().font("Helvetica").font_size(10).line_height(12).span(" ".join(f"tall-{index}" for index in range(30)), line_height=18)
+        frame = Frame().padding(0).width(120)
+        frame.add(rich)
+        resolve_widths(frame.node, 120)
+        resolve_heights(frame.node, None)
+
+        slices = split_frame_node(frame.node, 30, 30)
+        runs = [
+            run
+            for frame_slice in slices
+            for child in frame_slice.children
+            if child.node_type == "rich_text"
+            for run in cast(list[dict[str, object]], child.content["runs"])
+            if run.get("kind") == "text"
+        ]
+
+        self.assertGreater(len(slices), 1)
+        self.assertTrue(runs)
+        self.assertTrue(all(run.get("line_height") == 18.0 for run in runs))
 
 
     def test_rich_text_letter_spacing_resolves_global_and_span_values(self) -> None:

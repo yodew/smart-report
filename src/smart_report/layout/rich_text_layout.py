@@ -23,6 +23,7 @@ class RichTextFragment:
     underline: bool = False
     link_url: str | None = None
     letter_spacing: float = 0.0
+    line_height: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +87,7 @@ def normalize_rich_text_runs(node: LayoutNode) -> list[RichTextFragment | None]:
                 underline=underline,
                 link_url=link_url,
                 letter_spacing=_run_letter_spacing(node, raw_run, font_size),
+                line_height=_run_line_height(raw_run),
             )
         )
     return normalized
@@ -166,6 +168,8 @@ def rich_text_runs_for_lines(lines: list[RichTextLine]) -> list[dict[str, object
                 run["link_url"] = fragment.link_url
             if fragment.letter_spacing != 0:
                 run["letter_spacing"] = fragment.letter_spacing
+            if fragment.line_height is not None:
+                run["line_height"] = fragment.line_height
             runs.append(run)
     return runs
 
@@ -202,6 +206,13 @@ def _run_letter_spacing(node: LayoutNode, run: dict[object, object], font_size: 
     return resolve_letter_spacing(value, font_size)
 
 
+def _run_line_height(run: dict[object, object]) -> float | None:
+    value = run.get("line_height")
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
 def _copy_fragment(fragment: RichTextFragment, text: str) -> RichTextFragment:
     return RichTextFragment(
         text=text,
@@ -213,12 +224,17 @@ def _copy_fragment(fragment: RichTextFragment, text: str) -> RichTextFragment:
         underline=fragment.underline,
         link_url=fragment.link_url,
         letter_spacing=fragment.letter_spacing,
+        line_height=fragment.line_height,
     )
 
 
 def _line(fragments: tuple[RichTextFragment, ...], fallback_height: float) -> RichTextLine:
     width = sum(_fragment_width_no_node(fragment) for fragment in fragments)
-    height = max(fallback_height, max((fragment.font_size * 1.2 for fragment in fragments), default=fallback_height))
+    height = max(
+        fallback_height,
+        max((fragment.font_size * 1.2 for fragment in fragments), default=fallback_height),
+        max((fragment.line_height for fragment in fragments if fragment.line_height is not None), default=fallback_height),
+    )
     return RichTextLine(fragments=fragments, width=width, height=height)
 
 

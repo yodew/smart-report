@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from .._builder_core import NodeBuilder
 from ..layout.node import LayoutNode, Style
 from ..style.color import RGBA
@@ -38,6 +40,7 @@ class RichText(NodeBuilder):
         underline: bool = False,
         link: object | None = None,
         letter_spacing: LetterSpacingInput | None = None,
+        line_height: float | None = None,
     ) -> "RichText":
         """Append a styled inline text span and return this builder."""
 
@@ -64,6 +67,8 @@ class RichText(NodeBuilder):
             run["link_url"] = link
         if letter_spacing is not None:
             run["letter_spacing"] = normalize_letter_spacing(letter_spacing)
+        if line_height is not None:
+            run["line_height"] = _normalize_span_line_height(line_height)
         _runs(self.node).append(run)
         return self
 
@@ -125,3 +130,13 @@ def _serializable_color(color: str | RGBA) -> str | list[float]:
     if isinstance(color, str):
         return color
     return [color.red, color.green, color.blue, color.alpha]
+
+
+def _normalize_span_line_height(value: float) -> float:
+    try:
+        line_height = float(value)
+    except (TypeError, ValueError) as exc:
+        raise TypeError("RichText.span line_height must be a finite positive number") from exc
+    if not math.isfinite(line_height) or line_height <= 0:
+        raise ValueError("RichText.span line_height must be finite and > 0")
+    return line_height
