@@ -323,6 +323,7 @@ Table([
 | `.valign(value)` | `"top"` / `"middle"` / `"bottom"` | `Text` | 设置固定高度文本框内垂直对齐 |
 | `.letter_spacing(value)` | 数值、`"0.05em"`、`"5%"` | `Text` | 设置字距 |
 | `.text_overflow(value)` | `"wrap"` / `"clip"` / `"ellipsis"` | `Text` | 设置固定文本框溢出策略 |
+| `.text_shadow(x=0, y=0, blur=0, spread=0, color="#000000")` | 有限数值和颜色值 | `Text` | 为整个文本块添加阴影 |
 | `.link(url)` | 非空字符串 | `Text` | 为整个文本节点添加 PDF 外部 URL 链接 |
 | `.typography(value)` | `"plain"` / `"auto"` / `"advanced"` | `Text` | 设置文字预处理/测量模式 |
 | `.text_direction(value)` | `"auto"` / `"ltr"` / `"rtl"` | `Text` | 设置文字方向 |
@@ -347,6 +348,15 @@ frame.add_text("过长的指标名称需要适配固定区域，并在固定高�
 
 表格纯文本单元格的 `text_overflow("ellipsis")` 仍保持单行省略行为，用于稳定表格行高。
 
+`.text_shadow(...)` 是块级效果：`x` 为正时阴影向右，`y` 为正时阴影按左上角布局坐标向下；`x` / `y` 可为负，但必须是有限数值。`blur` / `spread` 必须是有限且大于等于 0 的数值。`color` 使用通用颜色解析，支持 hex、`rgb(...)`、`rgba(...)` 和 `transparent`。PDF/ReportLab 没有原生 blur/filter；这里的 `blur` / `spread` 是有上限的矢量近似，会在主文字前绘制多次低透明度文字，不使用 Pillow 栅格模糊，也不会改变布局、换行或分页。由于阴影也是矢量文字绘制，PDF 文本提取工具可能读到阴影副本。
+
+```python
+frame.add_text("阴影标题") \
+    .font_size(24) \
+    .color("#ffffff") \
+    .text_shadow(x=2, y=3, blur=6, spread=1, color="rgba(0, 0, 0, 0.45)")
+```
+
 `.link(url)` 不会自动改变样式。如需视觉提示，请手动设置颜色、下划线替代样式或背景。`Text.link(url)` 作用于整个文本节点；如需行内子字符串链接，请使用 `RichText.span(..., link=url)`。不支持 Markdown/HTML 解析或任意注解 API。
 
 ## `RichText`
@@ -362,6 +372,7 @@ frame.add_text("过长的指标名称需要适配固定区域，并在固定高�
 | `.clear()` | 无 | `RichText` | 清空所有 runs |
 | `.align(value)` | `"left"` / `"center"` / `"right"` | `RichText` | 设置富文本框整体水平对齐 |
 | `.valign(value)` | `"top"` / `"middle"` / `"bottom"` | `RichText` | 设置富文本框整体垂直对齐 |
+| `.text_shadow(x=0, y=0, blur=0, spread=0, color="#000000")` | 有限数值和颜色值 | `RichText` | 为整个富文本块添加阴影 |
 
 ```python
 rich = (
@@ -377,6 +388,8 @@ frame.add(rich)
 ```
 
 `italic=True` 会优先使用注册字体族的 italic / bold_italic face；Base14 字体会映射到对应的 Oblique / Italic face。`underline=True` 会按 span 绘制下划线，并在富文本换行和分页切片后保留。`link=url` 会为该 span 渲染 PDF 外部 URL 注解，换行或分页后会按可见片段生成链接矩形；不会自动改变颜色或下划线。`line_height` 必须是有限且大于 0 的数值；显式 span 行高会参与该行 line box 高度计算，并在换行、序列化和分页切片后保留。
+
+`RichText.text_shadow(...)` 与 `Text.text_shadow(...)` 一样是块级阴影，作用于整个富文本节点，并在主富文本前绘制。`blur` / `spread` 是有上限的矢量近似，不是 PDF 原生 blur/filter，也不是 Pillow 栅格模糊。当前不支持 span 级阴影；也就是说没有 `RichText.span(..., shadow=...)` 参数。如需不同阴影，请拆成多个 `RichText` / `Text` 节点。
 
 `RichText.align(...)` / `.valign(...)` 是整个富文本框的对齐方式。行内 span 共享同一个 line box，不提供单个 span 独立左/中/右或上/中/下对齐。如需某段内容独立对齐，请拆成单独的 `Text` / `RichText` 节点。
 
