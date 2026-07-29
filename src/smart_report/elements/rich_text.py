@@ -8,6 +8,7 @@ from .._builder_core import NodeBuilder
 from ..layout.node import LayoutNode, Style
 from ..style.color import RGBA
 from ..style.letter_spacing import LetterSpacingInput, normalize_letter_spacing
+from ..style.text_shadow import normalize_text_shadow
 
 
 class RichText(NodeBuilder):
@@ -81,6 +82,12 @@ class RichText(NodeBuilder):
         """
 
         self.node.content["letter_spacing"] = normalize_letter_spacing(value)
+        return self
+
+    def text_shadow(self, x: object = 0, y: object = 0, blur: object = 0, spread: object = 0, color: str | RGBA = "#000000") -> "RichText":
+        """Set a block-level rich text shadow and return this builder."""
+
+        self.node.content["text_shadow"] = normalize_text_shadow(x, y, blur, spread, color)
         return self
 
     def br(self, count: int = 1) -> "RichText":

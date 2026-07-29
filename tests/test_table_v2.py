@@ -30,7 +30,8 @@ from smart_report.layout.table_model import TableCellBox, fit_plain_overflow_tex
 from smart_report.layout.text_wrap import wrap_text
 from smart_report.render.painters import paint_canvas_background, paint_image, paint_render_item, paint_rich_text, paint_table, paint_text
 from smart_report.render.rl_adapter import DEFAULT_TEXT_COLOR, ReportLabCanvasAdapter
-from smart_report.style.color import parse_color
+from smart_report.style.color import RGBA, parse_color
+from smart_report.style.text_shadow import TextShadow
 from smart_report.style.typography import shape_text
 import smart_report.layout.table_model as table_model_module
 import smart_report.style.font as font_module
@@ -239,6 +240,61 @@ class TableV2ModelTests(unittest.TestCase):
         paint_text(cast(ReportLabCanvasAdapter, adapter), RenderItem(text.node, Rect(10, 20, 100, 20), (), (0,)))
 
         self.assertEqual(adapter.text_kwargs[0]["align"], "center")
+
+    def test_text_builder_stores_normalized_text_shadow(self) -> None:
+        text = Text("Shadow").text_shadow(x=-1, y=2, blur=3, spread=4, color="rgba(255, 0, 0, 0.5)")
+
+        shadow = text.node.content["text_shadow"]
+        self.assertIsInstance(shadow, TextShadow)
+        self.assertEqual(shadow, TextShadow(-1.0, 2.0, 3.0, 4.0, cast(RGBA, parse_color("rgba(255, 0, 0, 0.5)"))))
+
+    def test_text_builder_rejects_invalid_text_shadow_values(self) -> None:
+        with self.assertRaises(ValueError):
+            _ = Text("Bad").text_shadow(x=float("inf"))
+        with self.assertRaises(ValueError):
+            _ = Text("Bad").text_shadow(blur=-1)
+        with self.assertRaises(ValueError):
+            _ = Text("Bad").text_shadow(spread=-1)
+        with self.assertRaises(ValueError):
+            _ = Text("Bad").text_shadow(color="not-a-color")
+
+    def test_paint_text_passes_text_shadow_to_adapter(self) -> None:
+        text = Text("Shadow").text_shadow(x=2, y=3, color="#00000080").width(100)
+        text.node.resolved_width = 100
+        text.node.resolved_height = 20
+        adapter = _SpyAdapter()
+
+        paint_text(cast(ReportLabCanvasAdapter, adapter), RenderItem(text.node, Rect(10, 20, 100, 20), (), (0,)))
+
+        self.assertEqual(adapter.text_kwargs[0]["text_shadow"], text.node.content["text_shadow"])
+
+    def test_adapter_draw_text_paints_shadow_before_main_text_with_offset(self) -> None:
+        fake_canvas = _FakeCanvas()
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 100
+
+        adapter.draw_text(10, 10, 100, "Hi", "Helvetica", 10, 12, None, text_shadow=TextShadow(2.0, 3.0, 0.0, 0.0, cast(RGBA, parse_color("rgba(0, 0, 0, 0.5)"))))
+
+        self.assertEqual(fake_canvas.text_object.output, ["Hi", "Hi"])
+        self.assertEqual(fake_canvas.text_object.origins[0], (12.0, 77.0))
+        self.assertEqual(fake_canvas.text_object.origins[1], (10.0, 80.0))
+        self.assertEqual(fake_canvas.fill_alphas[0], 0.5)
+        self.assertEqual(fake_canvas.fill_alphas[-1], DEFAULT_TEXT_COLOR.alpha)
+
+    def test_adapter_draw_text_blur_spread_uses_bounded_shadow_passes(self) -> None:
+        fake_canvas = _FakeCanvas()
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 100
+
+        adapter.draw_text(10, 10, 100, "Hi", "Helvetica", 10, 12, None, text_shadow=TextShadow(1.0, 1.0, 12.0, 6.0, cast(RGBA, parse_color("#000000"))))
+
+        self.assertGreater(len(fake_canvas.text_object.output), 2)
+        self.assertLessEqual(len(fake_canvas.text_object.output), 34)
+        self.assertEqual(fake_canvas.text_object.output[-1], "Hi")
 
     def test_adapter_draw_text_offsets_centered_lines(self) -> None:
         fake_canvas = _FakeCanvas()
@@ -2883,6 +2939,31 @@ class RichTextElementTests(unittest.TestCase):
         self.assertEqual(len(compact_lines), 1)
         self.assertGreater(len(spaced_lines), 1)
 
+    def test_rich_text_builder_stores_normalized_text_shadow(self) -> None:
+        rich = RichText().text_shadow(x=-2, y=3, blur=4, spread=5, color="transparent")
+
+        self.assertEqual(rich.node.content["text_shadow"], TextShadow(-2.0, 3.0, 4.0, 5.0, cast(RGBA, parse_color("transparent"))))
+
+    def test_rich_text_builder_rejects_invalid_text_shadow_values(self) -> None:
+        with self.assertRaises(ValueError):
+            _ = RichText().text_shadow(y=float("nan"))
+        with self.assertRaises(ValueError):
+            _ = RichText().text_shadow(blur=-0.1)
+        with self.assertRaises(ValueError):
+            _ = RichText().text_shadow(spread=-0.1)
+        with self.assertRaises(ValueError):
+            _ = RichText().text_shadow(color="not-a-color")
+
+    def test_paint_rich_text_passes_text_shadow_to_adapter(self) -> None:
+        rich = RichText().span("Shadow").text_shadow(x=2, y=3, color="#00000080").width(100)
+        rich.node.resolved_width = 100
+        rich.node.resolved_height = 20
+        adapter = _SpyAdapter()
+
+        paint_rich_text(cast(ReportLabCanvasAdapter, adapter), RenderItem(rich.node, Rect(10, 20, 100, 20), (), (0,)))
+
+        self.assertEqual(adapter.rich_text_kwargs[0]["text_shadow"], rich.node.content["text_shadow"])
+
     def test_reportlab_adapter_draw_rich_text_sets_fragment_char_spacing(self) -> None:
         rich = RichText().letter_spacing(1).span("A").span("B", letter_spacing=2)
         lines = layout_rich_text(rich.node, 100)
@@ -2928,6 +3009,23 @@ class RichTextElementTests(unittest.TestCase):
         self.assertAlmostEqual(line[2], 10.0 + string_width("A", "Helvetica", 12), places=3)
         self.assertEqual(fake_canvas.stroke_colors, [(1.0, 0.0, 0.0)])
         self.assertEqual(fake_canvas.stroke_alphas, [1.0])
+
+    def test_reportlab_adapter_draw_rich_text_paints_shadow_before_main_text_with_offset(self) -> None:
+        rich = RichText().span("A", font="Helvetica", color="#ff0000").span("B", font="Courier", color="#0000ff")
+        lines = layout_rich_text(rich.node, 100)
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        fake_canvas = _FakeCanvas()
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 200
+
+        adapter.draw_rich_text(10, 20, 100, lines, text_shadow=TextShadow(2.0, 3.0, 0.0, 0.0, cast(RGBA, parse_color("rgba(0, 0, 0, 0.4)"))))
+
+        self.assertEqual(fake_canvas.text_object.output, ["A", "B", "A", "B"])
+        self.assertEqual(fake_canvas.text_object.origins[0], (12.0, 165.0))
+        self.assertEqual(fake_canvas.text_object.origins[1], (10.0, 168.0))
+        self.assertEqual(fake_canvas.fill_alphas[0], 0.4)
+        self.assertEqual(fake_canvas.fill_alphas[-1], 1.0)
 
 
 class LayoutPrimitiveTests(unittest.TestCase):
@@ -3933,6 +4031,7 @@ class _SpyAdapter:
         self.rich_text_colors: list[object] = []
         self.rich_text_italics: list[bool] = []
         self.rich_text_underlines: list[bool] = []
+        self.rich_text_kwargs: list[dict[str, object]] = []
 
     @contextmanager
     def isolated_state(self) -> Iterator["_SpyAdapter"]:
@@ -3959,6 +4058,7 @@ class _SpyAdapter:
         self.texts.append(str(kwargs.get("text", "")))
 
     def draw_rich_text(self, **kwargs: object) -> None:
+        self.rich_text_kwargs.append(dict(kwargs))
         lines = kwargs.get("lines")
         if not isinstance(lines, list):
             return

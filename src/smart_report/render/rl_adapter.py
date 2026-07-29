@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from io import BytesIO
 from importlib import import_module
+import math
 from pathlib import Path
 from typing import Protocol, cast
 
@@ -14,9 +15,30 @@ from ..layout.rich_text_layout import RichTextLine
 from ..layout.text_wrap import wrap_text
 from ..style.color import RGBA
 from ..style.font import resolve_text_runs, shaped_string_width, string_width
+from ..style.text_shadow import TextShadow
 from ..style.typography import TextDirection, TypographyMode, shape_text
 
 DEFAULT_TEXT_COLOR = RGBA(0.0, 0.0, 0.0, 1.0)
+_MAX_TEXT_SHADOW_PASSES = 33
+
+
+def _text_shadow_passes(shadow: TextShadow) -> list[tuple[float, float, float]]:
+    radius = shadow.blur + shadow.spread
+    if radius <= 0:
+        return [(0.0, 0.0, 1.0)]
+
+    ring_count = min(4, max(1, math.ceil(radius / 3.0)))
+    passes: list[tuple[float, float, float]] = [(0.0, 0.0, 1.0)]
+    for ring in range(1, ring_count + 1):
+        ring_radius = radius * ring / ring_count
+        sample_count = min(8, max(4, ring * 4))
+        for index in range(sample_count):
+            if len(passes) >= _MAX_TEXT_SHADOW_PASSES:
+                break
+            angle = (math.tau * index) / sample_count
+            passes.append((math.cos(angle) * ring_radius, math.sin(angle) * ring_radius, 1.0))
+    alpha_scale = 1.0 / len(passes)
+    return [(dx, dy, alpha_scale) for dx, dy, _scale in passes]
 
 
 class CanvasLike(Protocol):
@@ -215,6 +237,7 @@ class ReportLabCanvasAdapter:
         letter_spacing: float = 0.0,
         text_overflow: str = "wrap",
         lines: list[str] | None = None,
+        text_shadow: TextShadow | None = None,
     ) -> None:
         if lines is not None:
             wrapped_lines = lines
@@ -231,13 +254,85 @@ class ReportLabCanvasAdapter:
             elif valign == "bottom":
                 vertical_offset = extra_height
         baseline_y = self.page_height - y - vertical_offset - font_size
+        if text_shadow is not None:
+            for dx, dy, alpha_scale in _text_shadow_passes(text_shadow):
+                shadow_color = RGBA(text_shadow.color.red, text_shadow.color.green, text_shadow.color.blue, text_shadow.color.alpha * alpha_scale)
+                self._draw_text_lines(
+                    x + text_shadow.x + dx,
+                    baseline_y - text_shadow.y - dy,
+                    width,
+                    wrapped_lines,
+                    font_name,
+                    font_size,
+                    line_height,
+                    shadow_color,
+                    typography,
+                    text_direction,
+                    align,
+                    letter_spacing,
+                )
+        self._draw_text_lines(
+            x,
+            baseline_y,
+            width,
+            wrapped_lines,
+            font_name,
+            font_size,
+            line_height,
+            color or DEFAULT_TEXT_COLOR,
+            typography,
+            text_direction,
+            align,
+            letter_spacing,
+        )
+
+    def draw_rich_text(
+        self,
+        x: float,
+        y: float,
+        width: float,
+        lines: list[RichTextLine],
+        align: str = "left",
+        height: float | None = None,
+        valign: str = "top",
+        text_shadow: TextShadow | None = None,
+    ) -> None:
+        text_height = sum(line.height for line in lines)
+        vertical_offset = 0.0
+        if height is not None:
+            extra_height = max(0.0, height - text_height)
+            if valign == "middle":
+                vertical_offset = extra_height / 2.0
+            elif valign == "bottom":
+                vertical_offset = extra_height
+        baseline_y = self.page_height - y - vertical_offset
+        if text_shadow is not None:
+            for dx, dy, alpha_scale in _text_shadow_passes(text_shadow):
+                shadow_color = RGBA(text_shadow.color.red, text_shadow.color.green, text_shadow.color.blue, text_shadow.color.alpha * alpha_scale)
+                self._draw_rich_text_lines(x + text_shadow.x + dx, baseline_y - text_shadow.y - dy, width, lines, align, shadow_color)
+        self._draw_rich_text_lines(x, baseline_y, width, lines, align)
+
+    def _draw_text_lines(
+        self,
+        x: float,
+        baseline_y: float,
+        width: float,
+        wrapped_lines: list[str],
+        font_name: str,
+        font_size: float,
+        line_height: float,
+        color: RGBA,
+        typography: TypographyMode,
+        text_direction: TextDirection,
+        align: str,
+        letter_spacing: float,
+    ) -> None:
         text_object = cast(TextObjectLike, self._canvas.beginText(x, baseline_y))
         text_object.setFont(font_name, font_size, line_height)
         text_object.setLeading(line_height)
         text_object.setCharSpace(letter_spacing)
-        text_color = color or DEFAULT_TEXT_COLOR
-        text_object.setFillColorRGB(text_color.red, text_color.green, text_color.blue)
-        self._canvas.setFillAlpha(text_color.alpha)
+        text_object.setFillColorRGB(color.red, color.green, color.blue)
+        self._canvas.setFillAlpha(color.alpha)
         current_baseline_y = baseline_y
         for line in wrapped_lines:
             display_line = shape_text(line, typography, text_direction)
@@ -255,25 +350,7 @@ class ReportLabCanvasAdapter:
             current_baseline_y -= line_height
         self._canvas.drawText(text_object)
 
-    def draw_rich_text(
-        self,
-        x: float,
-        y: float,
-        width: float,
-        lines: list[RichTextLine],
-        align: str = "left",
-        height: float | None = None,
-        valign: str = "top",
-    ) -> None:
-        text_height = sum(line.height for line in lines)
-        vertical_offset = 0.0
-        if height is not None:
-            extra_height = max(0.0, height - text_height)
-            if valign == "middle":
-                vertical_offset = extra_height / 2.0
-            elif valign == "bottom":
-                vertical_offset = extra_height
-        baseline_y = self.page_height - y - vertical_offset
+    def _draw_rich_text_lines(self, x: float, baseline_y: float, width: float, lines: list[RichTextLine], align: str, shadow_color: RGBA | None = None) -> None:
         text_object = cast(TextObjectLike, self._canvas.beginText(x, baseline_y))
         current_baseline_y = baseline_y
         for line in lines:
@@ -290,11 +367,11 @@ class ReportLabCanvasAdapter:
             for fragment in line.fragments:
                 text_object.setFont(fragment.font_name, fragment.font_size, line.height)
                 text_object.setCharSpace(fragment.letter_spacing)
-                text_color = fragment.color or DEFAULT_TEXT_COLOR
+                text_color = shadow_color or fragment.color or DEFAULT_TEXT_COLOR
                 text_object.setFillColorRGB(text_color.red, text_color.green, text_color.blue)
                 self._canvas.setFillAlpha(text_color.alpha)
                 fragment_width = string_width(fragment.text, fragment.font_name, fragment.font_size) + max(0, len(fragment.text) - 1) * fragment.letter_spacing
-                if fragment.underline and fragment_width > 0:
+                if shadow_color is None and fragment.underline and fragment_width > 0:
                     self._draw_rich_text_underline(fragment_x, current_baseline_y, fragment_width, fragment.font_size, text_color)
                 text_object.textOut(fragment.text)
                 fragment_x += fragment_width

@@ -14,6 +14,7 @@ from ..layout.text_wrap import text_width, wrap_text
 from ..style.color import RGBA
 from ..style.font import string_width
 from ..style.letter_spacing import resolve_letter_spacing
+from ..style.text_shadow import TextShadow
 from ..style.typography import shape_text
 from .rl_adapter import ReportLabCanvasAdapter
 
@@ -88,6 +89,7 @@ def paint_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
             letter_spacing=letter_spacing,
             text_overflow=text_overflow,
             lines=rendered_lines if text_overflow == "ellipsis" else None,
+            text_shadow=_text_shadow(node.content),
         )
     link_url = node.content.get("link_url")
     if isinstance(link_url, str):
@@ -111,6 +113,7 @@ def paint_rich_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
         align=align,
         height=content_height,
         valign=valign,
+        text_shadow=_text_shadow(node.content),
     )
     _paint_rich_text_link_annotations(
         adapter,
@@ -245,6 +248,11 @@ def _letter_spacing_points(node: object) -> float:
     font_size = float(getattr(style, "font_size", 12.0))
     value = content.get("letter_spacing") if isinstance(content, dict) else None
     return resolve_letter_spacing(value, font_size)
+
+
+def _text_shadow(content: dict[str, object]) -> TextShadow | None:
+    value = content.get("text_shadow")
+    return value if isinstance(value, TextShadow) else None
 
 
 def paint_image(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:

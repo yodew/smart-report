@@ -5,7 +5,9 @@ from __future__ import annotations
 from .._builder_core import NodeBuilder
 from ..layout.node import LayoutNode, Style
 from ..layout.text_overflow import normalize_text_overflow
+from ..style.color import RGBA
 from ..style.letter_spacing import LetterSpacingInput, normalize_letter_spacing
+from ..style.text_shadow import normalize_text_shadow
 
 
 class Text(NodeBuilder):
@@ -82,6 +84,12 @@ class Text(NodeBuilder):
         """
 
         self.node.content["text_overflow"] = normalize_text_overflow(value)
+        return self
+
+    def text_shadow(self, x: object = 0, y: object = 0, blur: object = 0, spread: object = 0, color: str | RGBA = "#000000") -> "Text":
+        """Set a block-level text shadow and return this builder."""
+
+        self.node.content["text_shadow"] = normalize_text_shadow(x, y, blur, spread, color)
         return self
 
     def link(self, url: object) -> "Text":
