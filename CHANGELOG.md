@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.13.3`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.4`.
+
+## 2.13.4
+
+- Added block-level `Text.text_shadow(...)` and `RichText.text_shadow(...)` APIs with normalized typed shadow settings.
+- Painted text shadows before main text using a bounded vector approximation for blur/spread; no native PDF blur filters, raster blur, span-level rich-text shadows, or layout behavior changes were added.
 
 ## 2.13.3
 
