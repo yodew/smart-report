@@ -1,6 +1,10 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.13.4`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.5`.
+
+## 2.13.5
+
+- Fixed `Text.text_shadow(...)` and `RichText.text_shadow(...)` blur/spread rendering so glow-style shadows use a single stroked text outline instead of multiple visible repeated text copies.
 
 ## 2.13.4
 
