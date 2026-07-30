@@ -101,7 +101,7 @@ table = Table([["Metric", "Details"], ["Revenue", rich]]) \
 
 ## Text Shadows
 
-`Text.text_shadow(...)` and `RichText.text_shadow(...)` add a block-level shadow behind the whole text element. Positive `x` moves the shadow right; positive `y` moves it down in smart-report's top-left layout coordinates. `blur` and `spread` are bounded vector approximations made from repeated low-alpha text draws, not native PDF blur/filter effects, so PDF text extraction may see shadow copies. `RichText.span(..., shadow=...)` is intentionally not supported.
+`Text.text_shadow(...)` and `RichText.text_shadow(...)` add a block-level shadow behind the whole text element. Positive `x` moves the shadow right; positive `y` moves it down in smart-report's top-left layout coordinates. `blur` and `spread` are vector outline approximations made with stroked PDF text, not native PDF blur/filter effects, so this behaves like a crisp glow/outline rather than a raster blur. `RichText.span(..., shadow=...)` is intentionally not supported.
 
 ```python
 frame.add_text("Shadowed title") \

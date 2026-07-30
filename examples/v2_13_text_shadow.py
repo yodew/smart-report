@@ -38,8 +38,8 @@ def main() -> None:
         .font_size(30) \
         .line_height(36) \
         .color("#ffffff") \
-        .text_shadow(x=2.5, y=3, blur=7, spread=1, color="rgba(0, 0, 0, 0.55)")
-    hero.add_text("Vector approximation: repeated low-alpha text draws, not raster blur.") \
+        .text_shadow(x=0, y=0, blur=4, spread=0, color="#FFFFFF")
+    hero.add_text("Vector outline approximation: stroked PDF text, not raster blur.") \
         .absolute(34, 94) \
         .width(420) \
         .font_size(11) \
@@ -56,7 +56,7 @@ def main() -> None:
         .span("shadow", font_size=24, color="#fde68a", bold=True) \
         .br() \
         .span("applies to the whole rich text block", font_size=12, color="#cbd5e1") \
-        .text_shadow(x=2, y=2.5, blur=5, spread=0.5, color="rgba(0, 0, 0, 0.5)") \
+        .text_shadow(x=0, y=0, blur=2.5, spread=0, color="rgba(255, 255, 255, 0.22)") \
         .width(330)
     card.add(rich).absolute(154, 42)
     content.add(card)
