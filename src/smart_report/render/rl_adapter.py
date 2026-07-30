@@ -6,7 +6,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from io import BytesIO
 from importlib import import_module
-import math
 from pathlib import Path
 from typing import Protocol, cast
 
@@ -19,26 +18,10 @@ from ..style.text_shadow import TextShadow
 from ..style.typography import TextDirection, TypographyMode, shape_text
 
 DEFAULT_TEXT_COLOR = RGBA(0.0, 0.0, 0.0, 1.0)
-_MAX_TEXT_SHADOW_PASSES = 33
 
 
-def _text_shadow_passes(shadow: TextShadow) -> list[tuple[float, float, float]]:
-    radius = shadow.blur + shadow.spread
-    if radius <= 0:
-        return [(0.0, 0.0, 1.0)]
-
-    ring_count = min(4, max(1, math.ceil(radius / 3.0)))
-    passes: list[tuple[float, float, float]] = [(0.0, 0.0, 1.0)]
-    for ring in range(1, ring_count + 1):
-        ring_radius = radius * ring / ring_count
-        sample_count = min(8, max(4, ring * 4))
-        for index in range(sample_count):
-            if len(passes) >= _MAX_TEXT_SHADOW_PASSES:
-                break
-            angle = (math.tau * index) / sample_count
-            passes.append((math.cos(angle) * ring_radius, math.sin(angle) * ring_radius, 1.0))
-    alpha_scale = 1.0 / len(passes)
-    return [(dx, dy, alpha_scale) for dx, dy, _scale in passes]
+def _text_shadow_stroke_width(shadow: TextShadow) -> float:
+    return max(0.0, shadow.spread + (shadow.blur * 0.5))
 
 
 class CanvasLike(Protocol):
@@ -76,6 +59,9 @@ class CanvasLike(Protocol):
 class TextObjectLike(Protocol):
     def setFont(self, font_name: str, font_size: float, leading: float | None = None) -> None: ...
     def setFillColorRGB(self, r: float, g: float, b: float) -> None: ...
+    def setStrokeColorRGB(self, r: float, g: float, b: float) -> None: ...
+    def setStrokeAlpha(self, alpha: float) -> None: ...
+    def setTextRenderMode(self, mode: int) -> None: ...
     def setTextOrigin(self, x: float, y: float) -> None: ...
     def setLeading(self, leading: float) -> None: ...
     def setCharSpace(self, charSpace: float) -> None: ...
@@ -255,22 +241,21 @@ class ReportLabCanvasAdapter:
                 vertical_offset = extra_height
         baseline_y = self.page_height - y - vertical_offset - font_size
         if text_shadow is not None:
-            for dx, dy, alpha_scale in _text_shadow_passes(text_shadow):
-                shadow_color = RGBA(text_shadow.color.red, text_shadow.color.green, text_shadow.color.blue, text_shadow.color.alpha * alpha_scale)
-                self._draw_text_lines(
-                    x + text_shadow.x + dx,
-                    baseline_y - text_shadow.y - dy,
-                    width,
-                    wrapped_lines,
-                    font_name,
-                    font_size,
-                    line_height,
-                    shadow_color,
-                    typography,
-                    text_direction,
-                    align,
-                    letter_spacing,
-                )
+            self._draw_text_lines(
+                x + text_shadow.x,
+                baseline_y - text_shadow.y,
+                width,
+                wrapped_lines,
+                font_name,
+                font_size,
+                line_height,
+                text_shadow.color,
+                typography,
+                text_direction,
+                align,
+                letter_spacing,
+                stroke_width=_text_shadow_stroke_width(text_shadow),
+            )
         self._draw_text_lines(
             x,
             baseline_y,
@@ -307,9 +292,7 @@ class ReportLabCanvasAdapter:
                 vertical_offset = extra_height
         baseline_y = self.page_height - y - vertical_offset
         if text_shadow is not None:
-            for dx, dy, alpha_scale in _text_shadow_passes(text_shadow):
-                shadow_color = RGBA(text_shadow.color.red, text_shadow.color.green, text_shadow.color.blue, text_shadow.color.alpha * alpha_scale)
-                self._draw_rich_text_lines(x + text_shadow.x + dx, baseline_y - text_shadow.y - dy, width, lines, align, shadow_color)
+            self._draw_rich_text_lines(x + text_shadow.x, baseline_y - text_shadow.y, width, lines, align, text_shadow.color, _text_shadow_stroke_width(text_shadow))
         self._draw_rich_text_lines(x, baseline_y, width, lines, align)
 
     def _draw_text_lines(
@@ -326,12 +309,18 @@ class ReportLabCanvasAdapter:
         text_direction: TextDirection,
         align: str,
         letter_spacing: float,
+        stroke_width: float = 0.0,
     ) -> None:
         text_object = cast(TextObjectLike, self._canvas.beginText(x, baseline_y))
         text_object.setFont(font_name, font_size, line_height)
         text_object.setLeading(line_height)
         text_object.setCharSpace(letter_spacing)
         text_object.setFillColorRGB(color.red, color.green, color.blue)
+        if stroke_width > 0:
+            self._canvas.setLineWidth(stroke_width)
+            text_object.setStrokeColorRGB(color.red, color.green, color.blue)
+            text_object.setStrokeAlpha(color.alpha)
+            text_object.setTextRenderMode(2)
         self._canvas.setFillAlpha(color.alpha)
         current_baseline_y = baseline_y
         for line in wrapped_lines:
@@ -350,8 +339,13 @@ class ReportLabCanvasAdapter:
             current_baseline_y -= line_height
         self._canvas.drawText(text_object)
 
-    def _draw_rich_text_lines(self, x: float, baseline_y: float, width: float, lines: list[RichTextLine], align: str, shadow_color: RGBA | None = None) -> None:
+    def _draw_rich_text_lines(self, x: float, baseline_y: float, width: float, lines: list[RichTextLine], align: str, shadow_color: RGBA | None = None, stroke_width: float = 0.0) -> None:
         text_object = cast(TextObjectLike, self._canvas.beginText(x, baseline_y))
+        if shadow_color is not None and stroke_width > 0:
+            self._canvas.setLineWidth(stroke_width)
+            text_object.setStrokeColorRGB(shadow_color.red, shadow_color.green, shadow_color.blue)
+            text_object.setStrokeAlpha(shadow_color.alpha)
+            text_object.setTextRenderMode(2)
         current_baseline_y = baseline_y
         for line in lines:
             max_font_size = max((fragment.font_size for fragment in line.fragments), default=12.0)

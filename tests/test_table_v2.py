@@ -283,7 +283,7 @@ class TableV2ModelTests(unittest.TestCase):
         self.assertEqual(fake_canvas.fill_alphas[0], 0.5)
         self.assertEqual(fake_canvas.fill_alphas[-1], DEFAULT_TEXT_COLOR.alpha)
 
-    def test_adapter_draw_text_blur_spread_uses_bounded_shadow_passes(self) -> None:
+    def test_adapter_draw_text_blur_spread_uses_single_stroked_shadow_pass(self) -> None:
         fake_canvas = _FakeCanvas()
         adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
         adapter._canvas = fake_canvas
@@ -292,9 +292,10 @@ class TableV2ModelTests(unittest.TestCase):
 
         adapter.draw_text(10, 10, 100, "Hi", "Helvetica", 10, 12, None, text_shadow=TextShadow(1.0, 1.0, 12.0, 6.0, cast(RGBA, parse_color("#000000"))))
 
-        self.assertGreater(len(fake_canvas.text_object.output), 2)
-        self.assertLessEqual(len(fake_canvas.text_object.output), 34)
+        self.assertEqual(len(fake_canvas.text_object.output), 2)
         self.assertEqual(fake_canvas.text_object.output[-1], "Hi")
+        self.assertEqual(fake_canvas.text_object.render_modes, [2])
+        self.assertEqual(fake_canvas.line_widths, [12.0])
 
     def test_adapter_draw_text_offsets_centered_lines(self) -> None:
         fake_canvas = _FakeCanvas()
@@ -3027,6 +3028,21 @@ class RichTextElementTests(unittest.TestCase):
         self.assertEqual(fake_canvas.fill_alphas[0], 0.4)
         self.assertEqual(fake_canvas.fill_alphas[-1], 1.0)
 
+    def test_reportlab_adapter_draw_rich_text_uses_single_stroked_shadow_pass(self) -> None:
+        rich = RichText().span("Glow", font="Helvetica", color="#ffffff")
+        lines = layout_rich_text(rich.node, 100)
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        fake_canvas = _FakeCanvas()
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 200
+
+        adapter.draw_rich_text(10, 20, 100, lines, text_shadow=TextShadow(0.0, 0.0, 4.0, 0.0, cast(RGBA, parse_color("#ffffff"))))
+
+        self.assertEqual(fake_canvas.text_object.output, ["Glow", "Glow"])
+        self.assertEqual(fake_canvas.text_object.render_modes, [2])
+        self.assertEqual(fake_canvas.line_widths, [2.0])
+
 
 class LayoutPrimitiveTests(unittest.TestCase):
     def test_layout_api_rejects_unbounded_track_counts_and_nonfinite_gap(self) -> None:
@@ -4104,6 +4120,9 @@ def _png_bytes(width: int, height: int) -> bytes:
 class _FakeTextObject:
     def __init__(self) -> None:
         self.fill_colors: list[tuple[float, float, float]] = []
+        self.stroke_colors: list[tuple[float, float, float]] = []
+        self.stroke_alphas: list[float] = []
+        self.render_modes: list[int] = []
         self.origins: list[tuple[float, float]] = []
         self.output: list[str] = []
         self.font_names: list[str] = []
@@ -4115,6 +4134,15 @@ class _FakeTextObject:
 
     def setFillColorRGB(self, red: float, green: float, blue: float) -> None:
         self.fill_colors.append((red, green, blue))
+
+    def setStrokeColorRGB(self, red: float, green: float, blue: float) -> None:
+        self.stroke_colors.append((red, green, blue))
+
+    def setStrokeAlpha(self, alpha: float) -> None:
+        self.stroke_alphas.append(alpha)
+
+    def setTextRenderMode(self, mode: int) -> None:
+        self.render_modes.append(mode)
 
     def setTextOrigin(self, _x: float, _y: float) -> None:
         self.origins.append((_x, _y))
