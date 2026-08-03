@@ -385,13 +385,21 @@ class Table(NodeBuilder):
         line_height: float | None = None,
         text_overflow: str | None = None,
         valign: str | None = None,
+        padding: SizeInput | None = None,
+        padding_top: SizeInput | None = None,
+        padding_right: SizeInput | None = None,
+        padding_bottom: SizeInput | None = None,
+        padding_left: SizeInput | None = None,
+        padding_vertical: SizeInput | None = None,
+        padding_horizontal: SizeInput | None = None,
     ) -> "Table":
         """Override style for one logical row by zero-based row index.
 
         ``align`` accepts ``"left"``, ``"center"``, or ``"right"``.
         ``text_overflow`` accepts ``"wrap"``, ``"clip"``, or
         ``"ellipsis"``. ``valign`` accepts ``"top"``, ``"middle"``, or
-        ``"bottom"``.
+        ``"bottom"``. Padding accepts a full ``padding`` value or partial
+        per-edge values such as ``padding_left``.
         """
 
         styles = _style_map(self.node.content, "row_styles")
@@ -405,6 +413,13 @@ class Table(NodeBuilder):
             line_height=line_height,
             text_overflow=text_overflow,
             valign=valign,
+            padding=padding,
+            padding_top=padding_top,
+            padding_right=padding_right,
+            padding_bottom=padding_bottom,
+            padding_left=padding_left,
+            padding_vertical=padding_vertical,
+            padding_horizontal=padding_horizontal,
         )
         return self
 
@@ -420,13 +435,21 @@ class Table(NodeBuilder):
         line_height: float | None = None,
         text_overflow: str | None = None,
         valign: str | None = None,
+        padding: SizeInput | None = None,
+        padding_top: SizeInput | None = None,
+        padding_right: SizeInput | None = None,
+        padding_bottom: SizeInput | None = None,
+        padding_left: SizeInput | None = None,
+        padding_vertical: SizeInput | None = None,
+        padding_horizontal: SizeInput | None = None,
     ) -> "Table":
         """Override style for one column by zero-based column index.
 
         ``align`` accepts ``"left"``, ``"center"``, or ``"right"``.
         ``text_overflow`` accepts ``"wrap"``, ``"clip"``, or
         ``"ellipsis"``. ``valign`` accepts ``"top"``, ``"middle"``, or
-        ``"bottom"``.
+        ``"bottom"``. Padding accepts a full ``padding`` value or partial
+        per-edge values such as ``padding_left``.
         """
 
         styles = _style_map(self.node.content, "column_styles")
@@ -440,6 +463,13 @@ class Table(NodeBuilder):
             line_height=line_height,
             text_overflow=text_overflow,
             valign=valign,
+            padding=padding,
+            padding_top=padding_top,
+            padding_right=padding_right,
+            padding_bottom=padding_bottom,
+            padding_left=padding_left,
+            padding_vertical=padding_vertical,
+            padding_horizontal=padding_horizontal,
         )
         return self
 
@@ -456,13 +486,21 @@ class Table(NodeBuilder):
         line_height: float | None = None,
         text_overflow: str | None = None,
         valign: str | None = None,
+        padding: SizeInput | None = None,
+        padding_top: SizeInput | None = None,
+        padding_right: SizeInput | None = None,
+        padding_bottom: SizeInput | None = None,
+        padding_left: SizeInput | None = None,
+        padding_vertical: SizeInput | None = None,
+        padding_horizontal: SizeInput | None = None,
     ) -> "Table":
         """Override style for one cell by zero-based row and column index.
 
         ``align`` accepts ``"left"``, ``"center"``, or ``"right"``.
         ``text_overflow`` accepts ``"wrap"``, ``"clip"``, or
         ``"ellipsis"``. ``valign`` accepts ``"top"``, ``"middle"``, or
-        ``"bottom"``.
+        ``"bottom"``. Padding accepts a full ``padding`` value or partial
+        per-edge values such as ``padding_left``.
         """
 
         styles = _style_map(self.node.content, "cell_styles")
@@ -477,6 +515,13 @@ class Table(NodeBuilder):
             line_height=line_height,
             text_overflow=text_overflow,
             valign=valign,
+            padding=padding,
+            padding_top=padding_top,
+            padding_right=padding_right,
+            padding_bottom=padding_bottom,
+            padding_left=padding_left,
+            padding_vertical=padding_vertical,
+            padding_horizontal=padding_horizontal,
         )
         return self
 
@@ -589,6 +634,13 @@ def _merge_style_override(
     line_height: float | None = None,
     text_overflow: str | None = None,
     valign: str | None = None,
+    padding: SizeInput | None = None,
+    padding_top: SizeInput | None = None,
+    padding_right: SizeInput | None = None,
+    padding_bottom: SizeInput | None = None,
+    padding_left: SizeInput | None = None,
+    padding_vertical: SizeInput | None = None,
+    padding_horizontal: SizeInput | None = None,
 ) -> dict[str, object]:
     style: dict[str, object] = dict(existing) if isinstance(existing, dict) else {}
     if background is not None:
@@ -608,7 +660,55 @@ def _merge_style_override(
         style["text_overflow"] = _normalize_text_overflow(text_overflow)
     if valign is not None:
         style["valign"] = _normalize_valign(valign)
+    _merge_padding_override(
+        style,
+        padding=padding,
+        padding_top=padding_top,
+        padding_right=padding_right,
+        padding_bottom=padding_bottom,
+        padding_left=padding_left,
+        padding_vertical=padding_vertical,
+        padding_horizontal=padding_horizontal,
+    )
     return style
+
+
+def _merge_padding_override(
+    style: dict[str, object],
+    *,
+    padding: SizeInput | None = None,
+    padding_top: SizeInput | None = None,
+    padding_right: SizeInput | None = None,
+    padding_bottom: SizeInput | None = None,
+    padding_left: SizeInput | None = None,
+    padding_vertical: SizeInput | None = None,
+    padding_horizontal: SizeInput | None = None,
+) -> None:
+    if padding is not None and any(edge is not None for edge in (padding_top, padding_right, padding_bottom, padding_left, padding_vertical, padding_horizontal)):
+        raise ValueError("Use either padding or named padding values, not both")
+    if padding is not None:
+        points = _edge_points(padding)
+        style["padding_top"] = points
+        style["padding_right"] = points
+        style["padding_bottom"] = points
+        style["padding_left"] = points
+        return
+    if padding_vertical is not None:
+        points = _edge_points(padding_vertical)
+        style["padding_top"] = points
+        style["padding_bottom"] = points
+    if padding_horizontal is not None:
+        points = _edge_points(padding_horizontal)
+        style["padding_right"] = points
+        style["padding_left"] = points
+    if padding_top is not None:
+        style["padding_top"] = _edge_points(padding_top)
+    if padding_right is not None:
+        style["padding_right"] = _edge_points(padding_right)
+    if padding_bottom is not None:
+        style["padding_bottom"] = _edge_points(padding_bottom)
+    if padding_left is not None:
+        style["padding_left"] = _edge_points(padding_left)
 
 
 def _normalize_text_overflow(value: str) -> str:

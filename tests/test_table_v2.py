@@ -1124,6 +1124,53 @@ class TableV2ModelTests(unittest.TestCase):
         self.assertEqual((cell_box.font_name, cell_box.font_size, cell_box.line_height), ("Helvetica-Bold", 15, 17))
         self.assertEqual((cell_box.text_overflow, cell_box.valign), ("clip", "middle"))
 
+    def test_row_column_and_cell_padding_styles_follow_precedence(self) -> None:
+        table = (
+            Table([["H1", "H2"], ["A", "B"], ["C", "D"]])
+            .column_widths([120, 120])
+            .cell_padding(vertical=2, horizontal=3)
+            .header_padding(top=10, right=11, bottom=12, left=13)
+            .column_style(1, padding_top=21, padding_left=20)
+            .row_style(1, padding_vertical=8, padding_right=30)
+            .cell_style(1, 1, padding_left=40, padding_bottom=50)
+        )
+        table.node.resolved_width = 240
+
+        boxes = table_cell_boxes(table.node, 0, 0, 240, table_height(table.node))
+        header_box = next(box for box in boxes if box.source_row_index == 0 and box.column_index == 1)
+        column_box = next(box for box in boxes if box.source_row_index == 2 and box.column_index == 1)
+        target = next(box for box in boxes if box.source_row_index == 1 and box.column_index == 1)
+
+        self.assertEqual((header_box.padding.top, header_box.padding.right, header_box.padding.bottom, header_box.padding.left), (21.0, 11.0, 12.0, 20.0))
+        self.assertEqual((column_box.padding.top, column_box.padding.right, column_box.padding.bottom, column_box.padding.left), (21.0, 3.0, 2.0, 20.0))
+        self.assertEqual((target.padding.top, target.padding.right, target.padding.bottom, target.padding.left), (8.0, 30.0, 50.0, 40.0))
+
+    def test_partial_padding_style_stores_only_specified_edges(self) -> None:
+        table = Table([["A", "B"]]).row_style(0, padding_left=9).column_style(1, padding_horizontal=4).cell_style(0, 1, padding_bottom=7)
+
+        row_styles = cast(dict[int, dict[str, object]], table.node.content["row_styles"])
+        column_styles = cast(dict[int, dict[str, object]], table.node.content["column_styles"])
+        cell_styles = cast(dict[str, dict[str, object]], table.node.content["cell_styles"])
+
+        self.assertEqual(row_styles[0], {"padding_left": 9.0})
+        self.assertEqual(column_styles[1], {"padding_right": 4.0, "padding_left": 4.0})
+        self.assertEqual(cell_styles["0:1"], {"padding_bottom": 7.0})
+
+    def test_scoped_padding_changes_row_height_measurement(self) -> None:
+        text = "one two three four five six seven eight nine ten"
+        baseline = Table([[text]]).header(0).column_widths([72]).cell_padding(0).font("Helvetica").font_size(10).line_height(12)
+        padded = Table([[text]]).header(0).column_widths([72]).cell_padding(0).font("Helvetica").font_size(10).line_height(12).column_style(0, padding_horizontal=30)
+        baseline.node.resolved_width = 72
+        padded.node.resolved_width = 72
+
+        with _patched_table_string_width(lambda value, font_name, font_size: float(len(value))):
+            baseline_height = table_height(baseline.node)
+            padded_height = table_height(padded.node)
+            padded_boxes = table_cell_boxes(padded.node, 0, 0, 72, padded_height)
+
+        self.assertGreater(padded_height, baseline_height)
+        self.assertEqual((padded_boxes[0].padding.right, padded_boxes[0].padding.left), (30.0, 30.0))
+
     def test_plain_cell_clip_and_ellipsis_measure_as_one_line(self) -> None:
         text = "one two three four five six seven eight"
         wrap_table = Table([[text]]).header(0).column_widths([60]).cell_padding(0).font_size(10).line_height(12)

@@ -627,14 +627,15 @@ def table_row_heights(node: LayoutNode, rows: Sequence[Sequence[object]], column
             resolved_font_name = _style_font_name(font_name, column_override, row_override, cell_override)
             resolved_font_size = _style_float(font_size, column_override, row_override, cell_override, "font_size")
             resolved_line_height = _style_float(line_height, column_override, row_override, cell_override, "line_height")
+            resolved_padding = _style_padding(padding, column_override, row_override, cell_override)
             cell = row[column_index] if column_index < len(row) else ""
             span = spans.get((row_index, column_index), TableCellSpan(row_index=row_index, column_index=column_index))
             column_width = sum(column_widths[column_index:column_index + span.colspan])
-            text_width = max(1.0, column_width - padding.horizontal)
+            text_width = max(1.0, column_width - resolved_padding.horizontal)
             required_height = _measure_cell_height(
                 cell,
                 text_width,
-                padding,
+                resolved_padding,
                 resolved_font_name,
                 resolved_font_size,
                 resolved_line_height,
@@ -647,7 +648,7 @@ def table_row_heights(node: LayoutNode, rows: Sequence[Sequence[object]], column
             if cell_height_override is not None:
                 required_height = max(required_height, cell_height_override)
             if footer_rows and row_index >= len(rows) - footer_rows:
-                required_height = max(required_height, resolved_line_height + padding.vertical)
+                required_height = max(required_height, resolved_line_height + resolved_padding.vertical)
             if span.rowspan == 1:
                 heights[row_index] = max(heights[row_index], required_height)
                 continue
@@ -736,6 +737,7 @@ def table_cell_boxes(node: LayoutNode, x: float, y: float, width: float, height:
             font_name = _style_font_name(font_name, column_override, row_override, cell_override)
             font_size = _style_float(font_size, column_override, row_override, cell_override, "font_size")
             line_height = _style_float(line_height, column_override, row_override, cell_override, "line_height")
+            padding = _style_padding(padding, column_override, row_override, cell_override)
             base_align = header_alignments[column_index] if is_header and header_alignments is not None else alignments[column_index]
             if is_footer and footer_alignments is not None:
                 base_align = footer_alignments[column_index]
@@ -962,6 +964,31 @@ def _style_float(
         if isinstance(value, (int, float)):
             resolved = float(value)
     return resolved
+
+
+def _style_padding(
+    base: Edges,
+    column_override: dict[str, object],
+    row_override: dict[str, object],
+    cell_override: dict[str, object],
+) -> Edges:
+    top = base.top
+    right = base.right
+    bottom = base.bottom
+    left = base.left
+    for override in (column_override, row_override, cell_override):
+        top = _style_padding_edge(top, override, "padding_top")
+        right = _style_padding_edge(right, override, "padding_right")
+        bottom = _style_padding_edge(bottom, override, "padding_bottom")
+        left = _style_padding_edge(left, override, "padding_left")
+    return Edges(top=top, right=right, bottom=bottom, left=left)
+
+
+def _style_padding_edge(base: float, override: dict[str, object], key: str) -> float:
+    value = override.get(key)
+    if isinstance(value, (int, float)):
+        return float(value)
+    return base
 
 
 def _style_text_overflow(
