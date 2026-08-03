@@ -286,15 +286,21 @@ table = Table([
 | `.radius(value)` | 统一值、四元组或命名角 | `Table` | 设置表格外边框圆角，并裁剪外角背景 |
 | `.background_image(src, fit="cover", opacity=1.0)` | 图片来源、适配、透明度 | `Table` | 绘制一次表格级背景图，位于单元格背景、内容和边框之下 |
 
-`row_style(...)`、`column_style(...)`、`cell_style(...)` 支持：`background`、`color`、`align`、`font`、`font_size`、`line_height`、`text_overflow`、`valign`。
+`row_style(...)`、`column_style(...)`、`cell_style(...)` 支持：`background`、`color`、`align`、`font`、`font_size`、`line_height`、`text_overflow`、`valign`，以及局部内边距 `padding`、`padding_top`、`padding_right`、`padding_bottom`、`padding_left`、`padding_vertical`、`padding_horizontal`。
 
-样式优先级：`cell_style > row_style > column_style > 表头/表尾/斑马纹/表格默认样式`。索引基于原始逻辑行列；即使跨页拆分并重复表头，样式也按原始行号生效。
+样式优先级：`cell_style > row_style > column_style > 表头/表尾/斑马纹/表格默认样式`。内边距也遵循同样顺序；只设置部分边时，未指定的边会继续继承前一层设置，而不会被清零。索引基于原始逻辑行列；即使跨页拆分并重复表头，样式也按原始行号生效。
 
 ```python
 table = Table(rows) \
     .column_style(2, color="#166534") \
     .row_style(3, background="#ecfeff") \
     .cell_style(6, 1, background="#dcfce7", color="#166534", align="right")
+
+table = Table(rows) \
+    .cell_padding(vertical=6, horizontal=8) \
+    .column_style(1, padding_left=14) \
+    .row_style(3, padding_vertical=10) \
+    .cell_style(3, 1, padding_right=18)
 ```
 
 ```python
