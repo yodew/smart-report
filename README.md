@@ -115,6 +115,28 @@ rich = RichText() \
     .text_shadow(x=1.5, y=2, blur=4, color="#00000080")
 ```
 
+## First-line Text Indent
+
+`Text.text_indent(...)` and `RichText.text_indent(...)` indent only the first rendered line. Use points such as `24`, or an `em` string such as `"2em"`; for Chinese paragraphs, `"2em"` is the recommended two-character first-line indent because it resolves against the element's effective font size.
+
+Leading full-width spaces such as `"　　"` are not reliable for paragraph indentation with automatic wrapping: wrapping tokenizes whitespace and leading whitespace can be skipped or separated from the visible first line. `text_indent(...)` is layout geometry instead, so the first line gets an x offset and reduced available width while subsequent wrapped lines keep the normal width. Center/right alignment and PDF link annotations follow the visible indented line.
+
+```python
+frame.add_text("智能报告需要稳定的中文段落首行缩进……") \
+    .font_size(12) \
+    .line_height(20) \
+    .text_indent("2em")
+
+rich = RichText() \
+    .font_size(12) \
+    .line_height(20) \
+    .text_indent("2em") \
+    .span("富文本首行缩进", bold=True) \
+    .span("同样支持自动换行和行内链接。", link="https://example.com")
+```
+
+See `examples/v2_13_text_indent.py` for a runnable Chinese Text/RichText example.
+
 ## Layered Reports
 
 ```python
@@ -209,6 +231,7 @@ Useful examples include:
 - `examples/v2_12_background_images.py`
 - `examples/v2_12_image_text_composition.py`
 - `examples/v2_13_report_patterns.py`
+- `examples/v2_13_text_indent.py`
 - `examples/v2_13_text_shadow.py`
 - `examples/zh_table_demo.py`
 
