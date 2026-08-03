@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.13.6`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.7`.
+
+## 2.13.7
+
+- Added scoped table cell padding controls to `Table.column_style(...)`, `Table.row_style(...)`, and `Table.cell_style(...)` using `padding`, per-edge, vertical, and horizontal keyword arguments.
+- Resolved table padding during row-height measurement and cell box creation with inheritance precedence `default/header -> column -> row -> cell`, preserving unspecified edges for partial overrides.
 
 ## 2.13.6
 
