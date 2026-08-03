@@ -322,6 +322,7 @@ Table([
 | `.align(value)` | `"left"` / `"center"` / `"right"` | `Text` | 设置文本框内水平对齐，需给宽度才明显 |
 | `.valign(value)` | `"top"` / `"middle"` / `"bottom"` | `Text` | 设置固定高度文本框内垂直对齐 |
 | `.letter_spacing(value)` | 数值、`"0.05em"`、`"5%"` | `Text` | 设置字距 |
+| `.text_indent(value)` | 非负数值或 `"2em"` | `Text` | 设置首个渲染行的首行缩进 |
 | `.text_overflow(value)` | `"wrap"` / `"clip"` / `"ellipsis"` | `Text` | 设置固定文本框溢出策略 |
 | `.text_shadow(x=0, y=0, blur=0, spread=0, color="#000000")` | 有限数值和颜色值 | `Text` | 为整个文本块添加阴影 |
 | `.link(url)` | 非空字符串 | `Text` | 为整个文本节点添加 PDF 外部 URL 链接 |
@@ -335,6 +336,17 @@ frame.add_text("体质辨析：气虚质 + 痰湿质") \
     .align("center") \
     .valign("middle") \
     .letter_spacing("0.05em")
+```
+
+中文段落首行缩进建议使用 `.text_indent("2em")`，表示按当前节点字号缩进两个 `em`。它是布局几何：第一条渲染行会向右偏移并减少可用宽度，后续自动换行仍使用正常宽度；左/中/右对齐和 `Text.link(url)` 的 PDF 链接矩形都会跟随可见缩进位置。
+
+不要用 `add_text(f"　　{text}")` 作为自动换行段落缩进。全角空格属于字符串空白，换行过程会把空白 token 化，行首空白可能被跳过或和实际首行分离，因此在宽度变化、分页或链接注解下不稳定。
+
+```python
+frame.add_text("智能报告需要稳定的中文段落首行缩进……") \
+    .font_size(12) \
+    .line_height(20) \
+    .text_indent("2em")
 ```
 
 `text_overflow("clip")` 使用类似表格单元格的单行固定框行为：硬换行会折叠为空格，并直接裁切文本框外内容。`text_overflow("ellipsis")` 会先按文本框宽度换行，再按固定高度保留可见行，内容被隐藏时在最后一条可见行追加 `…`。默认 `wrap` 保持自动换行。
@@ -368,6 +380,7 @@ frame.add_text("阴影标题") \
 | `.text(value)` | `str` | `RichText` | 清空 runs，并设置为一个普通文本 run |
 | `.span(text, font=None, font_family=None, font_size=None, color=None, bold=False, italic=False, underline=False, link=None, letter_spacing=None, line_height=None)` | 文本和 span 样式 | `RichText` | 追加行内片段 |
 | `.letter_spacing(value)` | 数值、`"0.05em"`、`"5%"` | `RichText` | 设置全局字距；span 级设置会覆盖 |
+| `.text_indent(value)` | 非负数值或 `"2em"` | `RichText` | 设置首个富文本渲染行的首行缩进 |
 | `.br(count=1)` | 正整数 | `RichText` | 追加一个或多个硬换行 |
 | `.clear()` | 无 | `RichText` | 清空所有 runs |
 | `.align(value)` | `"left"` / `"center"` / `"right"` | `RichText` | 设置富文本框整体水平对齐 |
@@ -386,6 +399,8 @@ rich = (
 )
 frame.add(rich)
 ```
+
+`RichText.text_indent("2em")` 与 `Text.text_indent("2em")` 语义一致：只缩进第一个可见富文本行，后续换行恢复正常宽度。行内 `link=url` 生成的 PDF 注解会跟随缩进后的 span 位置；富文本分页后的续页切片不会重复首行缩进。
 
 `italic=True` 会优先使用注册字体族的 italic / bold_italic face；Base14 字体会映射到对应的 Oblique / Italic face。`underline=True` 会按 span 绘制下划线，并在富文本换行和分页切片后保留。`link=url` 会为该 span 渲染 PDF 外部 URL 注解，换行或分页后会按可见片段生成链接矩形；不会自动改变颜色或下划线。`line_height` 必须是有限且大于 0 的数值；显式 span 行高会参与该行 line box 高度计算，并在换行、序列化和分页切片后保留。
 
