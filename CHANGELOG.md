@@ -1,6 +1,12 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.13.5`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.6`.
+
+## 2.13.6
+
+- Added `Text.text_indent(...)` and `RichText.text_indent(...)` for first-line indentation using points or `em` units resolved against the effective node font size.
+- Treated first-line indent as layout geometry for wrapping, alignment, link annotations, and RichText pagination continuations instead of relying on leading whitespace.
+- Added Chinese paragraph documentation and a runnable `examples/v2_13_text_indent.py` demo recommending `text_indent("2em")`.
 
 ## 2.13.5
 
