@@ -83,6 +83,7 @@ def fit_multiline_overflow_text(
     text_direction: TextDirection,
     letter_spacing: float = 0.0,
     string_width: StringWidthFn | None = None,
+    text_indent: float = 0.0,
 ) -> list[str]:
     wrapped_lines = wrap_text(
         text,
@@ -93,14 +94,16 @@ def fit_multiline_overflow_text(
         typography,
         text_direction,
         letter_spacing,
+        text_indent,
     )
     max_lines = max(1, int(max(0.0, height) // max(1.0, line_height)))
     if len(wrapped_lines) <= max_lines:
         return wrapped_lines
     visible_lines = list(wrapped_lines[:max_lines])
+    last_line_width = max(1.0, width - max(0.0, text_indent)) if max_lines == 1 else width
     visible_lines[-1] = fit_plain_overflow_text(
         visible_lines[-1],
-        width,
+        last_line_width,
         font_name,
         font_size,
         typography,

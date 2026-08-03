@@ -9,6 +9,7 @@ from .text_wrap import _tokens
 from ..style.color import RGBA, parse_color
 from ..style.font import DEFAULT_FONT_REGISTRY, shaped_string_width, string_width
 from ..style.letter_spacing import resolve_letter_spacing
+from ..style.text_indent import resolve_text_indent
 from ..style.typography import shape_text_for_width
 
 
@@ -31,6 +32,7 @@ class RichTextLine:
     fragments: tuple[RichTextFragment, ...]
     width: float
     height: float
+    text_indent: float = 0.0
 
 
 BASE14_STYLE_FACES = {
@@ -95,7 +97,7 @@ def normalize_rich_text_runs(node: LayoutNode) -> list[RichTextFragment | None]:
 
 def rich_text_natural_width(node: LayoutNode) -> float:
     lines = layout_rich_text(node, 1000000.0)
-    return max((line.width for line in lines), default=0.0) + node.style.padding.horizontal
+    return max((line.width + line.text_indent for line in lines), default=0.0) + node.style.padding.horizontal
 
 
 def rich_text_height(node: LayoutNode, width: float) -> float:
@@ -114,37 +116,51 @@ def layout_rich_text(node: LayoutNode, width: float) -> list[RichTextLine]:
     lines: list[RichTextLine] = []
     current: list[RichTextFragment] = []
     safe_width = max(1.0, width)
+    text_indent = min(max(0.0, resolve_text_indent(node.content.get("text_indent"), node.style.font_size)), max(0.0, safe_width - 1.0))
+    first_line_width = max(1.0, safe_width - text_indent)
+    current_width = first_line_width
+    current_indent = text_indent
 
     for fragment in fragments:
         if fragment is None:
-            lines.append(_line(tuple(_trim_trailing_space(current)), node.style.line_height))
+            lines.append(_line(tuple(_trim_trailing_space(current)), node.style.line_height, current_indent))
             current = []
+            current_width = safe_width
+            current_indent = 0.0
             continue
         for paragraph_index, paragraph in enumerate(fragment.text.split("\n")):
             if paragraph_index > 0:
-                lines.append(_line(tuple(_trim_trailing_space(current)), node.style.line_height))
+                lines.append(_line(tuple(_trim_trailing_space(current)), node.style.line_height, current_indent))
                 current = []
+                current_width = safe_width
+                current_indent = 0.0
             for token in _tokens(paragraph):
                 if token.isspace() and not current:
                     continue
                 token_fragment = _copy_fragment(fragment, token)
                 candidate = current + [token_fragment]
-                if _fragments_width(candidate, node) <= safe_width:
+                if _fragments_width(candidate, node) <= current_width:
                     current = candidate
                     continue
                 if current:
-                    lines.append(_line(tuple(_trim_trailing_space(current)), node.style.line_height))
+                    lines.append(_line(tuple(_trim_trailing_space(current)), node.style.line_height, current_indent))
                     current = []
+                    current_width = safe_width
+                    current_indent = 0.0
                     if token.isspace():
                         continue
-                if _fragment_width(token_fragment, node) <= safe_width:
+                if _fragment_width(token_fragment, node) <= current_width:
                     current = [token_fragment]
                     continue
-                split_parts = _split_long_fragment(token_fragment, safe_width, node)
-                lines.extend(_line((part,), node.style.line_height) for part in split_parts[:-1])
+                split_parts = _split_long_fragment(token_fragment, current_width, safe_width, node)
+                for index, part in enumerate(split_parts[:-1]):
+                    lines.append(_line((part,), node.style.line_height, current_indent if index == 0 else 0.0))
                 current = [split_parts[-1]] if split_parts else []
+                if split_parts[:-1]:
+                    current_width = safe_width
+                    current_indent = 0.0
     if current or not lines:
-        lines.append(_line(tuple(_trim_trailing_space(current)), node.style.line_height))
+        lines.append(_line(tuple(_trim_trailing_space(current)), node.style.line_height, current_indent))
     return lines
 
 
@@ -228,14 +244,14 @@ def _copy_fragment(fragment: RichTextFragment, text: str) -> RichTextFragment:
     )
 
 
-def _line(fragments: tuple[RichTextFragment, ...], fallback_height: float) -> RichTextLine:
+def _line(fragments: tuple[RichTextFragment, ...], fallback_height: float, text_indent: float = 0.0) -> RichTextLine:
     width = sum(_fragment_width_no_node(fragment) for fragment in fragments)
     height = max(
         fallback_height,
         max((fragment.font_size * 1.2 for fragment in fragments), default=fallback_height),
         max((fragment.line_height for fragment in fragments if fragment.line_height is not None), default=fallback_height),
     )
-    return RichTextLine(fragments=fragments, width=width, height=height)
+    return RichTextLine(fragments=fragments, width=width, height=height, text_indent=text_indent)
 
 
 def _trim_trailing_space(fragments: list[RichTextFragment]) -> list[RichTextFragment]:
@@ -262,14 +278,16 @@ def _fragment_width_no_node(fragment: RichTextFragment) -> float:
     return string_width(fragment.text, fragment.font_name, fragment.font_size) + max(0, len(fragment.text) - 1) * fragment.letter_spacing
 
 
-def _split_long_fragment(fragment: RichTextFragment, width: float, node: LayoutNode) -> list[RichTextFragment]:
+def _split_long_fragment(fragment: RichTextFragment, first_part_width: float, width: float, node: LayoutNode) -> list[RichTextFragment]:
     parts: list[RichTextFragment] = []
     current = ""
+    current_width = first_part_width
     for character in fragment.text:
         candidate = f"{current}{character}"
-        if current and _fragment_width(_copy_fragment(fragment, candidate), node) > width:
+        if current and _fragment_width(_copy_fragment(fragment, candidate), node) > current_width:
             parts.append(_copy_fragment(fragment, current))
             current = character
+            current_width = width
             continue
         current = candidate
     if current:

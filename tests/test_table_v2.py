@@ -27,10 +27,11 @@ from smart_report.layout.pass3_heights import resolve_heights
 from smart_report.layout.pass2_widths import resolve_widths
 from smart_report.layout.rich_text_layout import layout_rich_text, rich_text_runs_for_lines
 from smart_report.layout.table_model import TableCellBox, fit_plain_overflow_text, plain_cell_natural_width, plain_overflow_text_width, table_cell_box_natural_width, table_cell_boxes, table_cell_padding, table_column_widths, table_height, table_row_heights, table_rows
-from smart_report.layout.text_wrap import wrap_text
+from smart_report.layout.text_wrap import text_width, wrap_text
 from smart_report.render.painters import paint_canvas_background, paint_image, paint_render_item, paint_rich_text, paint_table, paint_text
 from smart_report.render.rl_adapter import DEFAULT_TEXT_COLOR, ReportLabCanvasAdapter
 from smart_report.style.color import RGBA, parse_color
+from smart_report.style.text_indent import normalize_text_indent
 from smart_report.style.text_shadow import TextShadow
 from smart_report.style.typography import shape_text
 import smart_report.layout.table_model as table_model_module
@@ -227,6 +228,20 @@ class TableV2ModelTests(unittest.TestCase):
 
         self.assertEqual(text.node.content["align"], "center")
 
+    def test_text_builder_stores_and_validates_text_indent(self) -> None:
+        text = Text("中文段落").text_indent("2em")
+
+        self.assertIs(text.text_indent(18), text)
+        self.assertEqual(text.node.content["text_indent"], 18.0)
+        self.assertEqual(Text("中文段落").text_indent("12pt").node.content["text_indent"], 12.0)
+        self.assertEqual(Text("中文段落").text_indent("2em").node.content["text_indent"], "2em")
+        for invalid in (-1, float("nan"), float("inf"), "-1em", "50%", "auto", "wide"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises((TypeError, ValueError)):
+                    _ = Text("Bad").text_indent(invalid)
+        with self.assertRaises(TypeError):
+            _ = normalize_text_indent(object())
+
     def test_text_builder_rejects_unsupported_alignment(self) -> None:
         with self.assertRaises(ValueError):
             _ = Text("Nope").align("justify")
@@ -240,6 +255,76 @@ class TableV2ModelTests(unittest.TestCase):
         paint_text(cast(ReportLabCanvasAdapter, adapter), RenderItem(text.node, Rect(10, 20, 100, 20), (), (0,)))
 
         self.assertEqual(adapter.text_kwargs[0]["align"], "center")
+
+    def test_text_indent_wraps_and_paints_first_line_with_offset(self) -> None:
+        text = Text("alpha beta gamma").font("Helvetica").font_size(12).line_height(14).width(80).text_indent(30)
+        resolve_widths(text.node, 80)
+        resolve_heights(text.node)
+        adapter = _SpyAdapter()
+
+        paint_text(cast(ReportLabCanvasAdapter, adapter), RenderItem(text.node, Rect(10, 20, 80, text.node.resolved_height), (), (0,)))
+
+        lines = cast(list[str], adapter.text_kwargs[0]["lines"])
+        self.assertGreater(len(lines), 1)
+        self.assertEqual(adapter.text_kwargs[0]["x"], 10)
+        self.assertEqual(adapter.text_kwargs[0]["width"], 80)
+        self.assertEqual(adapter.text_kwargs[0]["line_indents"], [30.0] + [0.0] * (len(lines) - 1))
+
+    def test_adapter_draw_text_applies_first_line_indent_before_alignment(self) -> None:
+        fake_canvas = _FakeCanvas()
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 100
+        lines = ["Hi", "there"]
+
+        adapter.draw_text(10, 10, 100, "Hi\nthere", "Helvetica", 10, 12, None, align="center", lines=lines, line_indents=[20, 0])
+
+        expected_first_x = 10 + 20 + ((80 - string_width("Hi", "Helvetica", 10)) / 2)
+        expected_second_x = 10 + ((100 - string_width("there", "Helvetica", 10)) / 2)
+        self.assertAlmostEqual(fake_canvas.text_object.origins[0][0], expected_first_x, places=3)
+        self.assertAlmostEqual(fake_canvas.text_object.origins[1][0], expected_second_x, places=3)
+
+    def test_text_link_annotation_follows_first_line_indent(self) -> None:
+        text = Text("Open link").font("Helvetica").font_size(12).line_height(14).width(100).text_indent(24).link("https://example.com/text-indent")
+        resolve_widths(text.node, 100)
+        resolve_heights(text.node)
+        adapter = _SpyAdapter()
+
+        paint_text(cast(ReportLabCanvasAdapter, adapter), RenderItem(text.node, Rect(5, 7, 100, text.node.resolved_height), (), (0,)))
+
+        self.assertEqual(len(adapter.links), 1)
+        self.assertEqual(adapter.links[0][0], "https://example.com/text-indent")
+        self.assertAlmostEqual(adapter.links[0][1].x, 29.0, places=3)
+
+    def test_text_indent_ellipsis_uses_full_width_after_first_line(self) -> None:
+        text = Text("alpha beta gamma delta epsilon zeta eta theta").font("Helvetica").font_size(12).line_height(14).width(100).height(28).text_indent(40).text_overflow("ellipsis")
+        resolve_widths(text.node, 100)
+        resolve_heights(text.node)
+        adapter = _SpyAdapter()
+
+        paint_text(cast(ReportLabCanvasAdapter, adapter), RenderItem(text.node, Rect(10, 20, 100, 28), (), (0,)))
+
+        lines = cast(list[str], adapter.text_kwargs[0]["lines"])
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(adapter.text_kwargs[0]["line_indents"], [40.0, 0.0])
+        self.assertLessEqual(text_width(lines[0], "Helvetica", 12), 60.0)
+        self.assertLessEqual(text_width(lines[1], "Helvetica", 12), 100.0)
+        self.assertGreater(text_width(lines[1], "Helvetica", 12), 60.0)
+
+    def test_paginated_text_continuation_does_not_repeat_text_indent(self) -> None:
+        text = Text(" ".join(f"word-{index}" for index in range(30))).font("Helvetica").font_size(10).line_height(12).width(120).text_indent("2em")
+        frame = Frame().padding(0).width(120)
+        frame.add(text)
+        resolve_widths(frame.node, 120)
+        resolve_heights(frame.node, None)
+
+        slices = split_frame_node(frame.node, 30, 30)
+        text_slices = [child for frame_slice in slices for child in frame_slice.children if child.node_type == "text"]
+
+        self.assertGreater(len(text_slices), 1)
+        self.assertEqual(text_slices[0].content["text_indent"], "2em")
+        self.assertTrue(all(child.content.get("text_indent") == 0.0 for child in text_slices[1:]))
 
     def test_text_builder_stores_normalized_text_shadow(self) -> None:
         text = Text("Shadow").text_shadow(x=-1, y=2, blur=3, spread=4, color="rgba(255, 0, 0, 0.5)")
@@ -2683,6 +2768,20 @@ class RichTextElementTests(unittest.TestCase):
             ],
         )
 
+    def test_rich_text_builder_stores_and_validates_text_indent(self) -> None:
+        rich = RichText("中文段落").text_indent("2em")
+
+        self.assertIs(rich.text_indent(18), rich)
+        self.assertEqual(rich.node.content["text_indent"], 18.0)
+        self.assertEqual(RichText("中文段落").text_indent("12pt").node.content["text_indent"], 12.0)
+        self.assertEqual(RichText("中文段落").text_indent("2em").node.content["text_indent"], "2em")
+        for invalid in (-1, float("nan"), float("inf"), "-1em", "50%", "auto", "wide"):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises((TypeError, ValueError)):
+                    _ = RichText("Bad").text_indent(invalid)
+        with self.assertRaises(TypeError):
+            _ = normalize_text_indent(object())
+
     def test_rich_text_builder_rejects_invalid_span_links(self) -> None:
         rich = RichText()
 
@@ -2830,6 +2929,30 @@ class RichTextElementTests(unittest.TestCase):
         self.assertTrue(any(fragment.italic for fragment in fragments))
         self.assertEqual(lines[-1].fragments[0].text, "tail")
 
+    def test_rich_text_layout_applies_indent_only_to_first_line(self) -> None:
+        rich = RichText().font("Helvetica").font_size(12).line_height(14).text_indent(30).span("alpha beta gamma delta")
+
+        lines = layout_rich_text(rich.node, 80)
+
+        self.assertGreater(len(lines), 1)
+        self.assertEqual(getattr(lines[0], "text_indent"), 30.0)
+        self.assertTrue(all(getattr(line, "text_indent") == 0.0 for line in lines[1:]))
+        self.assertLessEqual(lines[0].width, 50.0)
+        self.assertTrue(any(line.width > 50.0 for line in lines[1:]))
+
+    def test_rich_text_link_annotation_follows_first_line_indent(self) -> None:
+        rich = RichText().font("Helvetica").font_size(12).line_height(14).text_indent(24).span("Open", link="https://example.com/indented-rich").span(" plain").width(120)
+        resolve_widths(rich.node, 120)
+        resolve_heights(rich.node)
+        item = RenderItem(rich.node, Rect(5, 10, 120, rich.node.resolved_height), (), (0,))
+        spy = _SpyAdapter()
+
+        paint_rich_text(cast(ReportLabCanvasAdapter, spy), item)
+
+        self.assertEqual(len(spy.links), 1)
+        self.assertEqual(spy.links[0][0], "https://example.com/indented-rich")
+        self.assertAlmostEqual(spy.links[0][1].x, 29.0, places=3)
+
     def test_rich_text_painter_passes_fragment_styles_to_adapter(self) -> None:
         rich = (
             RichText()
@@ -2919,6 +3042,21 @@ class RichTextElementTests(unittest.TestCase):
         self.assertGreater(len(slices), 1)
         self.assertTrue(runs)
         self.assertTrue(all(run.get("line_height") == 18.0 for run in runs))
+
+    def test_paginated_rich_text_continuation_does_not_repeat_text_indent(self) -> None:
+        rich = RichText().font("Helvetica").font_size(10).line_height(12).text_indent("2em").span(" ".join(f"word-{index}" for index in range(30)))
+        frame = Frame().padding(0).width(120)
+        frame.add(rich)
+        resolve_widths(frame.node, 120)
+        resolve_heights(frame.node, None)
+
+        slices = split_frame_node(frame.node, 30, 30)
+        rich_slices = [child for frame_slice in slices for child in frame_slice.children if child.node_type == "rich_text"]
+
+        self.assertGreater(len(rich_slices), 1)
+        self.assertEqual(rich_slices[0].content["text_indent"], "2em")
+        self.assertTrue(all(child.content.get("text_indent") == 0.0 for child in rich_slices[1:]))
+        self.assertEqual(getattr(layout_rich_text(rich_slices[1], rich_slices[1].resolved_width)[0], "text_indent"), 0.0)
 
 
     def test_rich_text_letter_spacing_resolves_global_and_span_values(self) -> None:

@@ -223,6 +223,7 @@ class ReportLabCanvasAdapter:
         letter_spacing: float = 0.0,
         text_overflow: str = "wrap",
         lines: list[str] | None = None,
+        line_indents: list[float] | None = None,
         text_shadow: TextShadow | None = None,
     ) -> None:
         if lines is not None:
@@ -254,6 +255,7 @@ class ReportLabCanvasAdapter:
                 text_direction,
                 align,
                 letter_spacing,
+                line_indents,
                 stroke_width=_text_shadow_stroke_width(text_shadow),
             )
         self._draw_text_lines(
@@ -269,6 +271,7 @@ class ReportLabCanvasAdapter:
             text_direction,
             align,
             letter_spacing,
+            line_indents,
         )
 
     def draw_rich_text(
@@ -309,6 +312,7 @@ class ReportLabCanvasAdapter:
         text_direction: TextDirection,
         align: str,
         letter_spacing: float,
+        line_indents: list[float] | None = None,
         stroke_width: float = 0.0,
     ) -> None:
         text_object = cast(TextObjectLike, self._canvas.beginText(x, baseline_y))
@@ -323,15 +327,19 @@ class ReportLabCanvasAdapter:
             text_object.setTextRenderMode(2)
         self._canvas.setFillAlpha(color.alpha)
         current_baseline_y = baseline_y
-        for line in wrapped_lines:
+        for line_index, line in enumerate(wrapped_lines):
+            line_indent = 0.0
+            if line_indents is not None and line_index < len(line_indents):
+                line_indent = max(0.0, line_indents[line_index])
+            line_width_reference = max(1.0, width - line_indent)
             display_line = shape_text(line, typography, text_direction)
             line_width = (shaped_string_width(display_line, font_name, font_size) if typography == "advanced" else string_width(display_line, font_name, font_size)) + max(0, len(display_line) - 1) * letter_spacing
-            offset = max(0.0, width - line_width)
+            offset = max(0.0, line_width_reference - line_width)
             if align == "center":
                 offset /= 2
             elif align == "left" and text_direction != "rtl":
                 offset = 0.0
-            text_object.setTextOrigin(x + offset, current_baseline_y)
+            text_object.setTextOrigin(x + line_indent + offset, current_baseline_y)
             for run in resolve_text_runs(display_line, font_name):
                 text_object.setFont(run.font_name, font_size, line_height)
                 text_object.textOut(run.text)
@@ -350,12 +358,14 @@ class ReportLabCanvasAdapter:
         for line in lines:
             max_font_size = max((fragment.font_size for fragment in line.fragments), default=12.0)
             current_baseline_y -= max_font_size
-            offset = max(0.0, width - line.width)
+            line_indent = max(0.0, line.text_indent)
+            line_width_reference = max(1.0, width - line_indent)
+            offset = max(0.0, line_width_reference - line.width)
             if align == "center":
                 offset /= 2.0
             elif align == "left":
                 offset = 0.0
-            line_x = x + offset
+            line_x = x + line_indent + offset
             text_object.setTextOrigin(line_x, current_baseline_y)
             fragment_x = line_x
             for fragment in line.fragments:

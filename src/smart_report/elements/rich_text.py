@@ -9,6 +9,7 @@ from ..layout.node import LayoutNode, Style
 from ..style.color import RGBA
 from ..style.letter_spacing import LetterSpacingInput, normalize_letter_spacing
 from ..style.text_shadow import normalize_text_shadow
+from ..style.text_indent import TextIndentInput, normalize_text_indent
 
 
 class RichText(NodeBuilder):
@@ -88,6 +89,12 @@ class RichText(NodeBuilder):
         """Set a block-level rich text shadow and return this builder."""
 
         self.node.content["text_shadow"] = normalize_text_shadow(x, y, blur, spread, color)
+        return self
+
+    def text_indent(self, value: TextIndentInput) -> "RichText":
+        """Set first-line rich text indent in points or ``em`` units."""
+
+        self.node.content["text_indent"] = normalize_text_indent(value)
         return self
 
     def br(self, count: int = 1) -> "RichText":

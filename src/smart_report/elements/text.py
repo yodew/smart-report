@@ -8,6 +8,7 @@ from ..layout.text_overflow import normalize_text_overflow
 from ..style.color import RGBA
 from ..style.letter_spacing import LetterSpacingInput, normalize_letter_spacing
 from ..style.text_shadow import normalize_text_shadow
+from ..style.text_indent import TextIndentInput, normalize_text_indent
 
 
 class Text(NodeBuilder):
@@ -90,6 +91,12 @@ class Text(NodeBuilder):
         """Set a block-level text shadow and return this builder."""
 
         self.node.content["text_shadow"] = normalize_text_shadow(x, y, blur, spread, color)
+        return self
+
+    def text_indent(self, value: TextIndentInput) -> "Text":
+        """Set first-line text indent in points or ``em`` units."""
+
+        self.node.content["text_indent"] = normalize_text_indent(value)
         return self
 
     def link(self, url: object) -> "Text":

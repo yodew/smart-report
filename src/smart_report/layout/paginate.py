@@ -27,6 +27,7 @@ from .table_model import (
 )
 from .text_overflow import normalize_text_overflow
 from .text_wrap import wrap_text
+from ..style.text_indent import resolve_text_indent
 
 MAX_FIXED_SPLIT_CHUNKS = 10000
 STARTS_ON_FOLLOWING_PAGE = "_starts_on_following_page"
@@ -287,6 +288,7 @@ def _split_text_node(child: LayoutNode, first_content_height: float, following_c
         child.style.font_size,
         typography=child.style.typography,
         text_direction=child.style.text_direction,
+        text_indent=resolve_text_indent(child.content.get("text_indent"), child.style.font_size),
     )
     result: list[LayoutNode] = []
     start = 0
@@ -297,6 +299,8 @@ def _split_text_node(child: LayoutNode, first_content_height: float, following_c
         chunk = "\n".join(chunk_lines)
         node = clone_layout_node(child, include_children=False)
         node.content["text"] = chunk
+        if start > 0:
+            node.content["text_indent"] = 0.0
         node.resolved_height = max(child.style.line_height, len(chunk_lines) * child.style.line_height) + child.style.padding.vertical
         result.append(node)
         start = end
@@ -320,6 +324,8 @@ def _split_rich_text_node(child: LayoutNode, first_content_height: float, follow
         chunk_lines = lines[start:end]
         node = clone_layout_node(child, include_children=False)
         node.content["runs"] = rich_text_runs_for_lines(chunk_lines)
+        if start > 0:
+            node.content["text_indent"] = 0.0
         node.resolved_height = max(child.style.line_height, sum(line.height for line in chunk_lines)) + child.style.padding.vertical
         result.append(node)
         start = end

@@ -8,6 +8,7 @@ from .table_model import table_height
 from .text_overflow import normalize_text_overflow
 from .text_wrap import wrap_text
 from ..style.letter_spacing import resolve_letter_spacing
+from ..style.text_indent import resolve_text_indent
 from ..style.units import Auto, Percent, resolve_size
 
 
@@ -367,6 +368,7 @@ def _measure_text_height(node: LayoutNode) -> float:
         typography=node.style.typography,
         text_direction=node.style.text_direction,
         letter_spacing=_letter_spacing_points(node),
+        text_indent=resolve_text_indent(node.content.get("text_indent"), node.style.font_size),
     )
     return max(line_height, len(wrapped_lines) * line_height) + node.style.padding.vertical
 

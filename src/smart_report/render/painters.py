@@ -15,6 +15,7 @@ from ..style.color import RGBA
 from ..style.font import string_width
 from ..style.letter_spacing import resolve_letter_spacing
 from ..style.text_shadow import TextShadow
+from ..style.text_indent import resolve_text_indent
 from ..style.typography import shape_text
 from .rl_adapter import ReportLabCanvasAdapter
 
@@ -67,7 +68,8 @@ def paint_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
         width=content_width,
         height=max(0.0, bounds.height - padding.vertical),
     )
-    rendered_lines = _text_paint_lines(node, text_value, content_width, content_rect.height, text_overflow, letter_spacing)
+    text_indent = resolve_text_indent(node.content.get("text_indent"), node.style.font_size)
+    rendered_lines = _text_paint_lines(node, text_value, content_width, content_rect.height, text_overflow, letter_spacing, text_indent)
     rendered_text = "\n".join(rendered_lines)
     with adapter.isolated_state():
         if text_overflow in {"clip", "ellipsis"}:
@@ -88,7 +90,8 @@ def paint_text(adapter: ReportLabCanvasAdapter, item: RenderItem) -> None:
             valign=str(node.content.get("valign", "top")),
             letter_spacing=letter_spacing,
             text_overflow=text_overflow,
-            lines=rendered_lines if text_overflow == "ellipsis" else None,
+            lines=rendered_lines,
+            line_indents=_line_indents(rendered_lines, text_indent),
             text_shadow=_text_shadow(node.content),
         )
     link_url = node.content.get("link_url")
@@ -148,13 +151,14 @@ def _paint_rich_text_link_annotations(
     line_y = y + vertical_offset
     for line in lines:
         line_width = float(getattr(line, "width", 0.0))
+        line_indent = max(0.0, float(getattr(line, "text_indent", 0.0)))
         line_height = float(getattr(line, "height", 0.0))
-        offset = max(0.0, width - line_width)
+        offset = max(0.0, max(1.0, width - line_indent) - line_width)
         if align == "center":
             offset /= 2.0
         elif align == "left":
             offset = 0.0
-        fragment_x = x + offset
+        fragment_x = x + line_indent + offset
         active_url: str | None = None
         active_x = fragment_x
         active_width = 0.0
@@ -181,6 +185,7 @@ def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderIt
     content_x = bounds.x + padding.left
     content_y = bounds.y + padding.top
     content_width = max(1.0, bounds.width - padding.horizontal)
+    text_indent = resolve_text_indent(node.content.get("text_indent"), node.style.font_size)
     letter_spacing = _letter_spacing_points(node)
     wrapped_lines = rendered_lines
     text_height = max(node.style.line_height, len(wrapped_lines) * node.style.line_height)
@@ -193,10 +198,12 @@ def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderIt
         vertical_offset = max(0.0, content_height - text_height)
     for line_index, line in enumerate(wrapped_lines):
         display_line = shape_text(line, node.style.typography, node.style.text_direction)
-        line_width = min(content_width, text_width(display_line, node.style.font_name, node.style.font_size, string_width, node.style.typography, node.style.text_direction, letter_spacing))
+        line_indent = text_indent if line_index == 0 else 0.0
+        line_width_reference = max(1.0, content_width - line_indent)
+        line_width = min(line_width_reference, text_width(display_line, node.style.font_name, node.style.font_size, string_width, node.style.typography, node.style.text_direction, letter_spacing))
         if line_width <= 0:
             continue
-        offset = max(0.0, content_width - line_width)
+        offset = max(0.0, line_width_reference - line_width)
         if node.content.get("align") == "center":
             offset /= 2
         elif node.content.get("align") == "left" and node.style.text_direction != "rtl":
@@ -206,7 +213,7 @@ def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderIt
         adapter.link_url(
             link_url,
             Rect(
-                x=content_x + offset,
+                x=content_x + line_indent + offset,
                 y=content_y + vertical_offset + (line_index * node.style.line_height),
                 width=line_width,
                 height=node.style.line_height,
@@ -214,7 +221,7 @@ def _paint_text_link_annotations(adapter: ReportLabCanvasAdapter, item: RenderIt
         )
 
 
-def _text_paint_lines(node: object, text: str, width: float, height: float, text_overflow: str, letter_spacing: float) -> list[str]:
+def _text_paint_lines(node: object, text: str, width: float, height: float, text_overflow: str, letter_spacing: float, text_indent: float = 0.0) -> list[str]:
     style = getattr(node, "style")
     if text_overflow == "clip":
         return [normalize_plain_overflow_text(text)]
@@ -230,6 +237,7 @@ def _text_paint_lines(node: object, text: str, width: float, height: float, text
             style.text_direction,
             letter_spacing,
             string_width,
+            text_indent,
         )
     return wrap_text(
         text,
@@ -239,7 +247,12 @@ def _text_paint_lines(node: object, text: str, width: float, height: float, text
         typography=style.typography,
         text_direction=style.text_direction,
         letter_spacing=letter_spacing,
+        text_indent=text_indent,
     )
+
+
+def _line_indents(lines: list[str], text_indent: float) -> list[float]:
+    return [max(0.0, text_indent) if index == 0 else 0.0 for index, _line in enumerate(lines)]
 
 
 def _letter_spacing_points(node: object) -> float:

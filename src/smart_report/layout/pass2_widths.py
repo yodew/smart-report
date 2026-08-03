@@ -6,6 +6,7 @@ from .node import LayoutNode
 from .rich_text_layout import rich_text_natural_width
 from .text_wrap import text_width
 from ..style.font import string_width
+from ..style.text_indent import resolve_text_indent
 from ..style.units import Percent
 from ..style.units import is_auto
 from ..style.units import resolve_size
@@ -104,7 +105,7 @@ def _text_natural_width(node: LayoutNode) -> float:
         ),
         default=0.0,
     )
-    return widest_line + node.style.padding.horizontal
+    return widest_line + resolve_text_indent(node.content.get("text_indent"), node.style.font_size) + node.style.padding.horizontal
 
 
 def _letter_spacing_points(node: LayoutNode) -> float:

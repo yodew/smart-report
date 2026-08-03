@@ -21,6 +21,7 @@ def wrap_text(
     typography: TypographyMode = "plain",
     text_direction: TextDirection = "auto",
     letter_spacing: float = 0.0,
+    text_indent: float = 0.0,
 ) -> list[str]:
     if not text:
         return [""]
@@ -28,18 +29,34 @@ def wrap_text(
     measure = string_width or _string_width_fn()
     lines: list[str] = []
     safe_width = max(1.0, width)
+    first_line_width = max(1.0, safe_width - max(0.0, text_indent))
+    is_first_line = True
 
     for paragraph in text.splitlines() or [text]:
         if not paragraph.strip():
             lines.append("")
+            is_first_line = False
             continue
-        lines.extend(_wrap_paragraph(paragraph, safe_width, font_name, font_size, measure, typography, text_direction, letter_spacing))
+        paragraph_lines = _wrap_paragraph(
+            paragraph,
+            first_line_width if is_first_line else safe_width,
+            safe_width,
+            font_name,
+            font_size,
+            measure,
+            typography,
+            text_direction,
+            letter_spacing,
+        )
+        lines.extend(paragraph_lines)
+        is_first_line = False
 
     return lines or [""]
 
 
 def _wrap_paragraph(
     paragraph: str,
+    first_line_width: float,
     width: float,
     font_name: str,
     font_size: float,
@@ -51,28 +68,32 @@ def _wrap_paragraph(
     tokens = _tokens(paragraph)
     lines: list[str] = []
     current = ""
+    current_width = first_line_width
 
     for token in tokens:
         if token.isspace() and not current:
             continue
         candidate = f"{current}{token}"
-        if _string_width(candidate.rstrip(), font_name, font_size, string_width, typography, text_direction, letter_spacing) <= width:
+        if _string_width(candidate.rstrip(), font_name, font_size, string_width, typography, text_direction, letter_spacing) <= current_width:
             current = candidate
             continue
         if current.strip():
             current, token = _rebalance_for_line_break(current.rstrip(), token)
             lines.append(current.rstrip())
+            current_width = width
             current = token.lstrip()
             if not current:
                 continue
-            if _string_width(current, font_name, font_size, string_width, typography, text_direction, letter_spacing) <= width:
+            if _string_width(current, font_name, font_size, string_width, typography, text_direction, letter_spacing) <= current_width:
                 continue
         else:
             current = token.lstrip()
-        if _string_width(current, font_name, font_size, string_width, typography, text_direction, letter_spacing) > width:
-            split_parts = _split_long_token(current, width, font_name, font_size, string_width, typography, text_direction, letter_spacing)
+        if _string_width(current, font_name, font_size, string_width, typography, text_direction, letter_spacing) > current_width:
+            split_parts = _split_long_token(current, current_width, width, font_name, font_size, string_width, typography, text_direction, letter_spacing)
             lines.extend(split_parts[:-1])
             current = split_parts[-1] if split_parts else ""
+            if split_parts[:-1]:
+                current_width = width
 
     if current.strip():
         lines.append(current.rstrip())
@@ -131,6 +152,7 @@ def _cannot_end_line(character: str) -> bool:
 
 def _split_long_token(
     token: str,
+    first_part_width: float,
     width: float,
     font_name: str,
     font_size: float,
@@ -141,11 +163,13 @@ def _split_long_token(
 ) -> list[str]:
     parts: list[str] = []
     current = ""
+    current_width = first_part_width
     for character in token:
         candidate = f"{current}{character}"
-        if current and _string_width(candidate, font_name, font_size, string_width, typography, text_direction, letter_spacing) > width:
+        if current and _string_width(candidate, font_name, font_size, string_width, typography, text_direction, letter_spacing) > current_width:
             parts.append(current)
             current = character
+            current_width = width
             continue
         current = candidate
     if current:
