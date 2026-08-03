@@ -99,6 +99,16 @@ table = Table([["Metric", "Details"], ["Revenue", rich]]) \
     .header(background="#1d4ed8", color="#ffffff")
 ```
 
+Table cell padding can be set globally with `.cell_padding(...)` and `.header_padding(...)`, or scoped through `.column_style(...)`, `.row_style(...)`, and `.cell_style(...)`. Scoped styles accept `padding=...` plus partial edges such as `padding_left`, `padding_vertical`, and `padding_horizontal`; partial values inherit unspecified edges with precedence `default/header -> column -> row -> cell`.
+
+```python
+table = Table(rows) \
+    .cell_padding(vertical=6, horizontal=8) \
+    .column_style(1, padding_left=14) \
+    .row_style(3, padding_vertical=10) \
+    .cell_style(3, 1, padding_right=18)
+```
+
 ## Text Shadows
 
 `Text.text_shadow(...)` and `RichText.text_shadow(...)` add a block-level shadow behind the whole text element. Positive `x` moves the shadow right; positive `y` moves it down in smart-report's top-left layout coordinates. `blur` and `spread` are vector outline approximations made with stroked PDF text, not native PDF blur/filter effects, so this behaves like a crisp glow/outline rather than a raster blur. `RichText.span(..., shadow=...)` is intentionally not supported.
