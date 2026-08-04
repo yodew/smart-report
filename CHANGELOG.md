@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.13.8`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.9`.
+
+## 2.13.9
+
+- Fixed `RichText` letter-spacing measurement across adjacent spans so wrapping, centered alignment, underline widths, and link annotation rectangles match the rendered text advance.
+- Added regression coverage showing plain `Text` letter spacing already participates in wrapping and centered drawing.
 
 ## 2.13.8
 
