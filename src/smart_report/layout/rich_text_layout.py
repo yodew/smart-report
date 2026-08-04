@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from .node import LayoutNode
@@ -190,6 +191,14 @@ def rich_text_runs_for_lines(lines: list[RichTextLine]) -> list[dict[str, object
     return runs
 
 
+def rich_text_fragment_advances(fragments: tuple[RichTextFragment, ...]) -> tuple[float, ...]:
+    return _rich_text_fragment_advances(fragments, _fragment_width_no_spacing)
+
+
+def rich_text_line_advance(fragments: tuple[RichTextFragment, ...]) -> float:
+    return sum(rich_text_fragment_advances(fragments))
+
+
 def _run_font_name(node: LayoutNode, run: dict[object, object], bold: bool, italic: bool) -> str:
     explicit_font = run.get("font")
     if isinstance(explicit_font, str) and explicit_font:
@@ -245,7 +254,7 @@ def _copy_fragment(fragment: RichTextFragment, text: str) -> RichTextFragment:
 
 
 def _line(fragments: tuple[RichTextFragment, ...], fallback_height: float, text_indent: float = 0.0) -> RichTextLine:
-    width = sum(_fragment_width_no_node(fragment) for fragment in fragments)
+    width = rich_text_line_advance(fragments)
     height = max(
         fallback_height,
         max((fragment.font_size * 1.2 for fragment in fragments), default=fallback_height),
@@ -263,19 +272,31 @@ def _trim_trailing_space(fragments: list[RichTextFragment]) -> list[RichTextFrag
 
 
 def _fragments_width(fragments: list[RichTextFragment], node: LayoutNode) -> float:
-    return sum(_fragment_width(fragment, node) for fragment in _trim_trailing_space(fragments))
+    return sum(_rich_text_fragment_advances(tuple(_trim_trailing_space(fragments)), lambda fragment: _fragment_width_no_spacing_for_node(fragment, node)))
 
 
 def _fragment_width(fragment: RichTextFragment, node: LayoutNode) -> float:
+    return _fragment_width_no_spacing_for_node(fragment, node) + max(0, len(fragment.text) - 1) * fragment.letter_spacing
+
+
+def _fragment_width_no_spacing_for_node(fragment: RichTextFragment, node: LayoutNode) -> float:
     if node.style.typography == "advanced":
-        base_width = shaped_string_width(fragment.text, fragment.font_name, fragment.font_size)
-    else:
-        base_width = string_width(shape_text_for_width(fragment.text, node.style.typography, node.style.text_direction), fragment.font_name, fragment.font_size)
-    return base_width + max(0, len(fragment.text) - 1) * fragment.letter_spacing
+        return shaped_string_width(fragment.text, fragment.font_name, fragment.font_size)
+    return string_width(shape_text_for_width(fragment.text, node.style.typography, node.style.text_direction), fragment.font_name, fragment.font_size)
 
 
-def _fragment_width_no_node(fragment: RichTextFragment) -> float:
-    return string_width(fragment.text, fragment.font_name, fragment.font_size) + max(0, len(fragment.text) - 1) * fragment.letter_spacing
+def _fragment_width_no_spacing(fragment: RichTextFragment) -> float:
+    return string_width(fragment.text, fragment.font_name, fragment.font_size)
+
+
+def _rich_text_fragment_advances(fragments: tuple[RichTextFragment, ...], width_without_spacing: Callable[[RichTextFragment], float]) -> tuple[float, ...]:
+    advances: list[float] = []
+    for index, fragment in enumerate(fragments):
+        advance = width_without_spacing(fragment) + max(0, len(fragment.text) - 1) * fragment.letter_spacing
+        if fragment.text and any(next_fragment.text for next_fragment in fragments[index + 1 :]):
+            advance += fragment.letter_spacing
+        advances.append(advance)
+    return tuple(advances)
 
 
 def _split_long_fragment(fragment: RichTextFragment, first_part_width: float, width: float, node: LayoutNode) -> list[RichTextFragment]:

@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Protocol, cast
 
 from ..layout.node import CornerRadii, Rect
-from ..layout.rich_text_layout import RichTextLine
+from ..layout.rich_text_layout import RichTextLine, rich_text_fragment_advances
 from ..layout.text_wrap import wrap_text
 from ..style.color import RGBA
 from ..style.font import resolve_text_runs, shaped_string_width, string_width
@@ -368,13 +368,13 @@ class ReportLabCanvasAdapter:
             line_x = x + line_indent + offset
             text_object.setTextOrigin(line_x, current_baseline_y)
             fragment_x = line_x
-            for fragment in line.fragments:
+            fragment_advances = rich_text_fragment_advances(line.fragments)
+            for fragment, fragment_width in zip(line.fragments, fragment_advances):
                 text_object.setFont(fragment.font_name, fragment.font_size, line.height)
                 text_object.setCharSpace(fragment.letter_spacing)
                 text_color = shadow_color or fragment.color or DEFAULT_TEXT_COLOR
                 text_object.setFillColorRGB(text_color.red, text_color.green, text_color.blue)
                 self._canvas.setFillAlpha(text_color.alpha)
-                fragment_width = string_width(fragment.text, fragment.font_name, fragment.font_size) + max(0, len(fragment.text) - 1) * fragment.letter_spacing
                 if shadow_color is None and fragment.underline and fragment_width > 0:
                     self._draw_rich_text_underline(fragment_x, current_baseline_y, fragment_width, fragment.font_size, text_color)
                 text_object.textOut(fragment.text)

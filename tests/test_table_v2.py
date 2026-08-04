@@ -404,6 +404,37 @@ class TableV2ModelTests(unittest.TestCase):
         expected_x = 10 + ((100 - string_width("Hi", "Helvetica", 10)) / 2)
         self.assertAlmostEqual(fake_canvas.text_object.origins[0][0], expected_x, places=3)
 
+    def test_text_letter_spacing_affects_wrapping(self) -> None:
+        compact = wrap_text("AB CD", 31, "Helvetica", 10)
+        spaced = wrap_text("AB CD", 31, "Helvetica", 10, letter_spacing=4)
+
+        self.assertEqual(compact, ["AB CD"])
+        self.assertGreater(len(spaced), 1)
+
+    def test_adapter_draw_text_center_origin_uses_letter_spacing(self) -> None:
+        fake_canvas = _FakeCanvas()
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 100
+
+        adapter.draw_text(
+            x=10,
+            y=10,
+            width=100,
+            text="AB",
+            font_name="Helvetica",
+            font_size=10,
+            line_height=12,
+            color=None,
+            align="center",
+            letter_spacing=6,
+        )
+
+        expected_width = string_width("AB", "Helvetica", 10) + 6
+        expected_x = 10 + ((100 - expected_width) / 2)
+        self.assertAlmostEqual(fake_canvas.text_object.origins[0][0], expected_x, places=3)
+
     def test_table_cell_boxes_carry_typography_options(self) -> None:
         table = Table([["Label", "مرحبا"]]).typography("auto").text_direction("rtl")
         table.node.resolved_width = 200
@@ -2932,6 +2963,21 @@ class RichTextElementTests(unittest.TestCase):
         self.assertAlmostEqual(spy.links[0][1].x, 5 + ((120 - line_width) / 2.0), places=3)
         self.assertAlmostEqual(spy.links[0][1].width, string_width("Open", "Helvetica", 12), places=3)
 
+    def test_rich_text_centered_link_annotation_uses_cross_fragment_letter_spacing(self) -> None:
+        rich = RichText().font("Helvetica").font_size(10).line_height(12).align("center").span("A", link="https://example.com/spaced", letter_spacing=6).span("B").width(100)
+        resolve_widths(rich.node, 100)
+        resolve_heights(rich.node)
+        item = RenderItem(rich.node, Rect(10, 20, 100, rich.node.resolved_height), (), (0,))
+        spy = _SpyAdapter()
+
+        paint_rich_text(cast(ReportLabCanvasAdapter, spy), item)
+
+        line_width = string_width("A", "Helvetica", 10) + 6.0 + string_width("B", "Helvetica", 10)
+        self.assertEqual(len(spy.links), 1)
+        self.assertEqual(spy.links[0][0], "https://example.com/spaced")
+        self.assertAlmostEqual(spy.links[0][1].x, 10 + ((100 - line_width) / 2.0), places=3)
+        self.assertAlmostEqual(spy.links[0][1].width, string_width("A", "Helvetica", 10) + 6.0, places=3)
+
     def test_rich_text_link_annotations_follow_vertical_alignment(self) -> None:
         rich = RichText().font("Helvetica").font_size(12).line_height(14).valign("bottom").span("Open", link="mailto:team@example.com").width(100)
         resolve_widths(rich.node, 100)
@@ -3113,7 +3159,25 @@ class RichTextElementTests(unittest.TestCase):
         fragments = [fragment for line in lines for fragment in line.fragments]
 
         self.assertEqual([fragment.letter_spacing for fragment in fragments], [1.0, 2.0])
-        self.assertEqual(lines[0].width, string_width("AB", "Helvetica", 10) + 1.0 + string_width("CD", "Helvetica", 20) + 2.0)
+        self.assertEqual(lines[0].width, string_width("AB", "Helvetica", 10) + 1.0 + 1.0 + string_width("CD", "Helvetica", 20) + 2.0)
+
+    def test_rich_text_line_width_includes_cross_fragment_letter_spacing(self) -> None:
+        rich = RichText().font("Helvetica").font_size(10).span("A", letter_spacing=5).span("B", letter_spacing=20)
+
+        lines = layout_rich_text(rich.node, 500)
+
+        expected_width = string_width("A", "Helvetica", 10) + 5.0 + string_width("B", "Helvetica", 10)
+        self.assertEqual(len(lines), 1)
+        self.assertAlmostEqual(lines[0].width, expected_width, places=3)
+
+    def test_rich_text_wraps_when_cross_fragment_letter_spacing_exceeds_width(self) -> None:
+        base_width = string_width("A", "Helvetica", 10) + string_width("B", "Helvetica", 10)
+        rich = RichText().font("Helvetica").font_size(10).span("A", letter_spacing=8).span("B")
+
+        lines = layout_rich_text(rich.node, base_width + 4.0)
+
+        self.assertEqual([fragment.text for line in lines for fragment in line.fragments], ["A", "B"])
+        self.assertEqual(len(lines), 2)
 
     def test_rich_text_spacing_affects_wrapping(self) -> None:
         compact = RichText().font("Helvetica").font_size(10).span("AB CD")
@@ -3162,6 +3226,35 @@ class RichTextElementTests(unittest.TestCase):
         adapter.draw_rich_text(10, 20, 100, lines)
 
         self.assertEqual(fake_canvas.text_object.char_spaces, [1.0, 2.0])
+
+    def test_reportlab_adapter_draw_rich_text_center_origin_uses_cross_fragment_spacing(self) -> None:
+        rich = RichText().font("Helvetica").font_size(10).span("A", letter_spacing=6).span("B")
+        lines = layout_rich_text(rich.node, 100)
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        fake_canvas = _FakeCanvas()
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 200
+
+        adapter.draw_rich_text(10, 20, 100, lines, align="center")
+
+        expected_x = 10 + ((100 - lines[0].width) / 2.0)
+        self.assertAlmostEqual(fake_canvas.text_object.origins[0][0], expected_x, places=3)
+
+    def test_reportlab_adapter_draw_rich_text_underline_includes_cross_fragment_spacing(self) -> None:
+        rich = RichText().font("Helvetica").font_size(10).span("A", underline=True, letter_spacing=6).span("B")
+        lines = layout_rich_text(rich.node, 100)
+        adapter = ReportLabCanvasAdapter.__new__(ReportLabCanvasAdapter)
+        fake_canvas = _FakeCanvas()
+        adapter._canvas = fake_canvas
+        adapter.page_width = 200
+        adapter.page_height = 200
+
+        adapter.draw_rich_text(10, 20, 100, lines)
+
+        expected_width = string_width("A", "Helvetica", 10) + 6.0
+        self.assertEqual(len(fake_canvas.lines), 1)
+        self.assertAlmostEqual(fake_canvas.lines[0][2] - fake_canvas.lines[0][0], expected_width, places=3)
 
     def test_reportlab_adapter_draw_rich_text_uses_fragment_fonts_and_colors(self) -> None:
         rich = RichText().span("A", font="Helvetica", color="#ff0000").span("B", font="Courier", color="#0000ff")

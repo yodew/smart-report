@@ -7,7 +7,7 @@ from typing import Callable, Literal
 
 from ..layout.node import Rect, RenderItem
 from ..layout.pass4_render import build_render_list
-from ..layout.rich_text_layout import RichTextLine, layout_rich_text
+from ..layout.rich_text_layout import RichTextLine, layout_rich_text, rich_text_fragment_advances
 from ..layout.table_model import TableCellBox, layout_rich_cell_content, table_cell_boxes
 from ..layout.text_overflow import fit_multiline_overflow_text, fit_plain_overflow_text, normalize_plain_overflow_text, normalize_text_overflow
 from ..layout.text_wrap import text_width, wrap_text
@@ -162,8 +162,9 @@ def _paint_rich_text_link_annotations(
         active_url: str | None = None
         active_x = fragment_x
         active_width = 0.0
-        for fragment in getattr(line, "fragments", ()):
-            fragment_width = string_width(fragment.text, fragment.font_name, fragment.font_size) + max(0, len(fragment.text) - 1) * fragment.letter_spacing
+        fragments = line.fragments
+        fragment_advances = rich_text_fragment_advances(fragments)
+        for fragment, fragment_width in zip(fragments, fragment_advances):
             if fragment.link_url != active_url:
                 if active_url is not None and active_width > 0:
                     adapter.link_url(active_url, Rect(active_x, line_y, active_width, line_height))
