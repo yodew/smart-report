@@ -1,6 +1,11 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.13.7`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.8`.
+
+## 2.13.8
+
+- Expanded Table documentation with scoped padding examples for merged cells, icon/text columns, and image cells.
+- Clarified that `Image.contain()` centers the bitmap inside the image node's own box, while table padding positions that node inside the cell content box.
 
 ## 2.13.7
 
