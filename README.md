@@ -82,7 +82,7 @@ frame.add_rect("Paid") \
 ## Tables and Rich Text
 
 ```python
-from smart_report import RichText, Table
+from smart_report import Frame, Image, RichText, Table
 
 rich = (
     RichText()
@@ -108,6 +108,42 @@ table = Table(rows) \
     .row_style(3, padding_vertical=10) \
     .cell_style(3, 1, padding_right=18)
 ```
+
+Padding is measured from each logical cell's own border. For merged cells, `.span(row, col, colspan=...)` uses the merged cell's outer border as the padding reference, not the border of a covered column. If a merged title row should align with text in column 1, add the covered column width to the anchor cell padding:
+
+```python
+Table(rows) \
+    .column_widths([48, 246]) \
+    .cell_padding(left=12, top=3, right=0, bottom=0) \
+    .span(0, 0, colspan=2) \
+    .cell_style(0, 0, padding_left=48 + 12)
+```
+
+Image cells are laid out as rich cell content. Table padding positions the image node's layout box inside the cell; `Image.contain()` then preserves the bitmap ratio and centers the bitmap inside that image box. For icon columns that should sit at the cell content's top-left corner, prefer a fixed-size image without `contain()` when the icon artwork already has the target ratio:
+
+```python
+icon = Image("ingredient.png").size(14, 14)
+
+table = Table([[icon, "Ingredients: rice, ginger"]]) \
+    .column_widths([48, 246]) \
+    .cell_padding(left=12, top=3, right=0, bottom=0) \
+    .valign("top")
+```
+
+If the cell needs to keep a wider content box but the icon itself must remain left/top anchored, wrap the image in a zero-padding `Frame`; the table stretches the wrapper, while the fixed-size child stays at the wrapper's flow origin:
+
+```python
+icon_cell = Frame().padding(0).add(
+    Image("ingredient.png").size(14, 14)
+)
+
+Table([[icon_cell, "Ingredients: rice, ginger"]]) \
+    .column_widths([48, 246]) \
+    .cell_padding(left=12, top=3, right=0, bottom=0) \
+    .valign("top")
+```
+
+Use `.contain()` when the image must stay fully visible inside a deliberately sized image box, and `.cover()` when it should fill that box and may crop. The unit for table sizes and padding is PDF points, not CSS pixels.
 
 ## Text Shadows
 

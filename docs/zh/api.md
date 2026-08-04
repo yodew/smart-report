@@ -303,6 +303,44 @@ table = Table(rows) \
     .cell_style(3, 1, padding_right=18)
 ```
 
+#### 常见单元格布局场景
+
+内边距的参照是“当前逻辑单元格自己的边界”。合并单元格时，`.span(row, col, colspan=...)` 只绘制锚点单元格，内边距从合并后的外边界开始算，而不是从被覆盖列的边界开始算。如果合并标题行需要和第 2 列正文对齐，需要把第 1 列宽度也计入锚点单元格的左内边距：
+
+```python
+Table(rows) \
+    .column_widths([48, 246]) \
+    .cell_padding(left=12, top=3, right=0, bottom=0) \
+    .span(0, 0, colspan=2) \
+    .cell_style(0, 0, padding_left=48 + 12)
+```
+
+图标单元格常见于“左侧图标 + 右侧说明文字”。`Image(...).contain()` 的作用范围是图片节点自己的绘制框：它会保持图片比例，并把真实图片居中放在该图片框内。表格的 `cell_padding(...)` 先决定单元格 content box，图片节点再在这个 content box 内布局，因此 `contain()` 不等于“把图片贴到表格单元格左上角”。如果图标素材比例已经正确，并且希望左上对齐，通常不要加 `.contain()`：
+
+```python
+icon = Image("ingredient.png").size(14, 14)
+
+Table([[icon, "食材：大米、生姜"]]) \
+    .column_widths([48, 246]) \
+    .cell_padding(left=12, top=3, right=0, bottom=0) \
+    .valign("top")
+```
+
+如果单元格 content box 比图标更宽，但仍希望图标固定在左上角，可以用零内边距 `Frame` 包一层。表格会拉伸外层 `Frame`，固定尺寸的图片子节点仍从 `Frame` 的 flow 原点开始排布：
+
+```python
+icon_cell = Frame().padding(0).add(
+    Image("ingredient.png").size(14, 14)
+)
+
+Table([[icon_cell, "食材：大米、生姜"]]) \
+    .column_widths([48, 246]) \
+    .cell_padding(left=12, top=3, right=0, bottom=0) \
+    .valign("top")
+```
+
+图片适配模式的区别：`stretch` 会拉伸到图片框，可能变形；`contain` 保持比例完整显示，可能在图片框内留白并居中；`cover` 保持比例铺满图片框，可能裁剪。表格尺寸和内边距单位都是 PDF points，不是 CSS px。
+
 ```python
 Table([
     ["地区", "收入", "增长"],
