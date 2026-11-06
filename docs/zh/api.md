@@ -419,7 +419,7 @@ frame.add_text("过长的指标名称需要适配固定区域，并在固定高�
 先安装可选依赖：
 
 ```bash
-pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.10/smart_report-2.13.10-py3-none-any.whl"
+pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.11/smart_report-2.13.11-py3-none-any.whl"
 ```
 
 ```python

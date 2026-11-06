@@ -1,0 +1,15 @@
+Yuanxi Demo Serif Bold - FONTLOG
+
+Origin: Adobe Source Han Serif CN, SIL Open Font License 1.1.
+Upstream: https://github.com/adobe-fonts/source-han-serif
+Variable TTF source: Variable/TTF/Subset/SourceHanSerifCN-VF.ttf
+
+This report example uses a static wght=700 instance made with FontTools.
+The distributed instance uses the independent primary family/full/PostScript
+names Yuanxi Demo Serif / Yuanxi Demo Serif Bold / YuanxiDemoSerif-Bold.
+Original Adobe copyright, trademark and OFL notices remain in the font and
+in SourceHanSerif-LICENSE.txt. This is a derived example font, not an
+unmodified Adobe font distribution.
+
+2026-11-06: Renamed all primary font names for redistribution. Glyph outlines,
+character maps, advances, horizontal metrics and shaping tables are unchanged.

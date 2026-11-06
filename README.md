@@ -152,7 +152,7 @@ Use `.contain()` when the image must stay fully visible inside a deliberately si
 For soft Gaussian shadows install the optional rasterizer:
 
 ```bash
-pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.10/smart_report-2.13.10-py3-none-any.whl"
+pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.11/smart_report-2.13.11-py3-none-any.whl"
 ```
 
 ```python
@@ -172,7 +172,7 @@ Missing Gaussian dependencies raise an actionable error; there is no silent down
 
 The report example uses **actual Figma SVG filter exports**: source radii 6/8/12 px export `stdDeviation` 3/4/6 px; at 0.5 report scale these become `sigma=1.5/2/3` pt. This mapping is established for the bundled report samples, not assumed for every tool/effect.
 
-Run `python examples/yuanxi_text_effects.py` after installing the optional extra. The four-page sample covers all 14 source nodes (including the overlapping score layer), compares no shadow / stroke / Gaussian knockout, and exercises mixed Chinese/Latin rich text, opacity, positive/negative offsets, spread and 300/600 dpi. Source text/effect records and SVG filters are in `examples/data/`; the bundled Source Han Serif font includes its license.
+Run `python examples/yuanxi_text_effects.py` after installing the optional extra. The four-page sample covers all 14 source nodes (including the overlapping score layer), compares no shadow / stroke / Gaussian knockout, and exercises mixed Chinese/Latin rich text, opacity, positive/negative offsets, spread and 300/600 dpi. Source text/effect records and SVG filters are in `examples/data/`; the bundled Yuanxi Demo Serif font is a renamed static instance of Source Han Serif and includes its original license and FONTLOG.
 
 ## First-line Text Indent
 

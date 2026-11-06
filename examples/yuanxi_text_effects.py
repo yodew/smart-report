@@ -72,7 +72,7 @@ def _page(doc: DocumentBuilder, title: str, number: int) -> Canvas:
 
 
 def main(output: Path) -> None:
-    register_font(FONT, str(ROOT / "fonts/SourceHanSerifCN-Bold.ttf"))
+    register_font(FONT, str(ROOT / "fonts/YuanxiDemoSerif-Bold.ttf"))
     # Bundled, trusted Figma exports: preserve original fields verbatim for auditing.
     cases: list[Case] = json.loads((ROOT / "data/yuanxi-shadow-text.json").read_text())
     svg_specs = json.loads((ROOT / "data/yuanxi-shadow-svg.json").read_text())

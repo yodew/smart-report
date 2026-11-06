@@ -1,6 +1,12 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.13.10`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.11`.
+
+## 2.13.11
+
+- Ships opt-in Gaussian Text/RichText shadows and the four-page Yuanxi verification example introduced in 2.13.10; existing stroke calls remain compatible.
+- Renamed the bundled derived static font to Yuanxi Demo Serif to respect the upstream Reserved Font Name; retained Adobe copyright/OFL notices and added a FONTLOG. Glyph outlines, metrics, character maps and shaping tables are unchanged.
+- Updated release-wheel installation URLs and example font registration for this packaged release.
 
 ## 2.13.10
 
