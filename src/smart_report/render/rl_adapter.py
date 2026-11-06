@@ -9,6 +9,7 @@ from importlib import import_module
 from pathlib import Path
 from typing import Protocol, cast
 
+from .gaussian_shadow import paint_shadow
 from ..layout.node import CornerRadii, Rect
 from ..layout.rich_text_layout import RichTextLine, rich_text_fragment_advances
 from ..layout.text_wrap import wrap_text
@@ -18,10 +19,6 @@ from ..style.text_shadow import TextShadow
 from ..style.typography import TextDirection, TypographyMode, shape_text
 
 DEFAULT_TEXT_COLOR = RGBA(0.0, 0.0, 0.0, 1.0)
-
-
-def _text_shadow_stroke_width(shadow: TextShadow) -> float:
-    return max(0.0, shadow.spread + (shadow.blur * 0.5))
 
 
 class CanvasLike(Protocol):
@@ -242,22 +239,11 @@ class ReportLabCanvasAdapter:
                 vertical_offset = extra_height
         baseline_y = self.page_height - y - vertical_offset - font_size
         if text_shadow is not None:
-            self._draw_text_lines(
-                x + text_shadow.x,
-                baseline_y - text_shadow.y,
-                width,
-                wrapped_lines,
-                font_name,
-                font_size,
-                line_height,
-                text_shadow.color,
-                typography,
-                text_direction,
-                align,
-                letter_spacing,
-                line_indents,
-                stroke_width=_text_shadow_stroke_width(text_shadow),
-            )
+            paint_shadow(self, text_shadow, lambda target, shade, stroke: target._draw_text_lines(
+                x + text_shadow.x, baseline_y - text_shadow.y, width, wrapped_lines,
+                font_name, font_size, line_height, shade, typography, text_direction,
+                align, letter_spacing, line_indents, stroke_width=stroke,
+            ))
         self._draw_text_lines(
             x,
             baseline_y,
@@ -295,7 +281,9 @@ class ReportLabCanvasAdapter:
                 vertical_offset = extra_height
         baseline_y = self.page_height - y - vertical_offset
         if text_shadow is not None:
-            self._draw_rich_text_lines(x + text_shadow.x, baseline_y - text_shadow.y, width, lines, align, text_shadow.color, _text_shadow_stroke_width(text_shadow))
+            paint_shadow(self, text_shadow, lambda target, shade, stroke: target._draw_rich_text_lines(
+                x + text_shadow.x, baseline_y - text_shadow.y, width, lines, align, shade, stroke,
+            ))
         self._draw_rich_text_lines(x, baseline_y, width, lines, align)
 
     def _draw_text_lines(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import math
 
 from .._builder_core import NodeBuilder
@@ -85,10 +87,12 @@ class RichText(NodeBuilder):
         self.node.content["letter_spacing"] = normalize_letter_spacing(value)
         return self
 
-    def text_shadow(self, x: object = 0, y: object = 0, blur: object = 0, spread: object = 0, color: str | RGBA = "#000000") -> "RichText":
-        """Set a block-level rich text shadow and return this builder."""
+    def text_shadow(self, x: object = 0, y: object = 0, blur: object = 0, spread: object = 0,
+                    color: str | RGBA = "#000000", *, method: Literal["stroke", "gaussian"] = "stroke",
+                    sigma: float | None = None, dpi: float = 300, knockout: bool = False) -> "RichText":
+        """Set a block shadow; Gaussian mode requires sigma (pt) and the gaussian extra."""
 
-        self.node.content["text_shadow"] = normalize_text_shadow(x, y, blur, spread, color)
+        self.node.content["text_shadow"] = normalize_text_shadow(x, y, blur, spread, color, method=method, sigma=sigma, dpi=dpi, knockout=knockout)
         return self
 
     def text_indent(self, value: TextIndentInput) -> "RichText":

@@ -1,6 +1,6 @@
 [project]
 name = "smart-report"
-version = "2.13.9"
+version = "2.13.10"
 requires-python = ">=3.10"
 description = "Modern PDF creation library with flow layout and layered canvas composition"
 readme = "README.md"
@@ -13,6 +13,9 @@ dependencies = [
     "fonttools>=4.62.1",
     "uharfbuzz>=0.54.1",
 ]
+
+[project.optional-dependencies]
+gaussian = ["pypdfium2>=4.30.0,<6"]
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

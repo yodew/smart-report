@@ -1,6 +1,15 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.13.9`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.10`.
+
+## 2.13.10
+
+- Added opt-in Gaussian `Text.text_shadow(...)` and `RichText.text_shadow(...)` rendering with explicit `sigma`, `dpi`, and Figma-style `knockout`; existing `blur` calls retain stroke behavior.
+- Reused laid-out PDF glyphs for local alpha masks, preserving native selectable foreground text, alignment, fallback fonts and rich span geometry; added the optional `smart-report[gaussian]` PDFium dependency and bounded raster allocation.
+- Fixed legacy shadow graphics-state leakage so outlined shadows no longer stroke foreground text.
+- Added a four-page Yuanxi report example covering all 14 original shadow nodes, exported Figma SVG filter parameters, the licensed source font, and rich text/opacity/offset/spread/300-600 dpi checks.
+- Expanded English and Chinese API documentation, including unit semantics, optional installation, clipping, threading and unsupported effects.
+- Added PDF-level regression tests for soft alpha, text extraction, knockout, offsets, validation, missing optional dependencies and legacy foreground isolation.
 
 ## 2.13.9
 

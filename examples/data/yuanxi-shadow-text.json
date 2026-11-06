@@ -1,0 +1,1430 @@
+[
+  {
+    "id": "1:26",
+    "name": "68",
+    "characters": "68",
+    "x": 115,
+    "y": 290,
+    "width": 75,
+    "height": 92,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 64,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 0.9960784316062927,
+          "g": 0.9058823585510254,
+          "b": 0.7215686440467834
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 8,
+        "boundVariables": {},
+        "color": {
+          "r": 1,
+          "g": 0.7144230604171753,
+          "b": 0.2860576808452606,
+          "a": 1
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "68",
+        "start": 0,
+        "end": 2,
+        "fontSize": 64,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 0.9960784316062927,
+              "g": 0.9058823585510254,
+              "b": 0.7215686440467834
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "01",
+    "reportCharacters": "72"
+  },
+  {
+    "id": "1:31",
+    "name": "68",
+    "characters": "68",
+    "x": 115,
+    "y": 290,
+    "width": 75,
+    "height": 92,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 64,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 0.9960784316062927,
+          "g": 0.9058823585510254,
+          "b": 0.7215686440467834
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 8,
+        "boundVariables": {},
+        "color": {
+          "r": 1,
+          "g": 0.7144230604171753,
+          "b": 0.2860576808452606,
+          "a": 1
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "68",
+        "start": 0,
+        "end": 2,
+        "fontSize": 64,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 0.9960784316062927,
+              "g": 0.9058823585510254,
+              "b": 0.7215686440467834
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "01",
+    "reportCharacters": "72"
+  },
+  {
+    "id": "1:40",
+    "name": "41",
+    "characters": "41",
+    "x": 846,
+    "y": 379,
+    "width": 75,
+    "height": 92,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 64,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 0.10588235408067703,
+          "g": 0.08235294371843338,
+          "b": 0.08235294371843338
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 6,
+        "boundVariables": {},
+        "color": {
+          "r": 1,
+          "g": 0.9010299444198608,
+          "b": 0.6987867951393127,
+          "a": 1
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "41",
+        "start": 0,
+        "end": 2,
+        "fontSize": 64,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 0.10588235408067703,
+              "g": 0.08235294371843338,
+              "b": 0.08235294371843338
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "01",
+    "reportCharacters": "38"
+  },
+  {
+    "id": "1:48",
+    "name": "76",
+    "characters": "76",
+    "x": 213,
+    "y": 614,
+    "width": 75,
+    "height": 92,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 64,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 0.9960784316062927,
+          "g": 0.9058823585510254,
+          "b": 0.7215686440467834
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 8,
+        "boundVariables": {},
+        "color": {
+          "r": 1,
+          "g": 0.7144230604171753,
+          "b": 0.2860576808452606,
+          "a": 1
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "76",
+        "start": 0,
+        "end": 2,
+        "fontSize": 64,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 0.9960784316062927,
+              "g": 0.9058823585510254,
+              "b": 0.7215686440467834
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "01",
+    "reportCharacters": "76"
+  },
+  {
+    "id": "1:50",
+    "name": "98",
+    "characters": "98",
+    "x": 213,
+    "y": 774,
+    "width": 75,
+    "height": 92,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 64,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 0.9960784316062927,
+          "g": 0.9058823585510254,
+          "b": 0.7215686440467834
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 8,
+        "boundVariables": {},
+        "color": {
+          "r": 1,
+          "g": 0.7144230604171753,
+          "b": 0.2860576808452606,
+          "a": 1
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "98",
+        "start": 0,
+        "end": 2,
+        "fontSize": 64,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 0.9960784316062927,
+              "g": 0.9058823585510254,
+              "b": 0.7215686440467834
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "01",
+    "reportCharacters": "98"
+  },
+  {
+    "id": "1:616",
+    "name": "47岁",
+    "characters": "47岁",
+    "x": 768,
+    "y": 791,
+    "width": 70,
+    "height": 46,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 32,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 0.9215686321258545,
+          "g": 0.686274528503418,
+          "b": 0.47058823704719543
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 8,
+        "boundVariables": {},
+        "color": {
+          "r": 0.9960784316062927,
+          "g": 0.9058823585510254,
+          "b": 0.7215686440467834,
+          "a": 0.5
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "47岁",
+        "start": 0,
+        "end": 3,
+        "fontSize": 32,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 0.9215686321258545,
+              "g": 0.686274528503418,
+              "b": 0.47058823704719543
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "03",
+    "reportCharacters": "39岁"
+  },
+  {
+    "id": "1:835",
+    "name": "37",
+    "characters": "37",
+    "x": 837,
+    "y": 294,
+    "width": 75,
+    "height": 92,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 64,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 1,
+          "g": 0.9372549057006836,
+          "b": 0.8117647171020508
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 12,
+        "boundVariables": {},
+        "color": {
+          "r": 1,
+          "g": 0,
+          "b": 0,
+          "a": 1
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "37",
+        "start": 0,
+        "end": 2,
+        "fontSize": 64,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 1,
+              "g": 0.9372549057006836,
+              "b": 0.8117647171020508
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "05",
+    "reportCharacters": "30"
+  },
+  {
+    "id": "1:836",
+    "name": "（≤25）",
+    "characters": "（≤25）",
+    "x": 902,
+    "y": 331,
+    "width": 134,
+    "height": 46,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 32,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 1,
+          "g": 0.9372549057006836,
+          "b": 0.8117647171020508
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 8,
+        "boundVariables": {},
+        "color": {
+          "r": 1,
+          "g": 0,
+          "b": 0,
+          "a": 1
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "（≤25）",
+        "start": 0,
+        "end": 5,
+        "fontSize": 32,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 1,
+              "g": 0.9372549057006836,
+              "b": 0.8117647171020508
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "05",
+    "reportCharacters": "（≤25）"
+  },
+  {
+    "id": "1:838",
+    "name": "即时压力负荷",
+    "characters": "即时压力负荷",
+    "x": 597,
+    "y": 325,
+    "width": 192,
+    "height": 46,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 32,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 1,
+          "g": 0.9372549057006836,
+          "b": 0.8117647171020508
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 12,
+        "boundVariables": {},
+        "color": {
+          "r": 1,
+          "g": 0,
+          "b": 0,
+          "a": 1
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "即时压力负荷",
+        "start": 0,
+        "end": 6,
+        "fontSize": 32,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 1,
+              "g": 0.9372549057006836,
+              "b": 0.8117647171020508
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "05",
+    "reportCharacters": "即时压力负荷"
+  },
+  {
+    "id": "1:847",
+    "name": "37",
+    "characters": "37",
+    "x": 394,
+    "y": 630,
+    "width": 75,
+    "height": 92,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 64,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 1,
+          "g": 0.9372549057006836,
+          "b": 0.8117647171020508
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 12,
+        "boundVariables": {},
+        "color": {
+          "r": 1,
+          "g": 0.501960813999176,
+          "b": 0.2235294133424759,
+          "a": 1
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "37",
+        "start": 0,
+        "end": 2,
+        "fontSize": 64,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 1,
+              "g": 0.9372549057006836,
+              "b": 0.8117647171020508
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "05",
+    "reportCharacters": "62"
+  },
+  {
+    "id": "1:848",
+    "name": "（100）",
+    "characters": "（100）",
+    "x": 459,
+    "y": 667,
+    "width": 121,
+    "height": 46,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 32,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 1,
+          "g": 0.9372549057006836,
+          "b": 0.8117647171020508
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 8,
+        "boundVariables": {},
+        "color": {
+          "r": 1,
+          "g": 0.501960813999176,
+          "b": 0.2235294133424759,
+          "a": 1
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "（100）",
+        "start": 0,
+        "end": 5,
+        "fontSize": 32,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 1,
+              "g": 0.9372549057006836,
+              "b": 0.8117647171020508
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "05",
+    "reportCharacters": "（100）"
+  },
+  {
+    "id": "1:850",
+    "name": "压力恢复平衡",
+    "characters": "压力恢复平衡",
+    "x": 181,
+    "y": 661,
+    "width": 192,
+    "height": 46,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 32,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 1,
+          "g": 0.9372549057006836,
+          "b": 0.8117647171020508
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 12,
+        "boundVariables": {},
+        "color": {
+          "r": 1,
+          "g": 0.501960813999176,
+          "b": 0.2235294133424759,
+          "a": 1
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "压力恢复平衡",
+        "start": 0,
+        "end": 6,
+        "fontSize": 32,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 1,
+              "g": 0.9372549057006836,
+              "b": 0.8117647171020508
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "05",
+    "reportCharacters": "压力恢复平衡"
+  },
+  {
+    "id": "1:858",
+    "name": "缓慢",
+    "characters": "缓慢",
+    "x": 850,
+    "y": 961,
+    "width": 128,
+    "height": 92,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 64,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 1,
+          "g": 0.9372549057006836,
+          "b": 0.8117647171020508
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 12,
+        "boundVariables": {},
+        "color": {
+          "r": 0.0012350953184068203,
+          "g": 0.45990461111068726,
+          "b": 0.36722010374069214,
+          "a": 1
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "缓慢",
+        "start": 0,
+        "end": 2,
+        "fontSize": 64,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 1,
+              "g": 0.9372549057006836,
+              "b": 0.8117647171020508
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "05",
+    "reportCharacters": "一般"
+  },
+  {
+    "id": "1:859",
+    "name": "深度恢复达成率",
+    "characters": "深度恢复达成率",
+    "x": 597,
+    "y": 1005,
+    "width": 224,
+    "height": 46,
+    "fontName": {
+      "family": "Source Han Serif CN",
+      "style": "Bold"
+    },
+    "fontSize": 32,
+    "fontWeight": 700,
+    "lineHeight": {
+      "unit": "AUTO"
+    },
+    "letterSpacing": {
+      "unit": "PERCENT",
+      "value": 0
+    },
+    "paragraphSpacing": 0,
+    "paragraphIndent": 0,
+    "textAlignHorizontal": "LEFT",
+    "textAlignVertical": "TOP",
+    "textAutoResize": "WIDTH_AND_HEIGHT",
+    "textCase": "ORIGINAL",
+    "textDecoration": "NONE",
+    "fills": [
+      {
+        "type": "SOLID",
+        "visible": true,
+        "opacity": 1,
+        "blendMode": "NORMAL",
+        "color": {
+          "r": 1,
+          "g": 0.9372549057006836,
+          "b": 0.8117647171020508
+        },
+        "boundVariables": {}
+      }
+    ],
+    "opacity": 1,
+    "blendMode": "PASS_THROUGH",
+    "effects": [
+      {
+        "type": "DROP_SHADOW",
+        "visible": true,
+        "radius": 12,
+        "boundVariables": {},
+        "color": {
+          "r": 0.0012350953184068203,
+          "g": 0.45990461111068726,
+          "b": 0.36722010374069214,
+          "a": 1
+        },
+        "offset": {
+          "x": 0,
+          "y": 0
+        },
+        "spread": 0,
+        "blendMode": "NORMAL",
+        "showShadowBehindNode": false
+      }
+    ],
+    "segments": [
+      {
+        "characters": "深度恢复达成率",
+        "start": 0,
+        "end": 7,
+        "fontSize": 32,
+        "fontName": {
+          "family": "Source Han Serif CN",
+          "style": "Bold"
+        },
+        "textDecoration": "NONE",
+        "lineHeight": {
+          "unit": "AUTO"
+        },
+        "letterSpacing": {
+          "unit": "PERCENT",
+          "value": 0
+        },
+        "fills": [
+          {
+            "type": "SOLID",
+            "visible": true,
+            "opacity": 1,
+            "blendMode": "NORMAL",
+            "color": {
+              "r": 1,
+              "g": 0.9372549057006836,
+              "b": 0.8117647171020508
+            },
+            "boundVariables": {}
+          }
+        ]
+      }
+    ],
+    "page": "05",
+    "reportCharacters": "深度恢复达成率"
+  }
+]

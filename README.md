@@ -147,19 +147,32 @@ Use `.contain()` when the image must stay fully visible inside a deliberately si
 
 ## Text Shadows
 
-`Text.text_shadow(...)` and `RichText.text_shadow(...)` add a block-level shadow behind the whole text element. Positive `x` moves the shadow right; positive `y` moves it down in smart-report's top-left layout coordinates. `blur` and `spread` are vector outline approximations made with stroked PDF text, not native PDF blur/filter effects, so this behaves like a crisp glow/outline rather than a raster blur. `RichText.span(..., shadow=...)` is intentionally not supported.
+`Text.text_shadow(...)` and `RichText.text_shadow(...)` add block-level shadows without changing layout, wrapping or pagination. Positive `x` moves right; positive `y` moves down. Existing calls retain the `method="stroke"` vector-outline behavior.
+
+For soft Gaussian shadows install the optional rasterizer:
+
+```bash
+pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.10/smart_report-2.13.10-py3-none-any.whl"
+```
 
 ```python
-frame.add_text("Shadowed title") \
-    .font_size(28) \
-    .color("#ffffff") \
-    .text_shadow(x=2, y=3, blur=6, spread=1, color="rgba(0, 0, 0, 0.45)")
+frame.add_text("Soft title glow").font_size(28).color("#ffefcf").text_shadow(
+    method="gaussian", sigma=3, dpi=300, color="#ff000080", knockout=True,
+)
 
-rich = RichText() \
-    .span("Quarterly ", font_size=18, color="#ffffff") \
-    .span("Highlights", font_size=18, color="#fde68a", bold=True) \
-    .text_shadow(x=1.5, y=2, blur=4, color="#00000080")
+rich = RichText().span("Quarterly ", font_size=18).span("Highlights", font_size=24)
+rich.text_shadow(method="gaussian", sigma=2, x=2, y=3, spread=1, color="#00000080")
 ```
+
+`method="gaussian"` requires an explicit finite `sigma >= 0`, measured in PDF points, and `blur=0`. `sigma` is the Gaussian standard deviation, not a generic design-tool blur radius. `spread` expands the alpha mask before blurring, sampled to the nearest raster pixel. `dpi` must be finite and positive (default 300; 600 is supported). `knockout=True` uses a saturated glyph alpha mask and removes the original foreground glyph interior after blur, even when the shadow is offset, matching the hard-alpha/out filter pattern exported by Figma. It is only valid in Gaussian mode.
+
+The renderer reuses already-laid-out PDF glyphs to generate a **local transparent shadow image**, then paints native vector text on top. Fonts, fallback glyphs, rich span sizes, letter spacing, alignment, first-line indent and line breaks share the foreground drawing path. Only the shadow is rasterized; text remains searchable/selectable. Glyph underlines and link annotations remain foreground decorations. Pillow's GaussianBlur is a fast numerical Gaussian approximation, not a native PDF filter or a claim of pixel-identical Figma rendering.
+
+Missing Gaussian dependencies raise an actionable error; there is no silent downgrade to outlines. Local masks are limited to 16 million pixels before raster allocation; exceptionally large sigma/spread requests are rejected early. PDFium calls made by this renderer are serialized; applications calling PDFium independently must coordinate those calls too. Shadows respect existing clipping and do not enlarge layout boxes. Layer blur, background blur, inner shadows and per-span shadows are not supported.
+
+The report example uses **actual Figma SVG filter exports**: source radii 6/8/12 px export `stdDeviation` 3/4/6 px; at 0.5 report scale these become `sigma=1.5/2/3` pt. This mapping is established for the bundled report samples, not assumed for every tool/effect.
+
+Run `python examples/yuanxi_text_effects.py` after installing the optional extra. The four-page sample covers all 14 source nodes (including the overlapping score layer), compares no shadow / stroke / Gaussian knockout, and exercises mixed Chinese/Latin rich text, opacity, positive/negative offsets, spread and 300/600 dpi. Source text/effect records and SVG filters are in `examples/data/`; the bundled Source Han Serif font includes its license.
 
 ## First-line Text Indent
 
@@ -279,6 +292,7 @@ Useful examples include:
 - `examples/v2_13_report_patterns.py`
 - `examples/v2_13_text_indent.py`
 - `examples/v2_13_text_shadow.py`
+- `examples/yuanxi_text_effects.py`
 - `examples/zh_table_demo.py`
 
 Optional PDF-regression assertions in `tests/test_table_v2.py` use `pypdf` when it is installed; without it, those PDF-only checks are skipped.

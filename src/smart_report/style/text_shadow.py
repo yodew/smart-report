@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+from typing import Literal
 
 from .color import RGBA, parse_color
 
@@ -17,6 +18,10 @@ class TextShadow:
     blur: float = 0.0
     spread: float = 0.0
     color: RGBA = RGBA(0.0, 0.0, 0.0, 1.0)
+    method: Literal["stroke", "gaussian"] = "stroke"
+    sigma: float = 0
+    dpi: float = 300
+    knockout: bool = False
 
 
 def normalize_text_shadow(
@@ -25,6 +30,11 @@ def normalize_text_shadow(
     blur: object = 0,
     spread: object = 0,
     color: str | RGBA = "#000000",
+    *,
+    method: Literal["stroke", "gaussian"] = "stroke",
+    sigma: float | None = None,
+    dpi: float = 300,
+    knockout: bool = False,
 ) -> TextShadow:
     """Validate and normalize block-level text shadow settings."""
 
@@ -35,7 +45,20 @@ def normalize_text_shadow(
     parsed_color = parse_color(color)
     if parsed_color is None:
         raise TypeError("text_shadow color must not be None")
-    return TextShadow(shadow_x, shadow_y, shadow_blur, shadow_spread, parsed_color)
+    if method not in {"stroke", "gaussian"}:
+        raise ValueError(f"Unsupported text shadow method: {method}")
+    if method == "gaussian" and (sigma is None or shadow_blur != 0):
+        raise ValueError("Gaussian text shadows require sigma and blur=0")
+    if method == "stroke" and sigma is not None:
+        raise ValueError("sigma requires method=gaussian")
+    if knockout and method != "gaussian":
+        raise ValueError("knockout requires method=gaussian")
+    normalized_sigma = _non_negative_finite_float(sigma if sigma is not None else 0, "sigma")
+    normalized_dpi = _non_negative_finite_float(dpi, "dpi")
+    if normalized_dpi == 0:
+        raise ValueError("text_shadow dpi must be > 0")
+    return TextShadow(shadow_x, shadow_y, shadow_blur, shadow_spread, parsed_color,
+                      method, normalized_sigma, normalized_dpi, knockout)
 
 
 def _finite_float(value: object, name: str) -> float:

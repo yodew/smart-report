@@ -368,7 +368,7 @@ Table([
 | `.letter_spacing(value)` | 数值、`"0.05em"`、`"5%"` | `Text` | 设置字距 |
 | `.text_indent(value)` | 非负数值或 `"2em"` | `Text` | 设置首个渲染行的首行缩进 |
 | `.text_overflow(value)` | `"wrap"` / `"clip"` / `"ellipsis"` | `Text` | 设置固定文本框溢出策略 |
-| `.text_shadow(x=0, y=0, blur=0, spread=0, color="#000000")` | 有限数值和颜色值 | `Text` | 为整个文本块添加阴影 |
+| `.text_shadow(x=0, y=0, blur=0, spread=0, color="#000000", *, method="stroke", sigma=None, dpi=300, knockout=False)` | 有限数值和颜色值 | `Text` | 为整个文本块添加阴影 |
 | `.link(url)` | 非空字符串 | `Text` | 为整个文本节点添加 PDF 外部 URL 链接 |
 | `.typography(value)` | `"plain"` / `"auto"` / `"advanced"` | `Text` | 设置文字预处理/测量模式 |
 | `.text_direction(value)` | `"auto"` / `"ltr"` / `"rtl"` | `Text` | 设置文字方向 |
@@ -404,14 +404,38 @@ frame.add_text("过长的指标名称需要适配固定区域，并在固定高�
 
 表格纯文本单元格的 `text_overflow("ellipsis")` 仍保持单行省略行为，用于稳定表格行高。
 
-`.text_shadow(...)` 是块级效果：`x` 为正时阴影向右，`y` 为正时阴影按左上角布局坐标向下；`x` / `y` 可为负，但必须是有限数值。`blur` / `spread` 必须是有限且大于等于 0 的数值。`color` 使用通用颜色解析，支持 hex、`rgb(...)`、`rgba(...)` 和 `transparent`。PDF/ReportLab 没有原生 blur/filter；这里的 `blur` / `spread` 是基于 PDF 描边文字的矢量轮廓近似，不使用 Pillow 栅格模糊，也不会改变布局、换行或分页。它更接近清晰的 glow / outline，而不是真正的位图模糊。
+`.text_shadow(...)` 是块级效果，`Text` / `RichText` 使用同一套参数，均不改变布局、换行或分页。正 `x` 向右、正 `y` 向下；位移可以为负，必须有限。颜色支持通用 hex、`rgb(...)`、`rgba(...)`、`transparent`。
+
+| 参数 | 含义与约束 |
+| --- | --- |
+| `method="stroke"` | 默认兼容模式，保留旧版本的 PDF 描边近似；不依赖 PDFium |
+| `blur` | 兼容模式的轮廓近似量；有限且 ≥0；Gaussian 模式必须保持 0 |
+| `method="gaussian"` | 将已经排好的字形转换为局部 Alpha 遮罩，模糊后绘制透明图片，再绘制原生矢量正文 |
+| `sigma` | Gaussian 模式必填，有限且 ≥0，单位 pt，表示高斯标准差；不能直接等同任意设计工具的 radius |
+| `spread` | 有限且 ≥0；Gaussian 模式在模糊前扩张遮罩，按输出像素取最近整数；兼容模式参与轮廓宽度 |
+| `dpi` | 有限且 >0，默认 300，可用 600；仅影响阴影图片采样，不影响正文字号和布局 |
+| `knockout` | 默认 False；仅 Gaussian 模式支持 True，以饱和字形 Alpha 为遮罩并按正文原位置挖除字形内部阴影，位移仅作用于阴影，对应本报告 Figma 导出的 hardAlpha / out 流程 |
+
+先安装可选依赖：
+
+```bash
+pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.10/smart_report-2.13.10-py3-none-any.whl"
+```
 
 ```python
-frame.add_text("阴影标题") \
-    .font_size(24) \
-    .color("#ffffff") \
-    .text_shadow(x=2, y=3, blur=6, spread=1, color="rgba(0, 0, 0, 0.45)")
+frame.add_text("即时压力负荷").font_size(16).color("#ffefcf").text_shadow(
+    method="gaussian", sigma=3, dpi=300, color="#ff0000", knockout=True,
+)
+
+rich = RichText().span("恢复能力 ", font_size=24).span("Recovery", font_size=18)
+rich.text_shadow(method="gaussian", sigma=2, x=2, y=3, color="#00000080")
 ```
+
+阴影复用最终字形的换行、字距、字体回退、字号、缩进和对齐，避免另用 Pillow 重排导致错位。正文仍为可搜索、可复制的 PDF 文字；只有阴影是透明位图。下划线和链接注解仍属于前景装饰。Pillow GaussianBlur 使用高斯核的快速数值近似，不是 PDF 原生滤镜，也不承诺与 Figma 逐像素相同。
+
+单个局部遮罩最多 1600 万像素，在栅格分配前检查；过大的 sigma/spread 会提前拒绝。依赖缺失会明确提示安装，不会静默降级。阴影遵循现有裁剪规则，不扩大文本布局框。此渲染器内部的 PDFium 调用已串行化；应用若另行调用 PDFium，应共同协调线程访问。暂不支持 span 级阴影、内阴影、图层模糊和背景模糊。
+
+示例 `examples/yuanxi_text_effects.py` 逐项验证本报告 14 个原始节点（包含重叠分数层）。`examples/data/` 保存原始文字效果与 SVG filter 记录。经 SVG 原文确认，radius 6/8/12 px 对应 stdDeviation 3/4/6 px；报告缩放 0.5 后对应 sigma 1.5/2/3 pt。该换算来自这批原稿，不推断其他工具和效果。运行后生成四页对比及富文本/半透明/位移/spread/300与600dpi示例。
 
 `.link(url)` 不会自动改变样式。如需视觉提示，请手动设置颜色、下划线替代样式或背景。`Text.link(url)` 作用于整个文本节点；如需行内子字符串链接，请使用 `RichText.span(..., link=url)`。不支持 Markdown/HTML 解析或任意注解 API。
 
@@ -429,7 +453,7 @@ frame.add_text("阴影标题") \
 | `.clear()` | 无 | `RichText` | 清空所有 runs |
 | `.align(value)` | `"left"` / `"center"` / `"right"` | `RichText` | 设置富文本框整体水平对齐 |
 | `.valign(value)` | `"top"` / `"middle"` / `"bottom"` | `RichText` | 设置富文本框整体垂直对齐 |
-| `.text_shadow(x=0, y=0, blur=0, spread=0, color="#000000")` | 有限数值和颜色值 | `RichText` | 为整个富文本块添加阴影 |
+| `.text_shadow(x=0, y=0, blur=0, spread=0, color="#000000", *, method="stroke", sigma=None, dpi=300, knockout=False)` | 有限数值和颜色值 | `RichText` | 为整个富文本块添加阴影 |
 
 ```python
 rich = (
@@ -448,7 +472,7 @@ frame.add(rich)
 
 `italic=True` 会优先使用注册字体族的 italic / bold_italic face；Base14 字体会映射到对应的 Oblique / Italic face。`underline=True` 会按 span 绘制下划线，并在富文本换行和分页切片后保留。`link=url` 会为该 span 渲染 PDF 外部 URL 注解，换行或分页后会按可见片段生成链接矩形；不会自动改变颜色或下划线。`line_height` 必须是有限且大于 0 的数值；显式 span 行高会参与该行 line box 高度计算，并在换行、序列化和分页切片后保留。
 
-`RichText.text_shadow(...)` 与 `Text.text_shadow(...)` 一样是块级阴影，作用于整个富文本节点，并在主富文本前绘制。`blur` / `spread` 是 PDF 描边文字近似，不是 PDF 原生 blur/filter，也不是 Pillow 栅格模糊。当前不支持 span 级阴影；也就是说没有 `RichText.span(..., shadow=...)` 参数。如需不同阴影，请拆成多个 `RichText` / `Text` 节点。
+`RichText.text_shadow(...)` 与 `Text.text_shadow(...)` 使用相同的兼容描边 / Gaussian 模式和参数，作用于整个富文本节点，支持不同字体、字号和换行；正文保留原生文字。参数、可选依赖和限制详见上方 Text 阴影说明。当前不支持 `RichText.span(..., shadow=...)`；不同阴影请拆成多个节点。
 
 `RichText.align(...)` / `.valign(...)` 是整个富文本框的对齐方式。行内 span 共享同一个 line box，不提供单个 span 独立左/中/右或上/中/下对齐。如需某段内容独立对齐，请拆成单独的 `Text` / `RichText` 节点。
 
