@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 import unittest
 from contextlib import closing
@@ -16,7 +17,7 @@ if find_spec("pypdfium2") is None:
 
 from examples.quality_reports import chinese_report, rich_table_report
 
-FIXTURES = Path(__file__).parent / "fixtures/quality"
+FIXTURES = Path(__file__).parent / "fixtures/quality" / sys.platform
 
 
 class ReportRasterTests(unittest.TestCase):

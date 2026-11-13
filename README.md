@@ -109,7 +109,8 @@ Python 3.10/3.14 on Linux and 3.14 on macOS, plus the base environment, builds b
 distributions and imports the installed wheel outside the checkout.
 
 Fixed Chinese, long rich-table and Yuanxi reports have reviewed page images under
-`tests/fixtures/quality/`. Full checks compare all pages at 72 dpi, tolerating at
+`tests/fixtures/quality/{darwin,linux}/`. PDFium's unembedded base-14 font substitutes
+differ by platform, so each has reviewed references. Full checks compare all pages at 72 dpi, tolerating at
 most 0.1% of color channels changing by more than 24/255. Set
 `SMART_REPORT_QA_DIR=/absolute/output/path` to retain PDFs and actual PNGs for review.
 CI uploads them as artifacts. Baselines must be reviewed visually before replacement;

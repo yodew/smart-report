@@ -5,7 +5,7 @@ All notable changes to smart-report are summarized here. The latest released pac
 ## 2.13.12
 
 - Added base/full development environments and GitHub Actions checks on Python 3.10/3.14 (Linux) and 3.14 (macOS), including all discovered tests, skip auditing, type checks, builds and an installed-wheel smoke test.
-- Added reviewed raster and content regressions for Chinese reports, long linked rich-table cells and all four Yuanxi shadow pages; CI retains actual PDFs and page images.
+- Added reviewed raster and content regressions for Chinese reports, long linked rich-table cells and all four Yuanxi shadow pages; CI retains actual PDFs and page images; reviewed Linux/macOS references account for PDFium base-14 font substitution without loosening image thresholds.
 - Added opt-in `save(..., debug_layout=True)` and `save_to_bytes(debug_layout=True)` overlays for node/content bounds, rectangular clip regions, names and page numbers, plus named `LayoutOverflowWarning` diagnostics for off-page layout boxes.
 - Fixed page-padding offsets pushing headers/footers outside their physical anchors, and fixed continuation frames using physical page height instead of available body height.
 - Extracted document builders, sections, rendering orchestration and page-level pagination while preserving existing public imports and runtime painter replacement.
