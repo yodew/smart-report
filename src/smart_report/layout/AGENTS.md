@@ -15,7 +15,7 @@ The 4-pass layout engine. Turns a raw `LayoutNode` tree into measured, positione
 | Paginate | `paginate.py` | — | Splits overflowing frames and tables across pages. Clones nodes; preserves `source_row_index`. |
 | 4 | `pass4_render.py` | Flatten | Walks tree to produce `RenderItem` list. Sorts by `(stacking_path, z_index, tree_order)`. |
 
-**Call order in `Document.save()`**: pass2 → pass3 → paginate → pass2 again (overlays) → pass3 again → pass4.
+**Call order in `render/document.py` (via `Document.save()`)**: pass2 → pass3 → paginate → pass2 again (overlays) → pass3 again → pass4.
 
 ---
 
@@ -27,7 +27,7 @@ The 4-pass layout engine. Turns a raw `LayoutNode` tree into measured, positione
 - `local_x`, `local_y` — position within parent, set by pass 3
 - `page_index`, `content["total_pages"]` — set before pass 4 for page number substitution
 - `parent` — back-reference, excluded from `repr`
-- `creates_stacking_context` — true for nodes with `z_index != 0` or `overflow == hidden`
+- `creates_stacking_context` — true for `page` and `canvas` nodes
 
 ### `RenderItem` (node.py)
 
@@ -68,6 +68,8 @@ The 4-pass layout engine. Turns a raw `LayoutNode` tree into measured, positione
 - **Don't add a new `node_type` without adding its painter to `render/painters.py`.** Pass 4 skips unregistered types silently.
 
 ---
+
+Page-level continuation capacity in `page_flow.py` must subtract both top and bottom page padding. Frame splitting receives usable content capacity, not the physical page height.
 
 ## Table Model Internals
 

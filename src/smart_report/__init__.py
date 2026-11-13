@@ -13,7 +13,7 @@ from .render.diagnostics import LayoutOverflowWarning
 from .style.font import DEFAULT_FONT_NAME, FontFace, FontFamily, FontRegistry, TextRun, add_fallback_font, add_fallback_font_family, get_default_font_name, get_fallback_font_families, get_fallback_fonts, get_font, get_font_family, register_font, register_font_family, resolve_text_runs, set_default_font, set_default_font_family, set_fallback_font_families, set_fallback_fonts, shaped_string_width, string_width
 from .style.typography import shape_text
 
-__version__ = "2.13.11"
+__version__ = "2.13.12"
 
 __all__ = [
     "Canvas",

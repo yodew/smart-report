@@ -87,4 +87,3 @@ def save_document(doc: Document, target: str | BytesIO, *, debug_layout: bool = 
             adapter.show_page()
 
     adapter.save()
-

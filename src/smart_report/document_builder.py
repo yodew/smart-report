@@ -195,5 +195,3 @@ def document() -> DocumentBuilder:
     """Create a new chainable document builder."""
 
     return DocumentBuilder()
-
-

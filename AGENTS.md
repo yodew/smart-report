@@ -24,7 +24,8 @@ Run an example:
 Run tests:
 
 ```bash
-.venv/bin/python -m unittest tests.test_table_v2
+uv sync --locked --extra gaussian
+uv run --no-sync python scripts/run_tests.py full
 ```
 
 Type-check (Pyright):
@@ -33,7 +34,7 @@ Type-check (Pyright):
 pyright
 ```
 
-> There is no pytest, ruff, mypy, pre-commit, or CI config. Tests use `unittest`. Type checking uses `pyright` via `pyrightconfig.json`.
+> Tests use `unittest`; keep that runner and the existing Pyright configuration. `.github/workflows/ci.yml` checks base/full installs, skips, report snapshots, types, distributions and an installed wheel. Development dependencies are in `pyproject.toml`. Cairo/pkg-config are required by the locked SVG dependencies on systems without Pycairo wheels.
 
 ---
 
@@ -41,7 +42,7 @@ pyright
 
 smart-report is a PDF generation library built on top of ReportLab. It uses a **4-pass layout engine**:
 
-1. **Build** — chainable builders produce a `LayoutNode` tree (`_builder_core.py`)
+1. **Build** — chainable builders produce a `LayoutNode` tree (`_builder_core.py` and `document_builder.py`)
 2. **Pass 2 / Widths** — top-down width resolution (`layout/pass2_widths.py`)
 3. **Pass 3 / Heights** — bottom-up height measurement and local positioning (`layout/pass3_heights.py`)
 4. **Pass 4 / Render** — flatten to a render list, sort by stacking context + `z-index`, then paint (`layout/pass4_render.py`)
@@ -55,7 +56,12 @@ Pagination (`layout/paginate.py`) splits overflowing content across pages. The f
 | Path | Purpose |
 |------|---------|
 | `src/smart_report/__init__.py` | Public API: `document()`, `Canvas`, `Frame`, `Table`, `Text`, `Image`, `Rect`, `Line`, `Spacer` |
-| `src/smart_report/_builder_core.py` | Core builder classes (`NodeBuilder`, `ContainerBuilder`, `DocumentBuilder`, `Document`). Also the `save()` orchestrator that wires all 4 passes together. |
+| `src/smart_report/_builder_core.py` | Node/container/page builders; keeps compatibility exports for document builders. |
+| `src/smart_report/document_builder.py` | Mutable `DocumentBuilder` and `document()` factory. |
+| `src/smart_report/document.py` | Built `Document`, section metadata, page overlays and numbering. |
+| `src/smart_report/render/document.py` | Layout, pagination and PDF rendering orchestration. |
+| `src/smart_report/render/diagnostics.py` | Opt-in layout boxes and overflow warnings. |
+| `src/smart_report/layout/page_flow.py` | Page-level flow capacity and generated pages. |
 | `src/smart_report/layout/node.py` | Core data structures: `LayoutNode`, `Style`, `Edges`, `RenderItem` |
 | `src/smart_report/layout/pass2_widths.py` | Top-down width resolution |
 | `src/smart_report/layout/pass3_heights.py` | Bottom-up height + local position calculation |
@@ -84,7 +90,7 @@ Pagination (`layout/paginate.py`) splits overflowing content across pages. The f
 
 ## Common Pitfalls
 
-- **`Document.save()` uses `importlib.import_module` inside the method** to resolve the 4 pass modules. Do not delete or rename `layout/pass2_widths.py`, `pass3_heights.py`, `pass4_render.py`, `paginate.py`, `render/painters.py`, `render/rl_adapter.py`, `style/units.py`, or `layout/node.py` without updating `_builder_core.py`.
+- **`render/document.py` loads layout/render modules at save time.** Preserve runtime painter replacement used by document tests. `Document.save()` delegates here; public imports from `builder` and `_builder_core` remain compatible.
 - **Table pagination is complex.** `_split_table_node` in `paginate.py` clones table slices and must preserve `source_row_index` for cell styles to remain correct across pages. If you modify table splitting, run `tests/test_table_v2.py` — especially `TableV2PaginationTests`.
 - **No formatter or linter is configured.** If you add one, update `pyproject.toml` and `pyrightconfig.json` accordingly.
 - **Chinese docs live in `docs/zh/api.md`.** Keep them in sync if you change public API behavior.
@@ -99,9 +105,9 @@ When implementation work changes public behavior, packaging metadata, or documen
 1. Run validation before publishing:
 
 ```bash
-.venv/bin/python -m unittest tests.test_table_v2
-.venv/bin/python -m unittest tests.test_document_structure
-npx --yes pyright
+uv sync --locked --extra gaussian
+uv run --no-sync python scripts/run_tests.py full
+uv run --no-sync pyright
 .venv/bin/python -m compileall src tests examples
 .venv/bin/python -m build
 ```
@@ -116,6 +122,10 @@ npx --yes pyright
 9. Do not commit generated `dist/` or `build/` artifacts.
 
 This workflow is agent-facing and supersedes README-only guidance. A completed implementation in this project is not done until commit, tag, push, and GitHub Release creation have completed, unless the user explicitly says not to publish.
+
+## Regression baselines
+
+Full checks must execute Gaussian and report-raster modules without skips. Base checks allow only those two module skips and require PDFium to be absent. Review changed report pages before updating `tests/fixtures/quality/*.png`; content and page geometry assertions are independent of those snapshots. Set `SMART_REPORT_QA_DIR` to retain actual artifacts.
 
 ## Dependencies
 

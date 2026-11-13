@@ -67,5 +67,3 @@ class SectionBuilder:
         canvas.z(z_index)
         self.section.overlay_templates[overlay_kind].append(canvas.build())
         return canvas
-
-

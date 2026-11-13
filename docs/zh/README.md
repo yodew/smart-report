@@ -41,6 +41,12 @@ doc.save("report.pdf")
 ```
 
 
+## 开发环境与布局诊断
+
+完整开发环境使用 `uv sync --locked --extra gaussian`；仅基础功能的独立环境使用 `uv sync --locked`，然后运行 `uv run --no-sync python scripts/run_tests.py base`。完整检查不允许任何测试跳过，基础检查只允许高斯阴影和报告光栅两个模块跳过。SVG 依赖在 macOS 上需先运行 `brew install cairo pkgconf`，Ubuntu 上需安装 `libcairo2-dev pkg-config`。
+
+用 `doc.save("debug.pdf", debug_layout=True)` 查看布局边界，详细说明见 [API 参考](./api.md#布局调试)。设定 `SMART_REPORT_QA_DIR` 可保留完整测试生成的报告与页面图像，CI 也会上传这些检查产物。
+
 ## 发布与工程化流程
 
 发布或打 tag 前按以下顺序检查：
@@ -49,28 +55,16 @@ doc.save("report.pdf")
 2. 运行回归和类型检查：
 
 ```bash
-.venv/bin/python -m unittest tests.test_table_v2
-.venv/bin/python -m unittest tests.test_document_structure
-npx --yes pyright
+uv sync --locked --extra gaussian
+uv run --no-sync python scripts/run_tests.py full
+uv run --no-sync pyright
 ```
 
-3. 确认 `.venv` 内有构建工具：
-
-```bash
-.venv/bin/python -m build --version
-.venv/bin/python -m pip show build wheel setuptools
-```
-
-缺失时只安装到项目虚拟环境：
-
-```bash
-.venv/bin/python -m pip install build wheel setuptools
-```
-
+3. 上一步 `uv sync` 已安装声明的开发和构建工具，不需要手工补装。
 4. 本地构建 wheel 和 sdist：
 
 ```bash
-.venv/bin/python -m build
+uv run --no-sync python -m build
 ```
 
 5. 安装 wheel 做冒烟测试，并从项目目录外导入，确认使用的是已安装 wheel 而不是本地源码。

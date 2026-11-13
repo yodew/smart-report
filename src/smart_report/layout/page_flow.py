@@ -108,5 +108,3 @@ def _new_generated_page(source_page: LayoutNode, output_pages: list[LayoutNode])
     new_page = _clone_page_shell(source_page)
     output_pages.append(new_page)
     return new_page
-
-

@@ -55,9 +55,9 @@ custom = document().page((595.0, 842.0))
 
 | 方法 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
-| `doc.save(path)` | `path: str` | `None` | 构建并保存 PDF 文件 |
-| `doc.save_to_bytes()` | 无 | `bytes` | 构建并返回 PDF 原始字节，不写文件 |
-| `doc.build()` | 无 | `Document` | 构建不可变文档对象，可再调用 `save()` 或 `save_to_bytes()` |
+| `doc.save(path, *, debug_layout=False)` | `path: str`，`debug_layout: bool` | `None` | 构建并保存 PDF；可选择绘制布局诊断 |
+| `doc.save_to_bytes(*, debug_layout=False)` | `debug_layout: bool` | `bytes` | 构建并返回 PDF 原始字节，不写文件 |
+| `doc.build()` | 无 | `Document` | 构建文档对象，可再调用 `save()` 或 `save_to_bytes()` |
 | `doc.pages` | 属性 | `list[LayoutNode]` | 当前已添加页面，主要用于调试或测试 |
 
 ```python
@@ -66,6 +66,19 @@ assert pdf_bytes[:5] == b"%PDF-"
 ```
 
 `save_to_bytes()` 是同步 CPU 密集操作。在 FastAPI / Starlette 等异步框架中，可用 `asyncio.to_thread(doc.save_to_bytes)` 避免阻塞事件循环；这只是集成方式，不会加速 PDF 生成。
+
+### 布局调试
+
+`DocumentBuilder` 和构建后的 `Document` 都支持 `debug_layout=True`：
+
+```python
+doc.save("debug.pdf", debug_layout=True)
+pdf_bytes = doc.save_to_bytes(debug_layout=True)
+```
+
+调试副本在正常内容上方绘制蓝色节点边框、绿色内容框（包括页面正文可用区）、橙色矩形裁剪区，以及节点名称和物理页码。建议用 `.name("summary-card")` 命名关键节点，运行 `examples/layout_debug.py` 查看示例。诊断不会改变排版尺寸或分页。
+
+节点布局框超出物理页面时会发出 `LayoutOverflowWarning`（可从 `smart_report` 导入），包含节点名称、页码、坐标和尺寸，以及缩小节点或允许拆分的建议。检查对象是布局框，不是实际字形墨迹；有意超出的绝对定位节点也可能触发。橙色框展示矩形裁剪栈，不表示圆角遮罩或表格内部的逐单元格几何。调试标签会进入 PDF 的文本提取结果，正式交付请使用默认输出。
 
 ### `doc.metadata(...)`
 
@@ -85,6 +98,8 @@ doc.metadata(title="季度报告", author="数据团队", subject="Q4 总结", k
 ### `doc.header()` / `doc.footer()` / `doc.watermark()`
 
 创建全局重复覆盖层，返回 `Canvas`。这些模板会复制到每个页面。
+
+覆盖层按物理页面坐标定位：页眉从页面顶部开始，页脚锚定页面底部，覆盖层百分比宽度以整页宽度计算。页面 padding 为正文保留空间，不会再次偏移覆盖层。自动分页的续页同样扣除页面上下 padding。
 
 | 方法 | 返回 | 默认定位 / 层级 | 说明 |
 | --- | --- | --- | --- |
@@ -419,7 +434,7 @@ frame.add_text("过长的指标名称需要适配固定区域，并在固定高�
 先安装可选依赖：
 
 ```bash
-pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.11/smart_report-2.13.11-py3-none-any.whl"
+pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.12/smart_report-2.13.12-py3-none-any.whl"
 ```
 
 ```python

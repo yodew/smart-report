@@ -66,6 +66,55 @@ page.add(content)
 doc.save("output.pdf")
 ```
 
+## Layout Diagnostics
+
+Use `doc.save("debug.pdf", debug_layout=True)` or `doc.save_to_bytes(debug_layout=True)`
+on a builder or built `Document`. The debug copy draws blue node bounds, green
+content boxes (including the page's available body area), orange rectangular clip
+regions, and node names with physical page numbers after normal painting. Add
+`.name("summary-card")` to make labels and warnings useful. See
+[`examples/layout_debug.py`](examples/layout_debug.py).
+
+Debug rendering does not change layout or pagination. Nodes outside the physical
+page emit `LayoutOverflowWarning` with their name, page and bounds; this checks
+layout boxes, not visible glyph ink. Intentional absolute overflow can also warn.
+Clip outlines show the layout engine's rectangular clip stack, not rounded masks
+or per-cell geometry. Debug labels are diagnostic text and are included in PDF
+text extraction; use the default output for delivery.
+
+Page overlays use physical page coordinates: headers start at the top, footers at
+the bottom, percentage overlay widths use the full page width, and page padding
+reserves body space. Continuation pages deduct top and bottom page padding too.
+
+## Development Checks
+
+`uv sync --locked` installs the development tools and PDF reader. For the complete
+suite, including Gaussian shadows and raster regressions:
+
+```bash
+uv sync --locked --extra gaussian
+uv run --no-sync python scripts/run_tests.py full
+uv run --no-sync pyright
+```
+
+The full runner discovers all tests and fails on **any skipped test**. In a separate
+environment without PDFium, run `uv sync --locked` followed by
+`uv run --no-sync python scripts/run_tests.py base`; only the two raster-dependent
+modules may be skipped. Use `uv sync --locked --no-dev` for runtime-only installation.
+
+The locked SVG dependencies require system Cairo and pkg-config when building
+Pycairo: `brew install cairo pkgconf` on macOS, or
+`sudo apt-get install libcairo2-dev pkg-config` on Ubuntu. GitHub Actions checks
+Python 3.10/3.14 on Linux and 3.14 on macOS, plus the base environment, builds both
+distributions and imports the installed wheel outside the checkout.
+
+Fixed Chinese, long rich-table and Yuanxi reports have reviewed page images under
+`tests/fixtures/quality/`. Full checks compare all pages at 72 dpi, tolerating at
+most 0.1% of color channels changing by more than 24/255. Set
+`SMART_REPORT_QA_DIR=/absolute/output/path` to retain PDFs and actual PNGs for review.
+CI uploads them as artifacts. Baselines must be reviewed visually before replacement;
+do not regenerate them just to make a failing check pass.
+
 ## Text Badges
 
 `Rect` can render plain centered text directly, which is useful for labels, pills, and status badges without layering a separate `Canvas`, `Rect`, and `Text`.
@@ -152,7 +201,7 @@ Use `.contain()` when the image must stay fully visible inside a deliberately si
 For soft Gaussian shadows install the optional rasterizer:
 
 ```bash
-pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.11/smart_report-2.13.11-py3-none-any.whl"
+pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.12/smart_report-2.13.12-py3-none-any.whl"
 ```
 
 ```python
@@ -306,40 +355,27 @@ Use this checklist before publishing a package release or tagging a documentatio
 2. Run validation:
 
 ```bash
-.venv/bin/python -m unittest tests.test_table_v2
-.venv/bin/python -m unittest tests.test_document_structure
-npx --yes pyright
+uv sync --locked --extra gaussian
+uv run --no-sync python scripts/run_tests.py full
+uv run --no-sync pyright
 ```
 
-3. Ensure local build tooling is available in the project virtual environment:
+3. Build the wheel and sdist using the declared development environment:
 
 ```bash
-.venv/bin/python -m build --version
-.venv/bin/python -m pip show build wheel setuptools
+uv run --no-sync python -m build
 ```
 
-If tooling is missing, install it into `.venv` only:
+4. Smoke-test the wheel, then import from outside the checkout:
 
 ```bash
-.venv/bin/python -m pip install build wheel setuptools
-```
-
-4. Build wheel and sdist locally:
-
-```bash
-.venv/bin/python -m build
-```
-
-5. Smoke-test the artifacts:
-
-```bash
-.venv/bin/python -m pip install --force-reinstall --no-deps dist/smart_report-<version>-py3-none-any.whl
+uv pip install --reinstall --no-deps dist/smart_report-<version>-py3-none-any.whl
 ```
 
 Then import from outside the repository root to confirm the installed wheel is used, not local source:
 
 ```bash
-/home/yodew/projects/smart-report/.venv/bin/python -c "import smart_report; print(smart_report.__version__, smart_report.__file__)"
+/absolute/path/to/smart-report/.venv/bin/python -c "import smart_report; print(smart_report.__version__, smart_report.__file__)"
 ```
 
 6. Inspect the sdist when README links to documentation or examples. The sdist should include `CHANGELOG.md`, `docs/`, and the example scripts/resources declared in `MANIFEST.in`.
