@@ -1,6 +1,13 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.13.13`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.14`.
+
+## 2.13.14
+
+- Extended opt-in layout diagnostics to warn when flow boxes exceed the padded page body while remaining inside the physical page. Absolute regions and their descendants retain physical-page-only checks; body warnings expose `body_bounds`.
+- Added final-PDF boundary regressions for atomic images, rowspan groups and complex rich cells, covering fresh-page movement, oversized body/page overflow, preserved image dimensions and content, and absolute-region exclusions.
+- Added isolated-process benchmarks for long tables, Chinese reports and Gaussian shadows, recording raw repeated timings, native peak RSS, page counts, PDF bytes, dependency versions and workload fingerprints. Included initial scale-1/scale-2 baselines and reproduction instructions, without timing gates or premature optimizations.
+- Documented explicit atomic-content policies and remedies in English and Chinese. Normal rendering, pagination rules and image fitting behavior are unchanged.
 
 ## 2.13.13
 

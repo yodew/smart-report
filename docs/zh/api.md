@@ -80,7 +80,15 @@ pdf_bytes = doc.save_to_bytes(debug_layout=True)
 
 调试副本在正常内容上方绘制蓝色节点边框、绿色内容框（包括页面正文可用区）、橙色矩形裁剪区，以及节点名称和物理页码。建议用 `.name("summary-card")` 命名关键节点，运行 `examples/layout_debug.py` 查看示例。诊断不会改变排版尺寸或分页。
 
-节点布局框超出物理页面时会发出 `LayoutOverflowWarning`（可从 `smart_report` 导入），包含节点名称、页码、坐标和尺寸，以及缩小节点或允许拆分的建议。检查对象是布局框，不是实际字形墨迹；有意超出的绝对定位节点也可能触发。橙色框展示矩形裁剪栈，不表示圆角遮罩或表格内部的逐单元格几何。调试标签会进入 PDF 的文本提取结果，正式交付请使用默认输出。
+节点布局框超出物理页面，或流式节点超出扣除 padding 后的正文区时，会发出 `LayoutOverflowWarning`（可从 `smart_report` 导入），包含节点名称、页码、坐标和尺寸，以及缩小节点或允许拆分的建议。正文越界时 `body_bounds` 保存正文可用区；物理页面越界时为 `None`。绝对定位区域及其后代可以使用页面 padding，只按物理页面检查。检查对象是布局框，不是实际字形墨迹。橙色框展示矩形裁剪栈，不表示圆角遮罩或表格内部的逐单元格几何。调试标签会进入 PDF 的文本提取结果，正式交付请使用默认输出。
+
+### 分页边界与性能基线
+
+图片、跨行合并组、表格中的复杂 Frame 单元格保持整体：新页正文区能容纳时整体移页；仍然放不下时保留原尺寸，可能越界，不会自动缩放或切片。超过物理页面的部分在普通 PDF 阅读器中不可见。调试模式可提示正文区或物理页面越界。图片应先把节点宽高设置为正文可容纳的尺寸，再调用 `.contain()`；合并数据应预先拆成可容纳的逻辑组；需要自动拆分的单元格可改为受支持的简单流式 Text、RichText 或 Frame。`keep_together` 不能让超高内容自动适配。
+
+`examples/pagination_boundaries.py` 提供固定边界样本，`tests/test_pagination_boundaries.py` 从最终 PDF 检查页数、图片尺寸、文字完整性和警告。设置 `SMART_REPORT_QA_DIR` 可保留样本 PDF。
+
+在完整开发环境中运行 `uv run --no-sync python scripts/benchmark_reports.py /tmp/smart-report-bench 1 3`，分别测量长表格、中文长报告和高斯阴影。末尾两个参数为数据量倍数和重复次数。每次运行使用独立进程，记录耗时、含原生分配的峰值 RSS、PDF 大小和页数，并保留原始样本与环境信息。当前支持 macOS/Linux，性能数值不作为 CI 门槛。[测量方法与初始结果](../benchmarks/README.md)说明了可比条件及测量范围。
 
 ### `doc.metadata(...)`
 
@@ -436,7 +444,7 @@ frame.add_text("过长的指标名称需要适配固定区域，并在固定高�
 先安装可选依赖：
 
 ```bash
-pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.13/smart_report-2.13.13-py3-none-any.whl"
+pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.14/smart_report-2.13.14-py3-none-any.whl"
 ```
 
 ```python

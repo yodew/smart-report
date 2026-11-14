@@ -76,7 +76,10 @@ regions, and node names with physical page numbers after normal painting. Add
 [`examples/layout_debug.py`](examples/layout_debug.py).
 
 Debug rendering does not change layout or pagination. Nodes outside the physical
-page emit `LayoutOverflowWarning` with their name, page and bounds; this checks
+page, or flow nodes outside its padded body, emit `LayoutOverflowWarning` with
+their name, page and bounds; `body_bounds` identifies the body limit for the latter.
+Absolute regions and their descendants may use page padding and are checked only
+against the physical page. This checks
 layout boxes, not visible glyph ink. Intentional absolute overflow can also warn.
 Clip outlines show the layout engine's rectangular clip stack, not rounded masks
 or per-cell geometry. Debug labels are diagnostic text and are included in PDF
@@ -128,6 +131,33 @@ most 0.1% of color channels changing by more than 24/255. Set
 `SMART_REPORT_QA_DIR=/absolute/output/path` to retain PDFs and actual PNGs for review.
 CI uploads them as artifacts. Baselines must be reviewed visually before replacement;
 do not regenerate them just to make a failing check pass.
+
+## Pagination Boundaries and Performance
+
+Images, merged row groups and complex rich table-cell frames remain atomic. When
+they fit a fresh body they move as a whole; when taller than a fresh body they keep
+their size, can overflow, and are neither sliced nor scaled automatically. Parts
+outside the physical page are invisible in ordinary PDF viewers. Debug mode warns
+about body overflow even if it remains inside the physical page. Reduce the
+image node's box to fit the body and use `.contain()`, split merged data into
+logical groups before building the table, or use supported simple flow cells for
+splittable content. `keep_together` cannot make an oversized box fit.
+
+`examples/pagination_boundaries.py` and `tests/test_pagination_boundaries.py` exercise
+fresh-page movement, body overflow, physical-page overflow and absolute regions.
+Set `SMART_REPORT_QA_DIR` while running the tests to retain their PDFs.
+
+```bash
+uv sync --locked --extra gaussian
+uv run --no-sync python scripts/benchmark_reports.py /tmp/smart-report-bench 1 3
+```
+
+Arguments are output directory, positive item-count scale (default 1) and repeats
+(default 3). Each sample uses a fresh subprocess. The JSON report records raw runs,
+wall time, native peak RSS, page counts, PDF bytes, environment and workload hash;
+the PDFs are retained beside it. This developer tool supports macOS/Linux and
+requires the project development environment. Performance is not a CI threshold.
+See [methodology and recorded baselines](docs/benchmarks/README.md).
 
 ## Text Badges
 
@@ -215,7 +245,7 @@ Use `.contain()` when the image must stay fully visible inside a deliberately si
 For soft Gaussian shadows install the optional rasterizer:
 
 ```bash
-pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.13/smart_report-2.13.13-py3-none-any.whl"
+pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.14/smart_report-2.13.14-py3-none-any.whl"
 ```
 
 ```python

@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "environment": {
+    "python": "3.14.6",
+    "platform": "macOS-27.2.1-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu_count": 8,
+    "packages": [
+      [
+        "smart-report",
+        "2.13.14"
+      ],
+      [
+        "reportlab",
+        "4.5.0"
+      ],
+      [
+        "pillow",
+        "12.2.0"
+      ],
+      [
+        "pypdfium2",
+        "5.14.0"
+      ],
+      [
+        "fonttools",
+        "4.62.1"
+      ],
+      [
+        "uharfbuzz",
+        "0.54.1"
+      ]
+    ],
+    "workload_sha256": "1dfb897da96103c0607bc469cc294e9ce5365a35d725e8c07d743d00a36bae85"
+  },
+  "results": [
+    {
+      "case": "table",
+      "scale": 1,
+      "median_seconds": 0.310701833004714,
+      "min_seconds": 0.3102394170127809,
+      "max_seconds": 0.313230540996301,
+      "max_peak_rss_mib": 50.53125,
+      "samples": [
+        {
+          "seconds": 0.310701833004714,
+          "peak_rss_mib": 50.34375,
+          "pdf_bytes": 57453,
+          "pages": 20
+        },
+        {
+          "seconds": 0.313230540996301,
+          "peak_rss_mib": 50.53125,
+          "pdf_bytes": 57453,
+          "pages": 20
+        },
+        {
+          "seconds": 0.3102394170127809,
+          "peak_rss_mib": 50.390625,
+          "pdf_bytes": 57453,
+          "pages": 20
+        }
+      ]
+    },
+    {
+      "case": "chinese",
+      "scale": 1,
+      "median_seconds": 0.4788552910031285,
+      "min_seconds": 0.46654799999669194,
+      "max_seconds": 0.4791585000057239,
+      "max_peak_rss_mib": 136.5,
+      "samples": [
+        {
+          "seconds": 0.4788552910031285,
+          "peak_rss_mib": 136.46875,
+          "pdf_bytes": 26353,
+          "pages": 11
+        },
+        {
+          "seconds": 0.4791585000057239,
+          "peak_rss_mib": 136.5,
+          "pdf_bytes": 26353,
+          "pages": 11
+        },
+        {
+          "seconds": 0.46654799999669194,
+          "peak_rss_mib": 136.40625,
+          "pdf_bytes": 26353,
+          "pages": 11
+        }
+      ]
+    },
+    {
+      "case": "shadows",
+      "scale": 1,
+      "median_seconds": 1.1138345829967875,
+      "min_seconds": 1.1001670829864452,
+      "max_seconds": 1.1316807919938583,
+      "max_peak_rss_mib": 68.640625,
+      "samples": [
+        {
+          "seconds": 1.1316807919938583,
+          "peak_rss_mib": 68.453125,
+          "pdf_bytes": 1937800,
+          "pages": 8
+        },
+        {
+          "seconds": 1.1001670829864452,
+          "peak_rss_mib": 68.640625,
+          "pdf_bytes": 1937800,
+          "pages": 8
+        },
+        {
+          "seconds": 1.1138345829967875,
+          "peak_rss_mib": 68.640625,
+          "pdf_bytes": 1937800,
+          "pages": 8
+        }
+      ]
+    }
+  ]
+}
