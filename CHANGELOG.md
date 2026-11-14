@@ -1,6 +1,12 @@
 # Changelog
 
-All notable changes to smart-report are summarized here. The latest released package version is `2.13.12`.
+All notable changes to smart-report are summarized here. The latest released package version is `2.13.13`.
+
+## 2.13.13
+
+- Added PDF-level text geometry regressions comparing embedded font advances and text matrices against alignment, indentation and link annotation bounds, without new raster baselines.
+- Covered Latin/CJK text with positive/negative spacing, fallback font switches, auto-shaped Arabic, and paginated rich spans with mixed sizes and spacing. `advanced` OpenType glyph placement remains outside this suite.
+- Reused `SMART_REPORT_QA_DIR` and existing CI artifact uploads to retain sample PDFs; documented the focused check in English and Chinese. Runtime rendering behavior is unchanged.
 
 ## 2.13.12
 

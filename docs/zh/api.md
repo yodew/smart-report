@@ -69,6 +69,8 @@ assert pdf_bytes[:5] == b"%PDF-"
 
 ### 布局调试
 
+文字几何回归样本位于 `tests/test_text_geometry.py`，直接读取 PDF 的文字矩阵、字距和内嵌字体宽度，独立核对文字步进与链接矩形的边界。覆盖普通中英文混排、缩进与对齐、字体回退、`auto` 阿拉伯文，以及混合字号和字距的跨页富文本。它不测量字形墨迹边界，也不保证 `advanced` 模式的 OpenType 连字或字偶距定位。设置 `SMART_REPORT_QA_DIR` 后运行该测试，可保留各个样本的 PDF；现有 CI 会自动上传这些产物，无需增加图像基线。
+
 `DocumentBuilder` 和构建后的 `Document` 都支持 `debug_layout=True`：
 
 ```python
@@ -434,7 +436,7 @@ frame.add_text("过长的指标名称需要适配固定区域，并在固定高�
 先安装可选依赖：
 
 ```bash
-pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.12/smart_report-2.13.12-py3-none-any.whl"
+pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.13/smart_report-2.13.13-py3-none-any.whl"
 ```
 
 ```python

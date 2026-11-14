@@ -88,6 +88,19 @@ reserves body space. Continuation pages deduct top and bottom page padding too.
 
 ## Development Checks
 
+`tests/test_text_geometry.py` reads emitted text matrices, character spacing and
+embedded font widths independently of the layout engine. It checks mixed Latin/CJK
+alignment and indentation, font fallback, auto-shaped Arabic, and linked rich-text
+continuations with mixed sizes and spacing. These checks compare PDF text advances
+and annotation edges, not glyph ink bounds. They cover `plain` and `auto` typography;
+OpenType ligature/kerning placement in `advanced` mode remains outside this suite.
+
+To run just these samples and retain their PDFs for inspection:
+
+```bash
+SMART_REPORT_QA_DIR=/tmp/text-geometry uv run --no-sync python -m unittest discover -s tests -p test_text_geometry.py
+```
+
 `uv sync --locked` installs the development tools and PDF reader. For the complete
 suite, including Gaussian shadows and raster regressions:
 
@@ -202,7 +215,7 @@ Use `.contain()` when the image must stay fully visible inside a deliberately si
 For soft Gaussian shadows install the optional rasterizer:
 
 ```bash
-pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.12/smart_report-2.13.12-py3-none-any.whl"
+pip install "smart-report[gaussian] @ https://github.com/yodew/smart-report/releases/download/v2.13.13/smart_report-2.13.13-py3-none-any.whl"
 ```
 
 ```python
